@@ -266,7 +266,7 @@
                         <button class="period-btn" data-interval="60m" data-range="3mo" onclick="changePeriod(this)">60分K</button>
                         <button class="period-btn" data-interval="1d" data-range="6mo" onclick="changePeriod(this)">日K</button>
                     </div>
-                    <span id="chart-status" class="text-[10px] text-gray-600">—</span>
+                    <span id="chart-status" class="text-[10px] text-gray-600">提示: 可用 [+] [-] 鍵縮放圖表</span>
                 </div>
                 <div id="chart-container" class="w-full h-full min-h-[330px]"></div>
                 <div id="empty-state" class="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -353,10 +353,8 @@
                 const res = await fetch(`${WORKER_URL}/?source=forex`, { cache: 'no-store' });
                 const data = await res.json().catch(() => null);
                 if (!res.ok || !data) throw new Error(data?.error || `FOREX_HTTP_${res.status}`);
-
                 const rate = Number(data.rate ?? data.rates?.TWD);
                 if (!Number.isFinite(rate) || rate <= 0) throw new Error('FOREX_NO_RATE');
-
                 return {
                     rate,
                     change: Number(data.change) || 0,
@@ -373,12 +371,7 @@
             try {
                 const res = await fetch(`${WORKER_URL}/?source=crypto`, { cache: 'no-store' });
                 const data = await res.json().catch(() => null);
-                if (!res.ok || !data || data.error) {
-                    throw new Error(data?.error || `CRYPTO_HTTP_${res.status}`);
-                }
-                if (!data.BTC && !data.ETH && !data.SOL && !data.XRP && !data.ADA) {
-                    throw new Error('CRYPTO_NO_DATA');
-                }
+                if (!res.ok || !data || data.error) throw new Error(data?.error || `CRYPTO_HTTP_${res.status}`);
                 return data;
             } catch (error) {
                 console.error('fetchCryptoData:', error);
@@ -536,12 +529,11 @@
             const link = document.getElementById('company-web-link');
             if (link && p.weburl) {
                 link.href = p.weburl;
-                link.classList.remove('hidden');
+                link.classList.add('hidden');
             }
             setMetric('profile-note', `公司：${p.name || displaySymbol(symbol)} · 交易所：${p.exchange || '—'}`);
         }
 
-        // 渲染台股專屬官方數據（結合 Yahoo 補充市值、52週高低與 EPS 自動計算）
         function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
             resetFundamentals();
             document.getElementById('fundamentals-subtitle').textContent = `台灣證交所/櫃買中心 · ${twseData.source}`;
@@ -551,14 +543,13 @@
 
             setMetric('metric-pe', twseData.pe !== '0' && twseData.pe ? twseData.pe : '—');
             
-            // 交叉計算：若有即時價格與本益比，直接算出約略 EPS (股價 / 本益比)
             if (Number.isFinite(priceVal) && Number.isFinite(peVal) && peVal > 0) {
                 const estimatedEps = priceVal / peVal;
                 setMetric('metric-eps', estimatedEps.toFixed(2));
             }
 
             setMetric('metric-dividend', twseData.dividendYield || '—');
-            setMetric('metric-shares', twseData.pb || '—'); // 股價淨值比 PB
+            setMetric('metric-shares', twseData.pb || '—');
 
             const meta = quoteResult?.meta || {};
             const quotes = quoteResult?.indicators?.quote?.[0] || {};
@@ -597,8 +588,8 @@
 
         const DEFAULT_STOCKS = [
             { symbol: 'AMD', name: '超微', color: 'orange' },
-            { symbol: 'META', name: 'Meta', color: 'blue' },
-            { symbol: 'NVDA', name: '輝達', color: 'green' },
+            { symbol: 'USDTWD', name: '美元/台幣匯率', color: 'blue' },
+            { symbol: 'BTC', name: '比特幣', color: 'yellow' },
             { symbol: '2330.TW', name: '台積電', color: 'cyan' }
         ];
 
@@ -614,6 +605,8 @@
         let watchlist = JSON.parse(localStorage.getItem('stockWatchlist')) || [...DEFAULT_STOCKS];
         let quoteCache = JSON.parse(localStorage.getItem('stockQuoteCache') || '{}');
         let sortMode = localStorage.getItem('stockSortMode') || 'manual';
+        // 讀取上次最後瀏覽的標的，若無則預設第一支
+        let currentSymbol = localStorage.getItem('stockCurrentSymbol') || (watchlist.length > 0 ? watchlist[0].symbol : null);
 
         let currentPeriod = { interval: '5m', range: '5d', label: '5分K' };
 
@@ -633,6 +626,9 @@
             localStorage.setItem('stockWatchlist', JSON.stringify(watchlist));
             localStorage.setItem('stockSortMode', sortMode);
             localStorage.setItem('stockQuoteCache', JSON.stringify(quoteCache));
+            if (currentSymbol) {
+                localStorage.setItem('stockCurrentSymbol', currentSymbol);
+            }
         }
 
         function changeSort(value) {
@@ -688,7 +684,7 @@
                 const quote = quoteCache[stock.symbol];
                 const btn = document.createElement('button');
                 
-                btn.className = `stock-btn w-full text-left px-3 py-2.5 rounded-xl text-gray-400 flex items-center gap-2 group`;
+                btn.className = `stock-btn w-full text-left px-3 py-2.5 rounded-xl text-gray-400 flex items-center gap-2 group ${currentSymbol === stock.symbol ? 'bg-white/10 text-white' : ''}`;
                 btn.dataset.symbol = stock.symbol;
                 btn.onclick = () => loadStock(stock.symbol);
                 
@@ -696,7 +692,7 @@
                 const changeText = quote?.changePercent ? `<span class="text-[10px] ${Number(quote.changePercent) >= 0 ? 'price-up' : 'price-down'}">${Number(quote.changePercent) >= 0 ? '+' : ''}${Number(quote.changePercent).toFixed(2)}%</span>` : '';
                 
                 btn.innerHTML = `
-                    <span class="drag-handle text-lg px-2 py-1 ${sortMode === 'manual' ? 'cursor-grab hover:text-white' : 'opacity-30'}" title="${sortMode === 'manual' ? '拖曳排序' : '切換到自訂順序後可拖曳'}">⋮</span>
+                    <span class="drag-handle text-lg px-2 py-1 ${sortMode === 'manual' ? 'cursor-grab hover:text-white' : 'opacity-30'}" title="拖曳排序">⋮</span>
                     <span class="w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center text-[10px] font-bold shrink-0">${displaySymbol(stock.symbol).slice(0, 4)}</span>
                     <div class="flex-1 min-w-0">
                         <div class="font-medium text-sm truncate">${stock.name || displaySymbol(stock.symbol)}</div>
@@ -772,14 +768,19 @@
             saveWatchlist();
             renderWatchlist();
             if (currentSymbol === removed.symbol) {
-                currentSymbol = null;
+                currentSymbol = watchlist.length > 0 ? watchlist[0].symbol : null;
+                saveWatchlist();
                 stopAutoRefresh();
-                document.getElementById('stock-symbol-title').textContent = '—';
-                document.getElementById('stock-name').textContent = '選擇或新增股票以查看詳情';
-                ['current-price','price-change','open-price','high-price','low-price','previous-close','volume','last-update'].forEach(id => document.getElementById(id).textContent = '—');
-                document.getElementById('empty-state').style.display = 'flex';
-                candlestickSeries.setData([]);
-                clearCompanyInfo();
+                if (currentSymbol) {
+                    loadStock(currentSymbol);
+                } else {
+                    document.getElementById('stock-symbol-title').textContent = '—';
+                    document.getElementById('stock-name').textContent = '選擇或新增股票以查看詳情';
+                    ['current-price','price-change','open-price','high-price','low-price','previous-close','volume','last-update'].forEach(id => document.getElementById(id).textContent = '—');
+                    document.getElementById('empty-state').style.display = 'flex';
+                    candlestickSeries.setData([]);
+                    clearCompanyInfo();
+                }
             }
         }
 
@@ -863,7 +864,6 @@
             return chartData;
         }
 
-        let currentSymbol = null;
         let autoRefreshTimer = null; 
 
         function marketStateText(state) {
@@ -927,6 +927,7 @@
 
         async function loadStock(symbol, isSilent = false) {
             currentSymbol = symbol;
+            saveWatchlist();
             
             if (!isSilent) {
                 document.querySelectorAll('.stock-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.symbol === symbol));
@@ -955,7 +956,6 @@
                 if (isForexSymbol(symbol)) {
                     const forex = await fetchForexData();
                     if (!forex) throw new Error('FOREX_NO_DATA');
-
                     const rate = Number(forex.rate);
                     const change = Number(forex.change || 0);
                     const changePercent = Number(forex.changePercent || 0);
@@ -966,73 +966,42 @@
                         changePercent: changePercent.toFixed(2),
                         isUp: change > 0,
                         isFlat: change === 0,
-                        open: '—',
-                        high: '—',
-                        low: '—',
+                        open: '—', high: '—', low: '—',
                         previousClose: change !== 0 ? (rate - change).toFixed(4) : '—',
                         volume: '—'
                     };
-
                     setCompanyField('company-long-name', '美元/台幣 (USD/TWD)');
                     setCompanyField('company-exchange', `外匯市場 (${forex.source})`);
                     setCompanyField('company-market', 'Forex');
                     setCompanyField('company-currency', 'TWD');
-                    setCompanyField('company-type', '外匯');
-                    setCompanyField('company-market-state', '最新工作日匯率');
-                    setCompanyField('company-symbol', 'USD/TWD');
-                    setCompanyField('company-price', quote.latestPrice);
                 } 
-                // 2. 加密貨幣 (BTC, ETH, SOL, XRP, ADA)
+                // 2. 加密貨幣 (BTC, ETH, SOL)
                 else if (isCryptoSymbol(symbol)) {
                     const cryptoJson = await fetchCryptoData();
                     const crypto = cryptoJson?.[symbol.toUpperCase()];
                     const priceUSD = Number(crypto?.usd);
-                    // 同時支援舊欄位 change24h 與新欄位 usd_24h_change
                     const changePercent = Number(crypto?.usd_24h_change ?? crypto?.change24h ?? 0);
 
-                    if (!Number.isFinite(priceUSD) || priceUSD <= 0) {
-                        throw new Error('CRYPTO_NO_PRICE');
-                    }
+                    if (!Number.isFinite(priceUSD) || priceUSD <= 0) throw new Error('CRYPTO_NO_PRICE');
 
-                    const previousClose = changePercent !== -100
-                        ? priceUSD / (1 + changePercent / 100)
-                        : null;
+                    const previousClose = changePercent !== -100 ? priceUSD / (1 + changePercent / 100) : null;
                     const change = Number.isFinite(previousClose) ? priceUSD - previousClose : 0;
 
                     quote = {
-                        latestPrice: priceUSD.toLocaleString('en-US', {
-                            minimumFractionDigits: priceUSD >= 1 ? 2 : 6,
-                            maximumFractionDigits: priceUSD >= 1 ? 2 : 8
-                        }),
+                        latestPrice: priceUSD.toLocaleString('en-US', { minimumFractionDigits: priceUSD >= 1 ? 2 : 6, maximumFractionDigits: priceUSD >= 1 ? 2 : 8 }),
                         change: change.toFixed(priceUSD >= 1 ? 2 : 6),
                         changePercent: changePercent.toFixed(2),
                         isUp: changePercent > 0,
                         isFlat: changePercent === 0,
-                        open: '—',
-                        high: '—',
-                        low: '—',
-                        previousClose: Number.isFinite(previousClose)
-                            ? previousClose.toLocaleString('en-US', { maximumFractionDigits: 8 })
-                            : '—',
-                        volume: crypto?.usd_24h_vol
-                            ? Number(crypto.usd_24h_vol).toLocaleString('en-US', { maximumFractionDigits: 0 })
-                            : '—'
+                        open: '—', high: '—', low: '—',
+                        previousClose: Number.isFinite(previousClose) ? previousClose.toLocaleString('en-US', { maximumFractionDigits: 8 }) : '—',
+                        volume: crypto?.usd_24h_vol ? Number(crypto.usd_24h_vol).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'
                     };
 
-                    setCompanyField('company-long-name', {
-                        BTC: '比特幣',
-                        ETH: '以太幣',
-                        SOL: 'Solana',
-                        XRP: 'XRP',
-                        ADA: 'Cardano'
-                    }[symbol.toUpperCase()] || symbol.toUpperCase());
-                    setCompanyField('company-exchange', `加密貨幣 (${crypto.source || 'CoinGecko'})`);
+                    setCompanyField('company-long-name', { BTC: '比特幣', ETH: '以太幣', SOL: 'Solana', XRP: 'XRP', ADA: 'Cardano' }[symbol.toUpperCase()] || symbol.toUpperCase());
+                    setCompanyField('company-exchange', `加密貨幣 (${crypto?.source || 'CoinGecko'})`);
                     setCompanyField('company-market', 'Crypto');
                     setCompanyField('company-currency', 'USD');
-                    setCompanyField('company-type', '加密貨幣');
-                    setCompanyField('company-market-state', '24 小時市場');
-                    setCompanyField('company-symbol', symbol.toUpperCase());
-                    setCompanyField('company-price', quote.latestPrice);
                 } 
                 // 3. 一般台美股
                 else {
@@ -1041,7 +1010,6 @@
                     
                     let yahooResult = null;
                     try { 
-                        // 即使是 silent 也重新抓當前週期的 K 線，確保圖表即時更新
                         yahooResult = await fetchYahooData(symbol); 
                         if (!quote && yahooResult) quote = parseQuote(yahooResult);
                         if (yahooResult) chartData = parseCandles(yahooResult);
@@ -1097,7 +1065,6 @@
                 document.getElementById('stock-symbol-title').textContent = stockItem?.name || displaySymbol(symbol);
                 document.getElementById('stock-name').textContent = displaySymbol(symbol);
 
-                // 圖表資料更新（無論 silent 與否都更新）
                 if (chartData.length > 0) {
                     candlestickSeries.setData(chartData);
                     if (!isSilent) chart.timeScale().fitContent();
@@ -1115,28 +1082,7 @@
                 console.error(error);
                 if (!isSilent) {
                     document.getElementById('chart-status').textContent = '資料取得失敗';
-                    if (error.message === 'NO_QUOTE_DATA') {
-                        document.getElementById('stock-name').textContent = '找不到報價資料，請確認代碼';
-                        document.getElementById('price-change').textContent = '報價失敗';
-                    } else if (error.message === 'NO_PREVIOUS_CLOSE') {
-                        document.getElementById('stock-name').textContent = '找不到昨收資料，無法正確計算漲幅';
-                        document.getElementById('price-change').textContent = '漲幅無法計算';
-                    } else if (error.message === 'NO_CANDLE_DATA') {
-                        document.getElementById('stock-name').textContent = '目前週期沒有 K 線資料';
-                        document.getElementById('price-change').textContent = 'K線失敗';
-                    } else if (error.message === 'YAHOO_FAILED') {
-                        document.getElementById('stock-name').textContent = '資料代理 Worker 連線失敗';
-                        document.getElementById('price-change').textContent = 'Worker 失敗';
-                    } else if (error.message === 'FOREX_NO_DATA') {
-                        document.getElementById('stock-name').textContent = 'USD/TWD 匯率來源暫時無法取得';
-                        document.getElementById('price-change').textContent = '匯率失敗';
-                    } else if (error.message === 'CRYPTO_NO_DATA' || error.message === 'CRYPTO_NO_PRICE') {
-                        document.getElementById('stock-name').textContent = `${displaySymbol(symbol)} 加密貨幣資料暫時無法取得`;
-                        document.getElementById('price-change').textContent = '加密貨幣失敗';
-                    } else {
-                        document.getElementById('stock-name').textContent = `找不到 ${displaySymbol(symbol)} 的資料`;
-                        document.getElementById('price-change').textContent = '載入失敗';
-                    }
+                    document.getElementById('stock-name').textContent = '找不到報價資料，請確認代碼';
                 }
             } finally {
                 if (!isSilent) {
@@ -1204,6 +1150,39 @@
             upColor: '#ef4444', downColor: '#10b981', borderVisible: false, wickUpColor: '#ef4444', wickDownColor: '#10b981'
         });
 
+        // 新增：監聽 [+] 與 [-] 鍵來縮放圖表時間軸
+        window.addEventListener('keydown', (e) => {
+            // 避免在輸入框打字時短路
+            if (document.activeElement.tagName === 'INPUT') return;
+            
+            const timeScale = chart.timeScale();
+            const visibleRange = timeScale.getVisibleLogicalRange();
+            if (!visibleRange) return;
+
+            const span = visibleRange.to - visibleRange.from;
+            const zoomFactor = 0.2; // 每次縮放 20%
+
+            if (e.key === '+' || e.key === '=') {
+                // 放大 (縮小視野區間)
+                const newSpan = Math.max(5, span * (1 - zoomFactor));
+                const center = (visibleRange.from + visibleRange.to) / 2;
+                timeScale.setVisibleLogicalRange({
+                    from: center - newSpan / 2,
+                    to: center + newSpan / 2
+                });
+                e.preventDefault();
+            } else if (e.key === '-' || e.key === '_') {
+                // 縮小 (擴大視野區間)
+                const newSpan = span * (1 + zoomFactor);
+                const center = (visibleRange.from + visibleRange.to) / 2;
+                timeScale.setVisibleLogicalRange({
+                    from: center - newSpan / 2,
+                    to: center + newSpan / 2
+                });
+                e.preventDefault();
+            }
+        });
+
         let currentChartWidth = chartContainer.clientWidth;
         const resizeObserver = new ResizeObserver(() => {
             const newWidth = chartContainer.clientWidth;
@@ -1237,7 +1216,12 @@
             saveWatchlist();
             renderWatchlist();
 
-            if (watchlist.length > 0) loadStock(watchlist[0].symbol);
+            // 重新整理時載入紀錄的 currentSymbol，若無則預設第一支
+            if (currentSymbol && watchlist.some(s => s.symbol === currentSymbol)) {
+                loadStock(currentSymbol);
+            } else if (watchlist.length > 0) {
+                loadStock(watchlist[0].symbol);
+            }
             startAutoRefresh();
         });
     </script>
