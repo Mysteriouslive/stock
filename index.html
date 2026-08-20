@@ -98,7 +98,6 @@
                 </button>
             </div>
 
-            <!-- 新增股票區域 -->
             <div class="flex gap-2">
                 <input 
                     id="stock-input" 
@@ -106,7 +105,7 @@
                     placeholder="輸入代碼 (例: AAPL)" 
                     class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
                     onkeydown="if(event.key==='Enter') addStock()"
-                    maxlength="10"
+                    maxlength="12"
                 >
                 <button 
                     onclick="addStock()" 
@@ -118,14 +117,12 @@
             <p class="text-[10px] text-gray-600 mt-2">支援美股代碼，例如 TSLA、GOOGL、MSFT</p>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-3 space-y-1" id="stock-list">
-            <!-- 股票清單由 JS 動態產生 -->
-        </div>
+        <div class="flex-1 overflow-y-auto p-3 space-y-1" id="stock-list"></div>
 
         <div class="p-4 border-t border-white/5 text-[11px] text-gray-500">
             <div class="flex items-center gap-2">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                資料來源 Finnhub
+                報價 Finnhub · K線 Yahoo
             </div>
         </div>
     </aside>
@@ -185,11 +182,10 @@
 
     <script>
         // ==========================================
-        // ⚠️ 請在此填入你的 Finnhub API Key
+        // ⚠️ 請在此填入你的 Finnhub API Key（只用於報價）
         // ==========================================
         const FINNHUB_API_KEY = 'da3fmchr01qual4pud1gda3fmchr01qual4pud20';
 
-        // 預設股票 + 顏色對應
         const DEFAULT_STOCKS = [
             { symbol: 'AMD', name: '超微', color: 'orange' },
             { symbol: 'META', name: 'Meta', color: 'blue' },
@@ -209,10 +205,8 @@
             indigo: 'bg-indigo-500/20 text-indigo-400',
             teal: 'bg-teal-500/20 text-teal-400'
         };
-
         const COLOR_KEYS = Object.keys(COLOR_MAP);
 
-        // 從 localStorage 讀取自選股，沒有則使用預設
         let watchlist = JSON.parse(localStorage.getItem('stockWatchlist')) || [...DEFAULT_STOCKS];
 
         // 初始化圖表
@@ -262,12 +256,10 @@
             document.getElementById('overlay').classList.toggle('show');
         }
 
-        // 儲存清單到 localStorage
         function saveWatchlist() {
             localStorage.setItem('stockWatchlist', JSON.stringify(watchlist));
         }
 
-        // 渲染股票清單
         function renderWatchlist() {
             const listEl = document.getElementById('stock-list');
             listEl.innerHTML = '';
@@ -306,7 +298,6 @@
             });
         }
 
-        // 新增股票
         function addStock() {
             const input = document.getElementById('stock-input');
             let symbol = input.value.trim().toUpperCase();
@@ -316,37 +307,25 @@
                 return;
             }
 
-            // 簡單驗證：只允許英文字母與數字
             if (!/^[A-Z0-9.\-]+$/.test(symbol)) {
-                alert('請輸入有效的股票代碼（僅限英文字母、數字）');
+                alert('請輸入有效的股票代碼');
                 return;
             }
 
-            // 檢查是否已存在
             if (watchlist.some(s => s.symbol === symbol)) {
                 alert(`${symbol} 已經在清單中了`);
                 input.value = '';
                 return;
             }
 
-            // 隨機分配顏色
             const color = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
-
-            watchlist.push({
-                symbol: symbol,
-                name: symbol,   // 之後載入時可再更新名稱
-                color: color
-            });
-
+            watchlist.push({ symbol, name: symbol, color });
             saveWatchlist();
             renderWatchlist();
             input.value = '';
-            
-            // 自動載入剛新增的股票
             loadStock(symbol);
         }
 
-        // 移除股票
         function removeStock(index) {
             const removed = watchlist[index];
             if (!confirm(`確定要移除 ${removed.symbol} 嗎？`)) return;
@@ -355,7 +334,6 @@
             saveWatchlist();
             renderWatchlist();
 
-            // 如果移除的是目前顯示的股票，清空畫面
             if (currentSymbol === removed.symbol) {
                 currentSymbol = null;
                 document.getElementById('stock-symbol-title').textContent = '—';
@@ -368,52 +346,52 @@
             }
         }
 
-        async function fetchFinnhubData(symbol) {
+        // ========== 資料來源 ==========
+        // 1. Finnhub 拿即時報價
+        async function fetchQuote(symbol) {
             if (!FINNHUB_API_KEY || FINNHUB_API_KEY.trim() === '') {
                 throw new Error('MISSING_API_KEY');
             }
-
-            const to = Math.floor(Date.now() / 1000);
-            const from = to - (180 * 24 * 60 * 60);
-
-            const [quoteRes, candleRes] = await Promise.all([
-                fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`),
-                fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${symbol}&resolution=D&from=${from}&to=${to}&token=${FINNHUB_API_KEY}`)
-            ]);
-
-            if (!quoteRes.ok || !candleRes.ok) {
-                throw new Error('API_REQUEST_FAILED');
-            }
-
-            const quoteData = await quoteRes.json();
-            const candleData = await candleRes.json();
-
-            if (quoteData.c === 0 || quoteData.c === null) {
-                throw new Error('NO_QUOTE_DATA');
-            }
-
-            const summaryData = {
-                symbol,
-                latestPrice: quoteData.c.toFixed(2),
-                change: quoteData.d !== null ? quoteData.d.toFixed(2) : '0.00',
-                changePercent: quoteData.dp !== null ? quoteData.dp.toFixed(2) + '%' : '0.00%',
-                isUp: (quoteData.d ?? 0) >= 0
+            const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`);
+            if (!res.ok) throw new Error('QUOTE_FAILED');
+            const data = await res.json();
+            if (data.c === 0 || data.c === null) throw new Error('NO_QUOTE_DATA');
+            return {
+                latestPrice: data.c.toFixed(2),
+                change: data.d !== null ? data.d.toFixed(2) : '0.00',
+                changePercent: data.dp !== null ? data.dp.toFixed(2) + '%' : '0.00%',
+                isUp: (data.d ?? 0) >= 0
             };
+        }
+
+        // 2. Yahoo Finance 拿日K線（免費、不需Key）
+        async function fetchCandles(symbol) {
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=6mo`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('CANDLE_FAILED');
+            const json = await res.json();
+
+            const result = json.chart?.result?.[0];
+            if (!result || !result.timestamp) throw new Error('NO_CANDLE_DATA');
+
+            const quotes = result.indicators.quote[0];
+            const timestamps = result.timestamp;
 
             const chartData = [];
-            if (candleData.s === 'ok' && candleData.t?.length) {
-                for (let i = 0; i < candleData.t.length; i++) {
-                    chartData.push({
-                        time: new Date(candleData.t[i] * 1000).toISOString().split('T')[0],
-                        open: candleData.o[i],
-                        high: candleData.h[i],
-                        low: candleData.l[i],
-                        close: candleData.c[i]
-                    });
-                }
-            }
+            for (let i = 0; i < timestamps.length; i++) {
+                // 過濾無效資料
+                if (quotes.open[i] == null || quotes.high[i] == null || 
+                    quotes.low[i] == null || quotes.close[i] == null) continue;
 
-            return { summaryData, chartData };
+                chartData.push({
+                    time: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
+                    open: quotes.open[i],
+                    high: quotes.high[i],
+                    low: quotes.low[i],
+                    close: quotes.close[i]
+                });
+            }
+            return chartData;
         }
 
         let currentSymbol = null;
@@ -421,7 +399,6 @@
         async function loadStock(symbol) {
             currentSymbol = symbol;
 
-            // 更新按鈕選中狀態
             document.querySelectorAll('.stock-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.symbol === symbol);
             });
@@ -436,15 +413,19 @@
             document.getElementById('current-price').className = 'text-4xl md:text-5xl font-extrabold text-white tracking-tight';
 
             try {
-                const { summaryData, chartData } = await fetchFinnhubData(symbol);
+                // 同時請求報價 + K線
+                const [quote, chartData] = await Promise.all([
+                    fetchQuote(symbol).catch(err => { throw err; }),
+                    fetchCandles(symbol)
+                ]);
 
-                document.getElementById('current-price').textContent = summaryData.latestPrice;
-                
+                // 更新價格
+                document.getElementById('current-price').textContent = quote.latestPrice;
                 const changeEl = document.getElementById('price-change');
-                const sign = summaryData.isUp ? '+' : '';
-                changeEl.textContent = `${sign}${summaryData.change} (${sign}${summaryData.changePercent})`;
+                const sign = quote.isUp ? '+' : '';
+                changeEl.textContent = `${sign}${quote.change} (${sign}${quote.changePercent})`;
                 
-                if (summaryData.isUp) {
+                if (quote.isUp) {
                     changeEl.classList.add('price-up');
                     document.getElementById('current-price').classList.add('price-up');
                 } else {
@@ -452,13 +433,10 @@
                     document.getElementById('current-price').classList.add('price-down');
                 }
 
-                // 更新清單中的顯示名稱（如果是新加的）
                 const stockItem = watchlist.find(s => s.symbol === symbol);
-                if (stockItem && stockItem.name === symbol) {
-                    // 可選擇之後再接公司名稱 API，目前先維持代碼
-                }
                 document.getElementById('stock-name').textContent = stockItem?.name || symbol;
 
+                // 更新K線
                 if (chartData.length > 0) {
                     candlestickSeries.setData(chartData);
                     chart.timeScale().fitContent();
@@ -473,18 +451,18 @@
                 
                 if (error.message === 'MISSING_API_KEY') {
                     document.getElementById('stock-symbol-title').textContent = '請設定 API Key';
-                    document.getElementById('stock-name').textContent = '請在程式碼最上方填入 Finnhub API Key';
+                    document.getElementById('stock-name').textContent = '請在程式碼填入 Finnhub API Key（報價用）';
                     document.getElementById('price-change').textContent = '未設定金鑰';
-                    alert('請先在程式碼中填入你的 Finnhub API Key！\n\n可至 https://finnhub.io 免費註冊取得。');
-                } else if (error.message === 'NO_QUOTE_DATA') {
-                    document.getElementById('stock-symbol-title').textContent = symbol;
-                    document.getElementById('stock-name').textContent = '找不到此股票資料';
-                    document.getElementById('price-change').textContent = '無資料';
-                    alert(`找不到 ${symbol} 的報價資料，請確認代碼是否正確。`);
+                    alert('請先在程式碼中填入 Finnhub API Key！\n（K線已改用 Yahoo，不需要Key）');
+                } else if (error.message === 'NO_QUOTE_DATA' || error.message === 'QUOTE_FAILED') {
+                    document.getElementById('stock-name').textContent = '找不到報價資料';
+                    document.getElementById('price-change').textContent = '報價失敗';
+                } else if (error.message === 'NO_CANDLE_DATA' || error.message === 'CANDLE_FAILED') {
+                    document.getElementById('stock-name').textContent = 'K線資料取得失敗';
+                    document.getElementById('price-change').textContent = 'K線失敗';
                 } else {
-                    document.getElementById('stock-symbol-title').textContent = '載入失敗';
-                    document.getElementById('stock-name').textContent = '請稍後再試或檢查網路連線';
-                    document.getElementById('price-change').textContent = '資料取得失敗';
+                    document.getElementById('stock-name').textContent = '載入失敗，請稍後再試';
+                    document.getElementById('price-change').textContent = '錯誤';
                 }
             } finally {
                 document.getElementById('loading-badge').classList.add('hidden');
@@ -496,7 +474,6 @@
             }
         }
 
-        // 初始化
         window.addEventListener('DOMContentLoaded', () => {
             renderWatchlist();
             if (watchlist.length > 0) {
