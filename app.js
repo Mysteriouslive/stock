@@ -2954,15 +2954,23 @@ function initChart() {
                     }
                 },
 
-                timeScale: {
-                    borderColor:
-                        'rgba(255,255,255,0.08)',
-
-                    timeVisible:
-                        true,
-
-                    secondsVisible:
-                        false
+                timeScale: { 
+                    borderColor: 'rgba(255,255,255,0.08)', 
+                    timeVisible: true, 
+                    secondsVisible: false,
+                    // 強制將底部的時間軸轉換為台灣本地時間格式
+                    tickMarkFormatter: (time, tickMarkType, locale) => {
+                        const date = new Date(time * 1000);
+                        const hours = String(date.getHours()).padStart(2, '0');
+                        const minutes = String(date.getMinutes()).padStart(2, '0');
+                        const month = date.getMonth() + 1;
+                        const day = date.getDate();
+                        
+                        if (currentPeriod.interval === '1d') {
+                            return `${month}月${day}日`;
+                        }
+                        return `${hours}:${minutes}`;
+                    }
                 },
 
                 rightPriceScale: {
