@@ -52,6 +52,36 @@
             opacity: 0;
             transition: opacity 0.2s;
         }
+
+        .period-btn {
+            font-size: 11px;
+            padding: 5px 9px;
+            border-radius: 8px;
+            color: #9ca3af;
+            background: rgba(255,255,255,0.035);
+            border: 1px solid rgba(255,255,255,0.06);
+            transition: all 0.2s;
+        }
+        .period-btn:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.08);
+        }
+        .period-btn.active {
+            color: #fff;
+            background: rgba(59,130,246,0.22);
+            border-color: rgba(59,130,246,0.45);
+        }
+        .stock-btn.dragging {
+            opacity: 0.45;
+            transform: scale(0.98);
+        }
+        .drag-handle {
+            cursor: grab;
+            color: #52525b;
+        }
+        .drag-handle:active {
+            cursor: grabbing;
+        }
         .stock-btn:hover .delete-btn {
             opacity: 1;
         }
@@ -102,7 +132,7 @@
                 <input 
                     id="stock-input" 
                     type="text" 
-                    placeholder="輸入代碼 (例: AAPL)" 
+                    placeholder="輸入代碼 (例: 2330 / AAPL)" 
                     class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
                     onkeydown="if(event.key==='Enter') addStock()"
                     maxlength="12"
@@ -114,7 +144,21 @@
                     新增
                 </button>
             </div>
-            <p class="text-[10px] text-gray-600 mt-2">支援美股代碼，例如 TSLA、GOOGL、MSFT</p>
+            <div class="flex items-center justify-between mt-2 gap-2">
+                <p class="text-[10px] text-gray-600">支援台股代碼：2330、2317，也支援美股 TSLA、NVDA</p>
+                <select id="sort-select" onchange="changeSort(this.value)"
+                    class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-gray-400 focus:outline-none">
+                    <option value="manual">自訂順序</option>
+                    <option value="symbol-asc">代碼 ↑</option>
+                    <option value="symbol-desc">代碼 ↓</option>
+                    <option value="name-asc">名稱 ↑</option>
+                    <option value="name-desc">名稱 ↓</option>
+                    <option value="price-desc">價格 ↓</option>
+                    <option value="price-asc">價格 ↑</option>
+                    <option value="change-desc">漲幅 ↓</option>
+                    <option value="change-asc">漲幅 ↑</option>
+                </select>
+            </div>
         </div>
 
         <div class="flex-1 overflow-y-auto p-3 space-y-1" id="stock-list"></div>
@@ -157,18 +201,52 @@
                         <p id="last-update" class="text-[11px] text-gray-600 mt-2">—</p>
                     </div>
 
-                    <div class="text-left md:text-right">
-                        <p class="text-xs text-gray-500 mb-1 tracking-wide">最新成交價</p>
+                    <div class="text-left md:text-right min-w-[330px]">
+                        <p class="text-xs text-gray-500 mb-1 tracking-wide">現今報價</p>
                         <div class="flex items-baseline gap-3 md:justify-end">
                             <span id="current-price" class="text-4xl md:text-5xl font-extrabold text-white tracking-tight">—</span>
                             <span id="price-change" class="text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5">—</span>
+                        </div>
+                        <div class="grid grid-cols-5 gap-2 mt-4 text-[11px] md:text-xs">
+                            <div>
+                                <div class="text-gray-600 mb-1">今開</div>
+                                <div id="open-price" class="text-gray-300 font-medium">—</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-600 mb-1">最高</div>
+                                <div id="high-price" class="text-gray-300 font-medium">—</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-600 mb-1">最低</div>
+                                <div id="low-price" class="text-gray-300 font-medium">—</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-600 mb-1">昨收</div>
+                                <div id="previous-close" class="text-gray-300 font-medium">—</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-600 mb-1">成交量</div>
+                                <div id="volume" class="text-gray-300 font-medium">—</div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </header>
 
             <div class="flex-1 glass rounded-2xl p-3 md:p-4 min-h-[380px] relative">
-                <div id="chart-container" class="w-full h-full min-h-[360px]"></div>
+                <div class="flex items-center justify-between gap-2 px-1 pb-3">
+                    <div class="flex items-center gap-1 flex-wrap">
+                        <span class="text-[11px] text-gray-500 mr-1">K線</span>
+                        <button class="period-btn" data-interval="1m" data-range="1d" onclick="changePeriod(this)">1分K</button>
+                        <button class="period-btn active" data-interval="5m" data-range="5d" onclick="changePeriod(this)">5分K</button>
+                        <button class="period-btn" data-interval="15m" data-range="1mo" onclick="changePeriod(this)">15分K</button>
+                        <button class="period-btn" data-interval="30m" data-range="1mo" onclick="changePeriod(this)">30分K</button>
+                        <button class="period-btn" data-interval="60m" data-range="3mo" onclick="changePeriod(this)">60分K</button>
+                        <button class="period-btn" data-interval="1d" data-range="6mo" onclick="changePeriod(this)">日K</button>
+                    </div>
+                    <span id="chart-status" class="text-[10px] text-gray-600">—</span>
+                </div>
+                <div id="chart-container" class="w-full h-full min-h-[330px]"></div>
                 
                 <div id="empty-state" class="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div class="text-center text-gray-500">
@@ -184,16 +262,21 @@
         // ==========================================
         // ⚠️ 請在此填入你的 Finnhub API Key（只用於報價）
         // ==========================================
-        const FINNHUB_API_KEY = 'da3fmchr01qual4pud1gda3fmchr01qual4pud20';
-
-        // Cloudflare Worker 網址（已幫你填好）
+        // =========================================================
+        // 股票資料設定
+        // =========================================================
+        // 不再依賴 Finnhub 作為台股報價來源。
+        // 台股會自動轉成 Yahoo Finance：
+        //   2330 -> 2330.TW
+        //   6488.TWO -> 6488.TWO
+        // 美股維持原代碼，例如 NVDA、AAPL
         const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
 
         const DEFAULT_STOCKS = [
             { symbol: 'AMD', name: '超微', color: 'orange' },
             { symbol: 'META', name: 'Meta', color: 'blue' },
             { symbol: 'NVDA', name: '輝達', color: 'green' },
-            { symbol: 'TSM', name: '台積電 ADR', color: 'cyan' }
+            { symbol: '2330', name: '台積電', color: 'cyan' }
         ];
 
         const COLOR_MAP = {
@@ -211,8 +294,96 @@
         const COLOR_KEYS = Object.keys(COLOR_MAP);
 
         let watchlist = JSON.parse(localStorage.getItem('stockWatchlist')) || [...DEFAULT_STOCKS];
+        let quoteCache = JSON.parse(localStorage.getItem('stockQuoteCache') || '{}');
+        let sortMode = localStorage.getItem('stockSortMode') || 'manual';
 
+        // =========================================================
+        // K線週期
+        // =========================================================
+        let currentPeriod = {
+            interval: '5m',
+            range: '5d',
+            label: '5分K'
+        };
+
+        function normalizeSymbol(input) {
+            let s = input.trim().toUpperCase();
+
+            // 已經是 Yahoo 台股格式
+            if (/^\d{4,6}\.(TW|TWO)$/.test(s)) return s;
+
+            // 純數字：
+            // 4 位一般台股上市 -> .TW
+            // 其他情況仍先以 .TW 嘗試；若 Worker/Yahoo 回傳無資料，
+            // 使用者可以直接輸入例如 6488.TWO。
+            if (/^\d{4,6}$/.test(s)) return `${s}.TW`;
+
+            return s;
+        }
+
+        function displaySymbol(symbol) {
+            return symbol.replace(/\.(TW|TWO)$/i, '');
+        }
+
+        function isTaiwanSymbol(symbol) {
+            return /^\d{4,6}\.(TW|TWO)$/i.test(symbol);
+        }
+
+        function saveWatchlist() {
+            localStorage.setItem('stockWatchlist', JSON.stringify(watchlist));
+            localStorage.setItem('stockSortMode', sortMode);
+            localStorage.setItem('stockQuoteCache', JSON.stringify(quoteCache));
+        }
+
+        function changeSort(value) {
+            sortMode = value;
+            saveWatchlist();
+            renderWatchlist();
+        }
+
+        function sortedWatchlist() {
+            const arr = [...watchlist];
+
+            if (sortMode === 'manual') return arr;
+
+            const getNumber = stock => Number(quoteCache[stock.symbol]?.latestPrice ?? NaN);
+            const getChange = stock => Number(quoteCache[stock.symbol]?.changePercent ?? NaN);
+
+            arr.sort((a, b) => {
+                let av, bv;
+
+                switch (sortMode) {
+                    case 'symbol-asc':
+                        return a.symbol.localeCompare(b.symbol, undefined, { numeric: true });
+                    case 'symbol-desc':
+                        return b.symbol.localeCompare(a.symbol, undefined, { numeric: true });
+                    case 'name-asc':
+                        return (a.name || a.symbol).localeCompare(b.name || b.symbol, 'zh-Hant');
+                    case 'name-desc':
+                        return (b.name || b.symbol).localeCompare(a.name || a.symbol, 'zh-Hant');
+                    case 'price-asc':
+                        av = getNumber(a); bv = getNumber(b);
+                        return (Number.isNaN(av) ? Infinity : av) - (Number.isNaN(bv) ? Infinity : bv);
+                    case 'price-desc':
+                        av = getNumber(a); bv = getNumber(b);
+                        return (Number.isNaN(bv) ? -Infinity : bv) - (Number.isNaN(av) ? -Infinity : av);
+                    case 'change-asc':
+                        av = getChange(a); bv = getChange(b);
+                        return (Number.isNaN(av) ? Infinity : av) - (Number.isNaN(bv) ? Infinity : bv);
+                    case 'change-desc':
+                        av = getChange(a); bv = getChange(b);
+                        return (Number.isNaN(bv) ? -Infinity : bv) - (Number.isNaN(av) ? -Infinity : av);
+                    default:
+                        return 0;
+                }
+            });
+
+            return arr;
+        }
+
+        // =========================================================
         // 初始化圖表
+        // =========================================================
         const chartContainer = document.getElementById('chart-container');
         const chart = LightweightCharts.createChart(chartContainer, {
             layout: {
@@ -231,7 +402,8 @@
             },
             timeScale: {
                 borderColor: 'rgba(255,255,255,0.08)',
-                timeVisible: true
+                timeVisible: true,
+                secondsVisible: false
             },
             rightPriceScale: {
                 borderColor: 'rgba(255,255,255,0.08)'
@@ -259,81 +431,134 @@
             document.getElementById('overlay').classList.toggle('show');
         }
 
-        function saveWatchlist() {
-            localStorage.setItem('stockWatchlist', JSON.stringify(watchlist));
-        }
-
         function renderWatchlist() {
             const listEl = document.getElementById('stock-list');
             listEl.innerHTML = '';
 
-            if (watchlist.length === 0) {
+            const sorted = sortedWatchlist();
+
+            if (sorted.length === 0) {
                 listEl.innerHTML = `<p class="text-center text-gray-600 text-sm py-8">尚未新增任何股票</p>`;
                 return;
             }
 
-            watchlist.forEach((stock, index) => {
+            sorted.forEach((stock) => {
+                const originalIndex = watchlist.findIndex(s => s.symbol === stock.symbol);
                 const colorClass = COLOR_MAP[stock.color] || COLOR_MAP.blue;
+                const quote = quoteCache[stock.symbol];
+
                 const btn = document.createElement('button');
-                btn.className = `stock-btn w-full text-left px-3 py-2.5 rounded-xl text-gray-400 flex items-center gap-3 group`;
+                btn.className = `stock-btn w-full text-left px-3 py-2.5 rounded-xl text-gray-400 flex items-center gap-2 group`;
                 btn.dataset.symbol = stock.symbol;
+                btn.draggable = sortMode === 'manual';
+
                 btn.onclick = () => loadStock(stock.symbol);
 
+                const priceText = quote?.latestPrice
+                    ? `<span class="text-[10px] text-gray-400">${quote.latestPrice}</span>`
+                    : '';
+
+                const changeText = quote?.changePercent
+                    ? `<span class="text-[10px] ${Number(quote.changePercent) >= 0 ? 'price-up' : 'price-down'}">${Number(quote.changePercent) >= 0 ? '+' : ''}${Number(quote.changePercent).toFixed(2)}%</span>`
+                    : '';
+
                 btn.innerHTML = `
-                    <span class="w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center text-xs font-bold shrink-0">
-                        ${stock.symbol.slice(0, 4)}
+                    <span class="drag-handle text-xs ${sortMode === 'manual' ? '' : 'opacity-30'}" title="${sortMode === 'manual' ? '拖曳排序' : '切換到自訂順序後可拖曳'}">⋮⋮</span>
+                    <span class="w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center text-[10px] font-bold shrink-0">
+                        ${displaySymbol(stock.symbol).slice(0, 4)}
                     </span>
                     <div class="flex-1 min-w-0">
-                        <div class="font-medium text-sm truncate">${stock.name || stock.symbol}</div>
-                        <div class="text-[11px] text-gray-500">${stock.symbol}</div>
+                        <div class="font-medium text-sm truncate">${stock.name || displaySymbol(stock.symbol)}</div>
+                        <div class="text-[11px] text-gray-500 flex items-center gap-2">
+                            <span>${displaySymbol(stock.symbol)}</span>
+                            ${priceText}${changeText}
+                        </div>
                     </div>
-                    <button 
+                    <button
                         class="delete-btn text-gray-600 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10"
-                        onclick="event.stopPropagation(); removeStock(${index})"
-                        title="移除"
-                    >
+                        onclick="event.stopPropagation(); removeStockBySymbol('${stock.symbol}')"
+                        title="移除">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                         </svg>
                     </button>
                 `;
+
+                if (sortMode === 'manual') {
+                    btn.addEventListener('dragstart', () => {
+                        btn.classList.add('dragging');
+                        btn.dataset.dragSymbol = stock.symbol;
+                    });
+                    btn.addEventListener('dragend', () => btn.classList.remove('dragging'));
+                    btn.addEventListener('dragover', e => e.preventDefault());
+                    btn.addEventListener('drop', e => {
+                        e.preventDefault();
+                        const dragged = document.querySelector('.stock-btn.dragging');
+                        if (!dragged || dragged === btn) return;
+
+                        const fromSymbol = dragged.dataset.symbol;
+                        const toSymbol = btn.dataset.symbol;
+                        const fromIndex = watchlist.findIndex(s => s.symbol === fromSymbol);
+                        const toIndex = watchlist.findIndex(s => s.symbol === toSymbol);
+
+                        if (fromIndex < 0 || toIndex < 0) return;
+
+                        const [item] = watchlist.splice(fromIndex, 1);
+                        watchlist.splice(toIndex, 0, item);
+                        saveWatchlist();
+                        renderWatchlist();
+                    });
+                }
+
                 listEl.appendChild(btn);
             });
         }
 
         function addStock() {
             const input = document.getElementById('stock-input');
-            let symbol = input.value.trim().toUpperCase();
+            const raw = input.value.trim().toUpperCase();
 
-            if (!symbol) {
+            if (!raw) {
                 input.focus();
                 return;
             }
 
-            if (!/^[A-Z0-9.\-]+$/.test(symbol)) {
-                alert('請輸入有效的股票代碼');
+            if (!/^[A-Z0-9.\-]+$/.test(raw)) {
+                alert('請輸入有效的股票代碼，例如 2330、6488.TWO、AAPL');
                 return;
             }
 
+            const symbol = normalizeSymbol(raw);
+
             if (watchlist.some(s => s.symbol === symbol)) {
-                alert(`${symbol} 已經在清單中了`);
+                alert(`${displaySymbol(symbol)} 已經在清單中了`);
                 input.value = '';
                 return;
             }
 
             const color = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
-            watchlist.push({ symbol, name: symbol, color });
+            const name = isTaiwanSymbol(symbol) ? displaySymbol(symbol) : symbol;
+
+            watchlist.push({ symbol, name, color });
             saveWatchlist();
             renderWatchlist();
             input.value = '';
             loadStock(symbol);
         }
 
+        function removeStockBySymbol(symbol) {
+            const index = watchlist.findIndex(s => s.symbol === symbol);
+            if (index < 0) return;
+            removeStock(index);
+        }
+
         function removeStock(index) {
             const removed = watchlist[index];
-            if (!confirm(`確定要移除 ${removed.symbol} 嗎？`)) return;
+            if (!removed) return;
+            if (!confirm(`確定要移除 ${displaySymbol(removed.symbol)} 嗎？`)) return;
 
             watchlist.splice(index, 1);
+            delete quoteCache[removed.symbol];
             saveWatchlist();
             renderWatchlist();
 
@@ -343,56 +568,160 @@
                 document.getElementById('stock-name').textContent = '選擇或新增股票以查看詳情';
                 document.getElementById('current-price').textContent = '—';
                 document.getElementById('price-change').textContent = '—';
+                document.getElementById('open-price').textContent = '—';
+                document.getElementById('high-price').textContent = '—';
+                document.getElementById('low-price').textContent = '—';
+                document.getElementById('previous-close').textContent = '—';
+                document.getElementById('volume').textContent = '—';
                 document.getElementById('last-update').textContent = '—';
                 document.getElementById('empty-state').style.display = 'flex';
                 candlestickSeries.setData([]);
             }
         }
 
-        // ========== 資料來源 ==========
-        // 1. Finnhub 拿即時報價
-        async function fetchQuote(symbol) {
-            if (!FINNHUB_API_KEY || FINNHUB_API_KEY.trim() === '') {
-                throw new Error('MISSING_API_KEY');
+        // =========================================================
+        // 資料來源：全部改走 Yahoo Finance Worker
+        // 這樣台股不再經過 Finnhub 的美股代碼限制。
+        // Worker 需把 symbol / interval / range 轉發到 Yahoo Chart API。
+        // =========================================================
+        async function fetchYahooData(symbol, interval = currentPeriod.interval, range = currentPeriod.range) {
+            const yahooSymbol = normalizeSymbol(symbol);
+            const url =
+                `${WORKER_URL}/?symbol=${encodeURIComponent(yahooSymbol)}` +
+                `&interval=${encodeURIComponent(interval)}` +
+                `&range=${encodeURIComponent(range)}`;
+
+            const res = await fetch(url, { cache: 'no-store' });
+            if (!res.ok) throw new Error('YAHOO_FAILED');
+
+            const json = await res.json();
+            const result = json.chart?.result?.[0];
+
+            if (!result) {
+                const message = json.chart?.error?.description || 'NO_YAHOO_DATA';
+                throw new Error(message);
             }
-            const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`);
-            if (!res.ok) throw new Error('QUOTE_FAILED');
-            const data = await res.json();
-            if (data.c === 0 || data.c === null) throw new Error('NO_QUOTE_DATA');
+
+            return result;
+        }
+
+        function formatVolume(value) {
+            if (value == null || Number.isNaN(Number(value))) return '—';
+            const n = Number(value);
+            if (n >= 100000000) return `${(n / 100000000).toFixed(2)} 億`;
+            if (n >= 10000) return `${(n / 10000).toFixed(2)} 萬`;
+            return n.toLocaleString('zh-TW');
+        }
+
+        function formatPrice(value) {
+            if (value == null || Number.isNaN(Number(value))) return '—';
+            return Number(value).toFixed(2);
+        }
+
+        function parseQuote(result) {
+            const meta = result.meta || {};
+            const quote = result.indicators?.quote?.[0] || {};
+
+            // 優先使用 Yahoo 的正式昨收。
+            // chartPreviousClose 在某些盤中資料情境可能不是使用者理解的「昨收」，
+            // 因此報價區的漲跌一律以 previousClose 為基準。
+            const previousCloseValue =
+                meta.previousClose ??
+                meta.regularMarketPreviousClose ??
+                meta.chartPreviousClose;
+
+            const price =
+                meta.regularMarketPrice ??
+                meta.postMarketPrice ??
+                meta.preMarketPrice ??
+                previousCloseValue;
+
+            if (price == null) throw new Error('NO_QUOTE_DATA');
+
+            const previousClose = Number(previousCloseValue);
+
+            if (!Number.isFinite(previousClose) || previousClose <= 0) {
+                throw new Error('NO_PREVIOUS_CLOSE');
+            }
+
+            const currentPrice = Number(price);
+
+            // 漲跌 = 現價 - 昨收
+            // 漲幅 = (現價 - 昨收) / 昨收 × 100
+            const change = currentPrice - previousClose;
+            const changePercent = (change / previousClose) * 100;
+
+            // 今開 / 最高 / 最低優先使用 Yahoo 即時欄位。
+            // 若沒有，再退回當日 quote 陣列最後一筆。
+            const last = quote.close?.length ? quote.close.length - 1 : -1;
+
+            const open =
+                meta.regularMarketOpen ??
+                (last >= 0 ? quote.open?.[last] : null);
+
+            const high =
+                meta.regularMarketDayHigh ??
+                (last >= 0 ? quote.high?.[last] : null);
+
+            const low =
+                meta.regularMarketDayLow ??
+                (last >= 0 ? quote.low?.[last] : null);
+
+            const volumeValue =
+                meta.regularMarketVolume ??
+                (last >= 0 ? quote.volume?.[last] : null);
+
             return {
-                latestPrice: data.c.toFixed(2),
-                change: data.d !== null ? data.d.toFixed(2) : '0.00',
-                changePercent: data.dp !== null ? data.dp.toFixed(2) + '%' : '0.00%',
-                isUp: (data.d ?? 0) >= 0
+                latestPrice: formatPrice(currentPrice),
+                change: change.toFixed(2),
+                changePercent: changePercent.toFixed(2),
+                isUp: change > 0,
+                isFlat: change === 0,
+                open: formatPrice(open),
+                high: formatPrice(high),
+                low: formatPrice(low),
+                previousClose: formatPrice(previousClose),
+                volume: formatVolume(volumeValue)
             };
         }
 
-        // 2. 透過 Cloudflare Worker 拿 Yahoo K線
-        async function fetchCandles(symbol) {
-            const url = `${WORKER_URL}/?symbol=${encodeURIComponent(symbol)}`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('CANDLE_FAILED');
-            const json = await res.json();
+        function parseCandles(result) {
+            const timestamps = result.timestamp || [];
+            const quote = result.indicators?.quote?.[0];
 
-            const result = json.chart?.result?.[0];
-            if (!result || !result.timestamp) throw new Error('NO_CANDLE_DATA');
-
-            const quotes = result.indicators.quote[0];
-            const timestamps = result.timestamp;
+            if (!timestamps.length || !quote) throw new Error('NO_CANDLE_DATA');
 
             const chartData = [];
+
             for (let i = 0; i < timestamps.length; i++) {
-                if (quotes.open[i] == null || quotes.high[i] == null || 
-                    quotes.low[i] == null || quotes.close[i] == null) continue;
+                const open = quote.open?.[i];
+                const high = quote.high?.[i];
+                const low = quote.low?.[i];
+                const close = quote.close?.[i];
+
+                if ([open, high, low, close].some(v => v == null)) continue;
+
+                let time;
+
+                if (currentPeriod.interval === '1d') {
+                    // 日K使用 YYYY-MM-DD
+                    time = new Date(timestamps[i] * 1000)
+                        .toISOString()
+                        .split('T')[0];
+                } else {
+                    // 分K使用 Unix 秒，避免時區轉換後同一天時間重複
+                    time = timestamps[i];
+                }
 
                 chartData.push({
-                    time: new Date(timestamps[i] * 1000).toISOString().split('T')[0],
-                    open: quotes.open[i],
-                    high: quotes.high[i],
-                    low: quotes.low[i],
-                    close: quotes.close[i]
+                    time,
+                    open: Number(open),
+                    high: Number(high),
+                    low: Number(low),
+                    close: Number(close)
                 });
             }
+
             return chartData;
         }
 
@@ -405,28 +734,49 @@
                 btn.classList.toggle('active', btn.dataset.symbol === symbol);
             });
 
-            document.getElementById('stock-symbol-title').textContent = symbol;
+            document.getElementById('stock-symbol-title').textContent = displaySymbol(symbol);
             document.getElementById('stock-name').textContent = '載入中...';
             document.getElementById('loading-badge').classList.remove('hidden');
             document.getElementById('empty-state').style.display = 'none';
             document.getElementById('current-price').textContent = '—';
             document.getElementById('price-change').textContent = '—';
-            document.getElementById('price-change').className = 'text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5';
-            document.getElementById('current-price').className = 'text-4xl md:text-5xl font-extrabold text-white tracking-tight';
+            document.getElementById('open-price').textContent = '—';
+            document.getElementById('high-price').textContent = '—';
+            document.getElementById('low-price').textContent = '—';
+            document.getElementById('previous-close').textContent = '—';
+            document.getElementById('volume').textContent = '—';
+            document.getElementById('price-change').className =
+                'text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5';
+            document.getElementById('current-price').className =
+                'text-4xl md:text-5xl font-extrabold text-white tracking-tight';
+            document.getElementById('chart-status').textContent =
+                `${currentPeriod.label} · 載入中`;
 
             try {
-                const [quote, chartData] = await Promise.all([
-                    fetchQuote(symbol),
-                    fetchCandles(symbol)
-                ]);
+                const result = await fetchYahooData(symbol);
+                const quote = parseQuote(result);
+                const chartData = parseCandles(result);
+
+                quoteCache[symbol] = quote;
+                saveWatchlist();
 
                 // 更新價格
                 document.getElementById('current-price').textContent = quote.latestPrice;
+                document.getElementById('open-price').textContent = quote.open;
+                document.getElementById('high-price').textContent = quote.high;
+                document.getElementById('low-price').textContent = quote.low;
+                document.getElementById('previous-close').textContent = quote.previousClose;
+                document.getElementById('volume').textContent = quote.volume;
+
                 const changeEl = document.getElementById('price-change');
                 const sign = quote.isUp ? '+' : '';
-                changeEl.textContent = `${sign}${quote.change} (${sign}${quote.changePercent})`;
-                
-                if (quote.isUp) {
+                changeEl.textContent =
+                    `${sign}${quote.change} (${sign}${quote.changePercent}%)`;
+
+                if (quote.isFlat) {
+                    changeEl.classList.add('text-gray-400');
+                    document.getElementById('current-price').classList.add('text-gray-300');
+                } else if (quote.isUp) {
                     changeEl.classList.add('price-up');
                     document.getElementById('current-price').classList.add('price-up');
                 } else {
@@ -435,35 +785,52 @@
                 }
 
                 const stockItem = watchlist.find(s => s.symbol === symbol);
-                document.getElementById('stock-name').textContent = stockItem?.name || symbol;
+                document.getElementById('stock-name').textContent =
+                    stockItem?.name || displaySymbol(symbol);
 
-                // 更新K線
+                // 更新 K 線
                 if (chartData.length > 0) {
                     candlestickSeries.setData(chartData);
                     chart.timeScale().fitContent();
+                    document.getElementById('chart-status').textContent =
+                        `${currentPeriod.label} · ${chartData.length} 根`;
+                } else {
+                    throw new Error('NO_CANDLE_DATA');
                 }
 
                 const now = new Date();
-                document.getElementById('last-update').textContent = 
+                document.getElementById('last-update').textContent =
                     `最後更新：${now.toLocaleString('zh-TW', { hour12: false })}`;
+
+                // 排序若依價格/漲幅，載入資料後即時更新位置
+                renderWatchlist();
 
             } catch (error) {
                 console.error(error);
-                
-                if (error.message === 'MISSING_API_KEY') {
-                    document.getElementById('stock-symbol-title').textContent = '請設定 API Key';
-                    document.getElementById('stock-name').textContent = '請在程式碼填入 Finnhub API Key（報價用）';
-                    document.getElementById('price-change').textContent = '未設定金鑰';
-                    alert('請先在程式碼中填入 Finnhub API Key！\n（K線已透過 Worker 取得）');
-                } else if (error.message === 'NO_QUOTE_DATA' || error.message === 'QUOTE_FAILED') {
-                    document.getElementById('stock-name').textContent = '找不到報價資料';
+                console.error('目前股票：', symbol, '週期：', currentPeriod);
+
+                document.getElementById('chart-status').textContent = '資料取得失敗';
+
+                if (error.message === 'NO_QUOTE_DATA') {
+                    document.getElementById('stock-name').textContent =
+                        '找不到報價資料，請確認股票代碼';
                     document.getElementById('price-change').textContent = '報價失敗';
-                } else if (error.message === 'NO_CANDLE_DATA' || error.message === 'CANDLE_FAILED') {
-                    document.getElementById('stock-name').textContent = 'K線資料取得失敗';
+                } else if (error.message === 'NO_PREVIOUS_CLOSE') {
+                    document.getElementById('stock-name').textContent =
+                        '找不到昨收資料，無法正確計算漲幅';
+                    document.getElementById('price-change').textContent = '漲幅無法計算';
+                } else if (error.message === 'NO_CANDLE_DATA') {
+                    document.getElementById('stock-name').textContent =
+                        '目前週期沒有 K 線資料';
                     document.getElementById('price-change').textContent = 'K線失敗';
+                } else if (error.message === 'YAHOO_FAILED') {
+                    document.getElementById('stock-name').textContent =
+                        'Yahoo 資料代理 Worker 連線失敗';
+                    document.getElementById('price-change').textContent = 'Worker 失敗';
                 } else {
-                    document.getElementById('stock-name').textContent = '載入失敗，請稍後再試';
-                    document.getElementById('price-change').textContent = '錯誤';
+                    document.getElementById('stock-name').textContent =
+                        `找不到 ${displaySymbol(symbol)} 的資料`;
+                    document.getElementById('price-change').textContent = '載入失敗';
                 }
             } finally {
                 document.getElementById('loading-badge').classList.add('hidden');
@@ -475,7 +842,28 @@
             }
         }
 
+        async function changePeriod(button) {
+            document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+
+            currentPeriod = {
+                interval: button.dataset.interval,
+                range: button.dataset.range,
+                label: button.textContent.trim()
+            };
+
+            if (currentSymbol) {
+                await loadStock(currentSymbol);
+            }
+        }
+
+        // =========================================================
+        // 初始化
+        // =========================================================
+        document.getElementById('sort-select').value = sortMode;
+
         window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('sort-select').value = sortMode;
             renderWatchlist();
             if (watchlist.length > 0) {
                 loadStock(watchlist[0].symbol);
