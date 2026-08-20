@@ -62,7 +62,7 @@
             .header-price-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
             main header.glass { padding: 16px; flex: 0 0 auto; min-height: 0; overflow: visible; }
             main header.glass .grid.grid-cols-5 { gap: 6px; font-size: 10px; }
-            #chart-card { min-height: 360px; height: 400px; }
+            #chart-card { min-height: 380px; height: 420px; }
             
             #sidebar {
                 position: fixed;
@@ -79,22 +79,24 @@
 
         main > .flex-1, main .flex-1.flex-col { min-height: 0; }
         .company-info-card { flex: 0 0 auto; min-height: 0; transition: all 0.25s ease; }
+        
+        /* 【修正 1】: 確保圖表容器有正確的 Flex 排版，解決 Logo 與時間軸跑位被切掉的問題 */
         #chart-card { 
             display: flex;
             flex-direction: column;
-            background: rgba(12,12,14,0.65); 
-            backdrop-filter: blur(20px); 
-            border: 1px solid rgba(255,255,255,0.06); 
-            border-radius: 16px;
-            padding: 16px;
+            flex: 0 0 auto; 
+            min-height: 400px; 
+            height: 440px; 
             margin-bottom: 1.25rem; 
-            height: 440px; /* 固定卡片總高度 */
+            position: relative;
+            overflow: hidden; 
         }
-        #chart-container { 
+        #chart-container {
             flex: 1;
-            width: 100%; 
-            min-height: 0; /* 讓 flex 容器能正確收縮與展開 */
+            width: 100%;
+            min-height: 0;
         }
+        
         .company-info-card.collapsed .company-info-body { display: none; }
         .company-info-item { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 10px 12px; }
     </style>
@@ -270,8 +272,8 @@
             </section>
 
             <!-- 圖表區域 -->
-            <div id="chart-card" class="min-h-[380px] min-w-0 glass rounded-2xl p-3 md:p-4 relative mb-5">
-                <div class="flex items-center justify-between gap-2 px-1 pb-3">
+            <div id="chart-card" class="glass rounded-2xl p-3 md:p-4">
+                <div class="flex items-center justify-between gap-2 px-1 pb-3 shrink-0">
                     <div class="flex items-center gap-1 flex-wrap">
                         <span class="text-[11px] text-gray-500 mr-1">K線</span>
                         <button class="period-btn" data-interval="1m" data-range="1d" onclick="changePeriod(this)">1分K</button>
@@ -281,9 +283,9 @@
                         <button class="period-btn" data-interval="60m" data-range="3mo" onclick="changePeriod(this)">60分K</button>
                         <button class="period-btn" data-interval="1d" data-range="6mo" onclick="changePeriod(this)">日K</button>
                     </div>
-                    <span id="chart-status" class="text-[10px] text-gray-600">—</span>
+                    <span id="chart-status" class="text-[10px] text-gray-600">提示: 可用 [+] [-] 鍵縮放圖表</span>
                 </div>
-                <div id="chart-container" class="w-full h-full min-h-[330px]"></div>
+                <div id="chart-container"></div>
                 <div id="empty-state" class="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div class="text-center text-gray-500">
                         <div class="text-4xl mb-3 opacity-30">📈</div>
@@ -559,6 +561,7 @@
 
             setMetric('metric-pe', twseData.pe !== '0' && twseData.pe ? twseData.pe : '—');
             
+            // 交叉計算：若有即時價格與本益比，直接算出約略 EPS (股價 / 本益比)
             if (Number.isFinite(priceVal) && Number.isFinite(peVal) && peVal > 0) {
                 const estimatedEps = priceVal / peVal;
                 setMetric('metric-eps', estimatedEps.toFixed(2));
@@ -1090,13 +1093,10 @@
 
                 if (chartData.length > 0) {
                     candlestickSeries.setData(chartData);
-                    // 根據裝置決定對齊方式
-                    if (isMobile) {
-                        // 手機版不強制鎖定，讓使用者可以自由滑動查看歷史
-                    } else {
-                        // 電腦版強制對齊最右側
-                        chart.timeScale().scrollToRealTime();
-                    }
+                    
+                    // 無論電腦或手機，載入或更新後都將視角鎖定在最新 K 線
+                    chart.timeScale().scrollToRealTime();
+
                     document.getElementById('chart-status').textContent = `${currentPeriod.label} · ${chartData.length} 根`;
                 } else if (!isSilent) {
                     candlestickSeries.setData([]);
@@ -1192,19 +1192,18 @@
         const chart = LightweightCharts.createChart(chartContainer, {
             layout: { textColor: '#9ca3af', background: { type: 'solid', color: 'transparent' }, fontSize: 12 },
             grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
-            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 }, horzLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 } },
             timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true, secondsVisible: false },
             rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' },
-            // 手機版開啟觸控，電腦版關閉滑鼠操作
             handleScroll: {
-                mouseWheel: !isMobile,
-                pressedMouseMove: true,
+                mouseWheel: false, // 徹底禁用滑鼠滾輪滑動
+                pressedMouseMove: !isMobile,
                 horzTouchDrag: true,
                 vertTouchDrag: true
             },
             handleScale: {
-                axisPressedMouseMove: true,
-                mouseWheel: !isMobile,
+                axisPressedMouseMove: !isMobile,
+                mouseWheel: false, // 徹底禁用滑鼠滾輪縮放
                 pinch: true
             }
         });
