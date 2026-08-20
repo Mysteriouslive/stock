@@ -212,7 +212,6 @@ function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
     document.getElementById('fundamentals-subtitle').textContent = `台灣證交所/櫃買中心 · ${twseData.source}`;
     
     const peVal = Number(twseData.pe);
-    // 解決台積電超過千元含有逗號導致 NaN 的問題
     const priceVal = Number(String(currentPrice).replace(/,/g, ''));
 
     setMetric('metric-pe', twseData.pe !== '0' && twseData.pe ? twseData.pe : '—');
@@ -641,24 +640,21 @@ async function loadStock(symbol, isSilent = false) {
         let yahooResult = null;
         let yahooError = null;
 
-        // 1. 先用 Yahoo Finance 取得 K線資料 與 昨收價
         try {
             yahooResult = await fetchYahooData(symbol);
             if (yahooResult) {
-                quote = parseQuote(yahooResult, symbol); // 預設先拿 Yahoo 報價
+                quote = parseQuote(yahooResult, symbol); 
                 chartData = parseCandles(yahooResult);
             }
         } catch (e) {
             yahooError = e;
         }
 
-        // 2. 針對各別資產，混合即時報價 (Hybrid 模式)
         if (isForexSymbol(symbol)) {
             try {
                 const forex = await fetchForexData();
                 if (forex && forex.rate && yahooResult) {
                     const currentPrice = Number(forex.rate);
-                    // 從 Yahoo 抓取昨收
                     const prevClose = yahooResult.meta?.regularMarketPreviousClose ?? yahooResult.meta?.previousClose ?? yahooResult.meta?.chartPreviousClose;
                     
                     if (prevClose) {
@@ -686,7 +682,6 @@ async function loadStock(symbol, isSilent = false) {
                 
                 if (crypto && crypto.usd && yahooResult) {
                     const currentPrice = Number(crypto.usd);
-                    // 從 Yahoo 抓取昨收
                     const prevClose = yahooResult.meta?.regularMarketPreviousClose ?? yahooResult.meta?.previousClose ?? yahooResult.meta?.chartPreviousClose;
                     
                     if (prevClose) {
@@ -916,14 +911,11 @@ function toggleSidebar() {
     document.getElementById('overlay').classList.toggle('show');
 }
 
-document.getElementById('sort-select').value = sortMode;
-
 window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('sort-select').value = sortMode;
     
-    // --- 新增這行：載入使用者偏好設定 ---
+    // 載入使用者偏好設定 (包含主題、K線顏色、更新頻率)
     loadUserPreferences(); 
-    // ---------------------------------
 
     renderWatchlist();
 
@@ -946,6 +938,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     startAutoRefresh();
 });
+
 // ==========================================
 // 系統設定與帳號資訊 Modal 邏輯
 // ==========================================
@@ -953,7 +946,6 @@ function openSettingsModal() {
     const overlay = document.getElementById('modal-overlay');
     const modal = document.getElementById('settings-modal');
     
-    // 如果手機版側邊欄開著，先把它關掉以免畫面太亂
     if (window.innerWidth < 768) {
         document.getElementById('sidebar').classList.remove('open');
     }
@@ -961,7 +953,6 @@ function openSettingsModal() {
     overlay.classList.remove('hidden');
     modal.classList.remove('hidden');
     
-    // 用微小延遲觸發 Tailwind 的過渡動畫
     setTimeout(() => {
         overlay.classList.remove('opacity-0');
         modal.classList.remove('opacity-0', 'scale-95');
@@ -990,12 +981,10 @@ function closeModals() {
     const settingsModal = document.getElementById('settings-modal');
     const profileModal = document.getElementById('profile-modal');
 
-    // 淡出動畫
     overlay.classList.add('opacity-0');
     settingsModal.classList.add('opacity-0', 'scale-95');
     profileModal.classList.add('opacity-0', 'scale-95');
 
-    // 等待動畫結束後隱藏元素 (與 Tailwind 的 duration-300 一致)
     setTimeout(() => {
         overlay.classList.add('hidden');
         settingsModal.classList.add('hidden');
@@ -1003,24 +992,28 @@ function closeModals() {
     }, 300);
 }
 
-// 允許按 ESC 鍵關閉視窗
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModals();
 });
 
 // ==========================================
-// 使用者設定與儲存邏輯 (Settings)
+// 使用者設定、主題切換與儲存邏輯
 // ==========================================
+const THEMES = {
+    blue: { primary: '#3b82f6', secondary: '#8b5cf6', bg1: 'rgba(59, 130, 246, 0.1)', bg2: 'rgba(139, 92, 246, 0.1)' },
+    emerald: { primary: '#10b981', secondary: '#06b6d4', bg1: 'rgba(16, 185, 129, 0.1)', bg2: 'rgba(6, 182, 212, 0.1)' },
+    purple: { primary: '#a855f7', secondary: '#ec4899', bg1: 'rgba(168, 85, 247, 0.1)', bg2: 'rgba(236, 72, 153, 0.1)' },
+    orange: { primary: '#f97316', secondary: '#facc15', bg1: 'rgba(249, 115, 22, 0.1)', bg2: 'rgba(250, 204, 21, 0.1)' }
+};
 
-// 1. 初始化設定 (當網頁載入時執行)
 function loadUserPreferences() {
     const savedColorMode = localStorage.getItem('stockKlineColor') || 'red-green';
     const savedRefreshRate = localStorage.getItem('stockRefreshRate') || '10000';
+    const savedTheme = localStorage.getItem('stockTheme') || 'blue';
 
     const colorSelect = document.getElementById('kline-color');
     const refreshSelect = document.getElementById('refresh-rate');
 
-    // 將下拉選單設定為使用者儲存的值，並由 JS 直接綁定事件 (確保一定能觸發)
     if (colorSelect) {
         colorSelect.value = savedColorMode;
         colorSelect.addEventListener('change', applySettings);
@@ -1030,12 +1023,43 @@ function loadUserPreferences() {
         refreshSelect.addEventListener('change', applySettings);
     }
 
-    // 立即套用顏色與更新頻率
     updateChartColors(savedColorMode);
     AUTO_REFRESH_INTERVAL = Number(savedRefreshRate);
+    changeThemeColor(savedTheme, false);
 }
 
-// 2. 當使用者在設定視窗改變選項時觸發
+function changeThemeColor(themeName, save = true) {
+    const theme = THEMES[themeName] || THEMES.blue;
+    if (save) localStorage.setItem('stockTheme', themeName);
+
+    document.documentElement.style.setProperty('--theme-color-1', theme.bg1);
+    document.documentElement.style.setProperty('--theme-color-2', theme.bg2);
+
+    let themeStyleTag = document.getElementById('dynamic-theme-vars');
+    if (!themeStyleTag) {
+        themeStyleTag = document.createElement('style');
+        themeStyleTag.id = 'dynamic-theme-vars';
+        document.head.appendChild(themeStyleTag);
+    }
+
+    themeStyleTag.innerHTML = `
+        :root {
+            --theme-primary: ${theme.primary};
+            --theme-secondary: ${theme.secondary};
+        }
+        .from-blue-400 { --tw-gradient-from: ${theme.primary} !important; }
+        .to-purple-400 { --tw-gradient-to: ${theme.secondary} !important; }
+        .bg-blue-500\\/20 { background-color: ${theme.primary}33 !important; }
+        .text-blue-300 { color: ${theme.primary} !important; }
+        .active.period-btn { background-color: ${theme.primary}33 !important; color: ${theme.primary} !important; }
+        .bg-blue-600 { background-color: ${theme.primary} !important; }
+        .hover\\:bg-blue-500:hover { background-color: ${theme.secondary} !important; }
+        .from-blue-600 { --tw-gradient-from: ${theme.primary} !important; }
+        .to-purple-600 { --tw-gradient-to: ${theme.secondary} !important; }
+        .to-purple-500 { --tw-gradient-to: ${theme.secondary} !important; }
+    `;
+}
+
 function applySettings() {
     const colorSelect = document.getElementById('kline-color');
     const refreshSelect = document.getElementById('refresh-rate');
@@ -1045,36 +1069,27 @@ function applySettings() {
     const colorMode = colorSelect.value;
     const refreshRate = refreshSelect.value;
 
-    // 儲存到 localStorage
     localStorage.setItem('stockKlineColor', colorMode);
     localStorage.setItem('stockRefreshRate', refreshRate);
 
-    // 即時套用圖表與文字顏色
     updateChartColors(colorMode);
-
-    // 即時套用更新頻率
     AUTO_REFRESH_INTERVAL = Number(refreshRate);
     restartAutoRefresh();
 }
 
-// 3. 負責改變「圖表」與「所有網頁文字」顏色的函式
 function updateChartColors(mode) {
-    // 【A. 更新 K 線圖表顏色】
     if (typeof candlestickSeries !== 'undefined' && candlestickSeries) {
         if (mode === 'green-red') {
-            // 國際習慣：綠漲紅跌
             candlestickSeries.applyOptions({
                 upColor: '#10b981', downColor: '#ef4444', wickUpColor: '#10b981', wickDownColor: '#ef4444'
             });
         } else {
-            // 台灣習慣：紅漲綠跌 (預設)
             candlestickSeries.applyOptions({
                 upColor: '#ef4444', downColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
             });
         }
     }
 
-    // 【B. 動態寫入 CSS，強制覆蓋網頁文字的漲跌顏色】
     let styleTag = document.getElementById('dynamic-theme-styles');
     if (!styleTag) {
         styleTag = document.createElement('style');
@@ -1083,19 +1098,16 @@ function updateChartColors(mode) {
     }
 
     if (mode === 'green-red') {
-        // 國際習慣：漲=綠，跌=紅
         styleTag.innerHTML = `
             .price-up { color: #10b981 !important; }    
             .price-down { color: #ef4444 !important; }  
         `;
     } else {
-        // 台灣習慣：漲=紅，跌=綠
         styleTag.innerHTML = `
             .price-up { color: #ef4444 !important; }    
             .price-down { color: #10b981 !important; }  
         `;
     }
     
-    // 重新渲染 watchlist 以確保左側清單的漲跌幅顏色立刻更新
     renderWatchlist();
 }
