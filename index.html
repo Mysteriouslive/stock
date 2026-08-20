@@ -86,7 +86,6 @@
     
     <!-- 左側邊欄 -->
     <aside id="sidebar" class="w-72 glass flex flex-col shrink-0 border-r border-white/5 z-20">
-        <!-- 針對手機上方瀏海/動態島推移 -->
         <div class="px-5 pb-5 border-b border-white/5" style="padding-top: max(20px, env(safe-area-inset-top));">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-3">
@@ -163,7 +162,6 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                 </button>
                 <div class="flex items-center gap-2">
-                    <!-- 手機版 Header Logo -->
                     <div class="w-7 h-7 shrink-0 rounded-lg shadow-md shadow-purple-500/20 overflow-hidden">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" class="w-full h-full">
                             <defs>
@@ -346,25 +344,29 @@
         // 股票資料設定
         // =========================================================
         const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
-        const FINNHUB_API_KEY = 'da3fmchr01qual4pud1gda3fmchr01qual4pud20'; // ← 若有 Finnhub API Key 可填入此處
-        const AUTO_REFRESH_INTERVAL = 10000; // 自動更新頻率：10 秒
+        const AUTO_REFRESH_INTERVAL = 10000; // 10 秒自動靜默更新
 
         function finnhubSymbol(symbol) {
             return displaySymbol(symbol) + (isTaiwanSymbol(symbol) ? '.TW' : '');
         }
 
-        async function fetchFinnhub(endpoint, params = {}) {
-            if (!FINNHUB_API_KEY) throw new Error('FINNHUB_NO_KEY');
-            const query = new URLSearchParams({ ...params, token: FINNHUB_API_KEY });
-            const res = await fetch(`https://finnhub.io/api/v1/${endpoint}?${query.toString()}`, { cache: 'no-store' });
-            if (!res.ok) throw new Error('FINNHUB_HTTP_' + res.status);
-            const json = await res.json();
-            if (json.error) throw new Error('FINNHUB_' + json.error);
-            return json;
+        // =========================================================
+        // Finnhub 請求改走 Worker 代理 (安全保護金鑰)
+        // =========================================================
+        async function fetchFinnhubWorker(symbol, endpoint, params = {}) {
+            const query = new URLSearchParams({
+                source: 'finnhub',
+                symbol: finnhubSymbol(symbol),
+                endpoint,
+                ...params
+            });
+            const res = await fetch(`${WORKER_URL}/?${query.toString()}`, { cache: 'no-store' });
+            if (!res.ok) throw new Error('FINNHUB_PROXY_' + res.status);
+            return await res.json();
         }
 
         async function fetchFinnhubQuote(symbol) {
-            const data = await fetchFinnhub('quote', { symbol: finnhubSymbol(symbol) });
+            const data = await fetchFinnhubWorker(symbol, 'quote');
             if (data.c == null || Number(data.c) <= 0) throw new Error('FINNHUB_NO_QUOTE');
             const current = Number(data.c);
             const previous = Number(data.pc);
@@ -385,8 +387,8 @@
             };
         }
 
-        async function fetchFinnhubCompanyProfile(symbol) { return await fetchFinnhub('stock/profile2', { symbol: finnhubSymbol(symbol) }); }
-        async function fetchFinnhubMetrics(symbol) { return await fetchFinnhub('stock/metric', { symbol: finnhubSymbol(symbol), metric: 'all' }); }
+        async function fetchFinnhubCompanyProfile(symbol) { return await fetchFinnhubWorker(symbol, 'profile2'); }
+        async function fetchFinnhubMetrics(symbol) { return await fetchFinnhubWorker(symbol, 'metric', { metric: 'all' }); }
 
         function firstFinite(obj, keys) {
             for (const key of keys) {
@@ -397,9 +399,6 @@
             return null;
         }
 
-        // ==========================================
-        // 修正：空值檢查 (避免 null 變成 0.00)
-        // ==========================================
         function formatMetric(value, suffix = '', decimals = 2) {
             if (value == null || value === '') return '—';
             const n = Number(value);
@@ -423,7 +422,6 @@
             if (a >= 1e3) return `${(n/1e3).toFixed(2)} 千`;
             return n.toFixed(2);
         }
-        // ==========================================
 
         function setMetric(id, value) {
             const el = document.getElementById(id);
@@ -862,6 +860,7 @@
                 let chartData = [];
                 let yahooError = null;
 
+                // 1. 抓取 Yahoo 報價與 K 線
                 let quoteResult = null;
                 try { 
                     quoteResult = await fetchYahooData(symbol, '5m', '1d'); 
@@ -884,7 +883,8 @@
                     console.warn('Yahoo Worker 失敗', error); 
                 }
 
-                if (FINNHUB_API_KEY && !isTaiwanSymbol(symbol)) {
+                // 2. 美股非靜默載入時，透過 Worker 抓取 Finnhub 基本面
+                if (!isTaiwanSymbol(symbol)) {
                     if (!quote) {
                         try { 
                             quote = await fetchFinnhubQuote(symbol); 
@@ -969,8 +969,8 @@
                         document.getElementById('stock-name').textContent = '目前週期沒有 K 線資料';
                         document.getElementById('price-change').textContent = 'K線失敗';
                     } else if (error.message === 'YAHOO_FAILED') {
-                        document.getElementById('stock-name').textContent = FINNHUB_API_KEY ? 'Yahoo K線代理連線失敗；Finnhub 報價可獨立使用' : 'Yahoo 資料代理 Worker 連線失敗';
-                        document.getElementById('price-change').textContent = FINNHUB_API_KEY ? 'K線失敗' : 'Worker 失敗';
+                        document.getElementById('stock-name').textContent = '資料代理 Worker 連線失敗';
+                        document.getElementById('price-change').textContent = 'Worker 失敗';
                     } else {
                         document.getElementById('stock-name').textContent = `找不到 ${displaySymbol(symbol)} 的資料`;
                         document.getElementById('price-change').textContent = '載入失敗';
