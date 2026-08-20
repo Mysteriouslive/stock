@@ -86,6 +86,55 @@
             opacity: 1;
         }
         
+
+        html, body { width: 100%; max-width: 100%; }
+        body { min-width: 0; }
+        #sidebar, #main-content, main { min-width: 0; }
+
+        .fundamentals-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .fundamental-card {
+            background: rgba(255,255,255,0.035);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding: 12px;
+            min-width: 0;
+        }
+        .fundamental-label { color:#71717a; font-size:10px; margin-bottom:5px; }
+        .fundamental-value {
+            color:#e5e7eb; font-size:14px; font-weight:700;
+            overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+        }
+        .section-card {
+            background:rgba(12,12,14,0.65);
+            backdrop-filter:blur(20px);
+            -webkit-backdrop-filter:blur(20px);
+            border:1px solid rgba(255,255,255,0.06);
+            border-radius:16px;
+        }
+        .section-title { font-size:15px; font-weight:700; color:#f4f4f5; }
+        .section-subtitle { font-size:10px; color:#52525b; margin-top:2px; }
+        .metric-positive { color:#ef4444; }
+        .metric-negative { color:#10b981; }
+        .metric-neutral { color:#d4d4d8; }
+        @media (max-width: 900px) {
+            .fundamentals-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        }
+        @media (max-width: 520px) {
+            .fundamentals-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+            .fundamental-card { padding:10px; }
+            .fundamental-value { font-size:13px; }
+        }
+
+        @media (max-width: 768px) {
+            .company-info-card { margin-bottom: 12px; }
+            #stock-symbol-title { font-size: 2rem; line-height: 1.05; }
+            .header-price-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        }
+
         @media (max-width: 768px) {
             #sidebar {
                 position: fixed;
@@ -105,6 +154,56 @@
             }
             #overlay.show { display: block; }
         }
+
+        main > .flex-1,
+        main .flex-1.flex-col {
+            min-height: 0;
+        }
+
+        main header.glass {
+            flex: 0 0 auto;
+            min-height: 0;
+            overflow: visible;
+        }
+
+        .company-info-card {
+            flex: 0 0 auto;
+            min-height: 0;
+        }
+
+        #chart-card {
+            flex: 1 1 auto;
+            min-height: 380px;
+        }
+
+        @media (max-width: 768px) {
+            main header.glass {
+                padding: 16px;
+            }
+
+            main header.glass .grid.grid-cols-5 {
+                gap: 6px;
+                font-size: 10px;
+            }
+
+            #chart-card {
+                min-height: 360px;
+            }
+        }
+
+        .company-info-card {
+            transition: all 0.25s ease;
+        }
+        .company-info-card.collapsed .company-info-body {
+            display: none;
+        }
+        .company-info-item {
+            background: rgba(255,255,255,0.025);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 10px 12px;
+        }
+
     </style>
 </head>
 <body class="h-screen overflow-hidden flex">
@@ -165,14 +264,18 @@
 
         <div class="p-4 border-t border-white/5 text-[11px] text-gray-500">
             <div class="flex items-center gap-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                報價 Finnhub · K線 Yahoo (Worker)
+                <span id="finnhub-status-dot" class="w-1.5 h-1.5 rounded-full bg-gray-500"></span>
+                <span id="finnhub-status-text">Finnhub 未設定 · K線 Yahoo</span>
             </div>
+            <button onclick="setFinnhubApiKey()"
+                class="mt-2 w-full text-[10px] px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
+                ⚙ 設定 Finnhub API Key
+            </button>
         </div>
     </aside>
 
     <!-- 右側主內容 -->
-    <main class="flex-1 flex flex-col relative overflow-hidden">
+    <main class="flex-1 min-w-0 flex flex-col relative overflow-hidden">
         <div class="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[140px] pointer-events-none"></div>
         <div class="absolute bottom-[-15%] left-[-5%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 
@@ -185,11 +288,11 @@
             <span class="font-semibold tracking-wide">股票觀測站</span>
         </div>
 
-        <div class="flex-1 flex flex-col p-4 md:p-6 overflow-y-auto relative z-10">
-            <header class="glass rounded-2xl p-5 md:p-6 mb-5 relative overflow-hidden">
+        <div class="flex-1 min-w-0 flex flex-col p-3 sm:p-4 md:p-6 overflow-y-auto relative z-10">
+            <header class="glass rounded-2xl p-5 md:p-6 mb-5 relative overflow-visible shrink-0">
                 <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-blue-500 via-purple-500 to-transparent opacity-60"></div>
                 
-                <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-5 min-w-0">
                     <div>
                         <div class="flex items-center gap-3">
                             <h2 id="stock-symbol-title" class="text-3xl md:text-4xl font-black tracking-wider text-white">—</h2>
@@ -201,7 +304,7 @@
                         <p id="last-update" class="text-[11px] text-gray-600 mt-2">—</p>
                     </div>
 
-                    <div class="text-left md:text-right min-w-[330px]">
+                    <div class="text-left md:text-right min-w-0 w-full md:w-auto md:min-w-[330px]">
                         <p class="text-xs text-gray-500 mb-1 tracking-wide">現今報價</p>
                         <div class="flex items-baseline gap-3 md:justify-end">
                             <span id="current-price" class="text-4xl md:text-5xl font-extrabold text-white tracking-tight">—</span>
@@ -233,7 +336,127 @@
                 </div>
             </header>
 
-            <div class="flex-1 glass rounded-2xl p-3 md:p-4 min-h-[380px] relative">
+            <!-- 公司資訊 -->
+            <section id="company-info-card" class="company-info-card glass rounded-2xl p-4 md:p-5 mb-5">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-purple-500/15 text-purple-300 flex items-center justify-center text-lg">🏢</div>
+                        <div>
+                            <h3 class="font-semibold text-white">公司資訊</h3>
+                            <p class="text-[10px] text-gray-600">Company Information · Finnhub</p>
+                        </div>
+                    </div>
+                    <button onclick="toggleCompanyInfo()"
+                        class="text-[11px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
+                        收合
+                    </button>
+                </div>
+
+                <div id="company-info-body" class="company-info-body mt-4">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                        <div class="company-info-item">
+                            <div class="text-[10px] text-gray-600 mb-1">公司名稱</div>
+                            <div id="company-long-name" class="text-sm text-gray-200 font-medium truncate">—</div>
+                        </div>
+                        <div class="company-info-item">
+                            <div class="text-[10px] text-gray-600 mb-1">交易所</div>
+                            <div id="company-exchange" class="text-sm text-gray-200 font-medium truncate">—</div>
+                        </div>
+                        <div class="company-info-item">
+                            <div class="text-[10px] text-gray-600 mb-1">市場</div>
+                            <div id="company-market" class="text-sm text-gray-200 font-medium truncate">—</div>
+                        </div>
+                        <div class="company-info-item">
+                            <div class="text-[10px] text-gray-600 mb-1">幣別</div>
+                            <div id="company-currency" class="text-sm text-gray-200 font-medium">—</div>
+                        </div>
+                        <div class="company-info-item">
+                            <div class="text-[10px] text-gray-600 mb-1">股票類型</div>
+                            <div id="company-type" class="text-sm text-gray-200 font-medium truncate">—</div>
+                        </div>
+                        <div class="company-info-item">
+                            <div class="text-[10px] text-gray-600 mb-1">市場狀態</div>
+                            <div id="company-market-state" class="text-sm text-gray-200 font-medium">—</div>
+                        </div>
+                        <div class="company-info-item">
+                            <div class="text-[10px] text-gray-600 mb-1">Yahoo 代碼</div>
+                            <div id="company-symbol" class="text-sm text-gray-200 font-medium">—</div>
+                        </div>
+                        <div class="company-info-item">
+                            <div class="text-[10px] text-gray-600 mb-1">目前價格</div>
+                            <div id="company-price" class="text-sm text-gray-200 font-medium">—</div>
+                        </div>
+                    </div>
+                    <div id="company-info-note" class="text-[10px] text-gray-600 mt-3">
+                        選擇股票後會自動載入公司基本資訊。
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- 基本面 -->
+            <section class="section-card p-4 md:p-5 mb-5">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <div>
+                        <div class="section-title">📊 基本面</div>
+                        <div class="section-subtitle">Finnhub · Fundamental Metrics</div>
+                    </div>
+                    <span id="fundamentals-status" class="text-[10px] text-gray-600">—</span>
+                </div>
+                <div class="fundamentals-grid">
+                    <div class="fundamental-card"><div class="fundamental-label">本益比 P/E</div><div id="metric-pe" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">每股盈餘 EPS</div><div id="metric-eps" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">市值</div><div id="metric-marketcap" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">Beta</div><div id="metric-beta" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">52週最高</div><div id="metric-52high" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">52週最低</div><div id="metric-52low" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">股息殖利率</div><div id="metric-dividend" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">ROE</div><div id="metric-roe" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">毛利率</div><div id="metric-gross-margin" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">營業利益率</div><div id="metric-op-margin" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">淨利率</div><div id="metric-net-margin" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">營收成長</div><div id="metric-revenue-growth" class="fundamental-value">—</div></div>
+                </div>
+                <div id="fundamentals-note" class="text-[10px] text-gray-600 mt-3">—</div>
+            </section>
+
+            <!-- 估值與風險 -->
+            <section class="section-card p-4 md:p-5 mb-5">
+                <div class="mb-4">
+                    <div class="section-title">🎯 估值與風險</div>
+                    <div class="section-subtitle">Valuation & Risk</div>
+                </div>
+                <div class="fundamentals-grid">
+                    <div class="fundamental-card"><div class="fundamental-label">前瞻 P/E</div><div id="metric-forward-pe" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">PEG</div><div id="metric-peg" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">EV / EBITDA</div><div id="metric-ev-ebitda" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">流通股數</div><div id="metric-shares" class="fundamental-value">—</div></div>
+                </div>
+            </section>
+
+            <!-- 公司詳細資訊 -->
+            <section class="section-card p-4 md:p-5 mb-5">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <div>
+                        <div class="section-title">🏢 公司詳細資訊</div>
+                        <div class="section-subtitle">Company Profile</div>
+                    </div>
+                    <a id="company-web-link" href="#" target="_blank" rel="noopener noreferrer"
+                       class="hidden text-[10px] px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-500/20 hover:bg-blue-500/20">
+                        公司網站 ↗
+                    </a>
+                </div>
+                <div class="fundamentals-grid">
+                    <div class="fundamental-card"><div class="fundamental-label">國家</div><div id="profile-country" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">產業</div><div id="profile-industry" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">IPO</div><div id="profile-ipo" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">貨幣</div><div id="profile-currency" class="fundamental-value">—</div></div>
+                </div>
+                <div id="profile-description" class="text-xs text-gray-400 leading-6 mt-4 hidden"></div>
+                <div id="profile-note" class="text-[10px] text-gray-600 mt-3">—</div>
+            </section>
+
+            <div id="chart-card" class="flex-1 min-h-[380px] min-w-0 glass rounded-2xl p-3 md:p-4 relative">
                 <div class="flex items-center justify-between gap-2 px-1 pb-3">
                     <div class="flex items-center gap-1 flex-wrap">
                         <span class="text-[11px] text-gray-500 mr-1">K線</span>
@@ -271,6 +494,240 @@
         //   6488.TWO -> 6488.TWO
         // 美股維持原代碼，例如 NVDA、AAPL
         const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
+
+        // =========================================================
+        // Finnhub 免費版
+        // API Key 會儲存在瀏覽器 localStorage，不寫死在程式碼裡。
+        // 設定後：
+        //   - Finnhub：即時報價 / 公司基本資訊
+        //   - Yahoo Worker：K 線
+        // 若 Finnhub 無資料，會自動退回 Yahoo。
+        // =========================================================
+        let FINNHUB_API_KEY = localStorage.getItem('finnhubApiKey') || 'da3fmchr01qual4pud1gda3fmchr01qual4pud20';
+
+        function updateFinnhubStatus() {
+            const dot = document.getElementById('finnhub-status-dot');
+            const text = document.getElementById('finnhub-status-text');
+            if (!dot || !text) return;
+
+            if (FINNHUB_API_KEY) {
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
+                text.textContent = 'Finnhub 已啟用 · K線 Yahoo';
+            } else {
+                dot.className = 'w-1.5 h-1.5 rounded-full bg-gray-500';
+                text.textContent = 'Finnhub 未設定 · K線 Yahoo';
+            }
+        }
+
+        function setFinnhubApiKey() {
+            const current = FINNHUB_API_KEY || '';
+            const key = prompt(
+                '請貼上你的 Finnhub API Key\n\n' +
+                '免費版即可使用。Key 只會儲存在這個瀏覽器。\n' +
+                '如果要清除，請按「確定」後留空。',
+                current
+            );
+
+            if (key === null) return;
+
+            FINNHUB_API_KEY = key.trim();
+
+            if (FINNHUB_API_KEY) {
+                localStorage.setItem('finnhubApiKey', FINNHUB_API_KEY);
+            } else {
+                localStorage.removeItem('finnhubApiKey');
+            }
+
+            updateFinnhubStatus();
+
+            if (currentSymbol) {
+                loadStock(currentSymbol);
+            }
+        }
+
+        function finnhubSymbol(symbol) {
+            // Finnhub 對台股使用 2330.TW；美股直接使用原代碼。
+            return displaySymbol(symbol) + (isTaiwanSymbol(symbol) ? '.TW' : '');
+        }
+
+        async function fetchFinnhub(endpoint, params = {}) {
+            if (!FINNHUB_API_KEY) throw new Error('FINNHUB_NO_KEY');
+
+            const query = new URLSearchParams({
+                ...params,
+                token: FINNHUB_API_KEY
+            });
+
+            const res = await fetch(
+                `https://finnhub.io/api/v1/${endpoint}?${query.toString()}`,
+                { cache: 'no-store' }
+            );
+
+            if (!res.ok) throw new Error('FINNHUB_HTTP_' + res.status);
+
+            const json = await res.json();
+
+            if (json.error) {
+                throw new Error('FINNHUB_' + json.error);
+            }
+
+            return json;
+        }
+
+        async function fetchFinnhubQuote(symbol) {
+            const data = await fetchFinnhub('quote', {
+                symbol: finnhubSymbol(symbol)
+            });
+
+            if (data.c == null || Number(data.c) <= 0) {
+                throw new Error('FINNHUB_NO_QUOTE');
+            }
+
+            const current = Number(data.c);
+            const previous = Number(data.pc);
+
+            if (!Number.isFinite(previous) || previous <= 0) {
+                throw new Error('FINNHUB_NO_PREVIOUS_CLOSE');
+            }
+
+            const change = current - previous;
+            const changePercent = (change / previous) * 100;
+
+            return {
+                latestPrice: formatPrice(current),
+                change: change.toFixed(2),
+                changePercent: changePercent.toFixed(2),
+                isUp: change > 0,
+                isFlat: change === 0,
+                open: formatPrice(data.o),
+                high: formatPrice(data.h),
+                low: formatPrice(data.l),
+                previousClose: formatPrice(previous),
+                volume: '—'
+            };
+        }
+
+        async function fetchFinnhubCompanyProfile(symbol) {
+            return await fetchFinnhub('stock/profile2', {
+                symbol: finnhubSymbol(symbol)
+            });
+        }
+
+        async function fetchFinnhubMetrics(symbol) {
+            return await fetchFinnhub('stock/metric', {
+                symbol: finnhubSymbol(symbol),
+                metric: 'all'
+            });
+        }
+
+        function firstFinite(obj, keys) {
+            for (const key of keys) {
+                const value = obj?.[key];
+                const n = Number(value);
+                if (value !== null && value !== undefined && value !== '' && Number.isFinite(n)) return n;
+            }
+            return null;
+        }
+
+        function formatMetric(value, suffix = '', decimals = 2) {
+            const n = Number(value);
+            return Number.isFinite(n) ? `${n.toFixed(decimals)}${suffix}` : '—';
+        }
+
+        function formatPercentMetric(value) {
+            const n = Number(value);
+            return Number.isFinite(n) ? `${n.toFixed(2)}%` : '—';
+        }
+
+        function formatCompactNumber(value) {
+            const n = Number(value);
+            if (!Number.isFinite(n)) return '—';
+            const a = Math.abs(n);
+            if (a >= 1e12) return `${(n/1e12).toFixed(2)} 兆`;
+            if (a >= 1e9) return `${(n/1e9).toFixed(2)} 十億`;
+            if (a >= 1e6) return `${(n/1e6).toFixed(2)} 百萬`;
+            if (a >= 1e3) return `${(n/1e3).toFixed(2)} 千`;
+            return n.toFixed(2);
+        }
+
+        function setMetric(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value;
+        }
+
+        function resetFundamentals() {
+            [
+                'metric-pe','metric-eps','metric-marketcap','metric-beta',
+                'metric-52high','metric-52low','metric-dividend','metric-roe',
+                'metric-gross-margin','metric-op-margin','metric-net-margin',
+                'metric-revenue-growth','metric-forward-pe','metric-peg',
+                'metric-ev-ebitda','metric-shares','profile-country',
+                'profile-industry','profile-ipo','profile-currency'
+            ].forEach(id => setMetric(id, '—'));
+            setMetric('fundamentals-status', '—');
+            setMetric('fundamentals-note', '—');
+            setMetric('profile-note', '—');
+
+            const desc = document.getElementById('profile-description');
+            if (desc) {
+                desc.textContent = '';
+                desc.classList.add('hidden');
+            }
+            const link = document.getElementById('company-web-link');
+            if (link) {
+                link.href = '#';
+                link.classList.add('hidden');
+            }
+        }
+
+        function renderFinnhubMetrics(result, profile, symbol) {
+            const m = result?.metric || {};
+            const p = profile || {};
+
+            setMetric('metric-pe', formatMetric(firstFinite(m, ['peNormalizedAnnual','peTTM','peBasicExclExtraTTM','peExclExtraTTM'])));
+            setMetric('metric-eps', formatMetric(firstFinite(m, ['epsNormalizedAnnual','epsTTM','epsBasicExclExtraItemsTTM'])));
+            setMetric('metric-marketcap', formatCompactNumber(firstFinite(m, ['marketCapitalization'])));
+            setMetric('metric-beta', formatMetric(firstFinite(m, ['beta'])));
+            setMetric('metric-52high', formatMetric(firstFinite(m, ['52WeekHigh'])));
+            setMetric('metric-52low', formatMetric(firstFinite(m, ['52WeekLow'])));
+            setMetric('metric-dividend', formatPercentMetric(firstFinite(m, ['dividendYieldIndicatedAnnual','dividendYieldTTM'])));
+            setMetric('metric-roe', formatPercentMetric(firstFinite(m, ['roeTTM','roeRfy'])));
+            setMetric('metric-gross-margin', formatPercentMetric(firstFinite(m, ['grossMarginTTM','grossMargin5Y'])));
+            setMetric('metric-op-margin', formatPercentMetric(firstFinite(m, ['operatingMarginTTM','operatingMargin5Y'])));
+            setMetric('metric-net-margin', formatPercentMetric(firstFinite(m, ['netProfitMarginTTM','netProfitMargin5Y'])));
+            setMetric('metric-revenue-growth', formatPercentMetric(firstFinite(m, ['revenueGrowthTTMYoy','revenueGrowth5Y'])));
+            setMetric('metric-forward-pe', formatMetric(firstFinite(m, ['forwardPE'])));
+            setMetric('metric-peg', formatMetric(firstFinite(m, ['pegRatio'])));
+            setMetric('metric-ev-ebitda', formatMetric(firstFinite(m, ['enterpriseValueEbitdaTTM','evToEbitda'])));
+            setMetric('metric-shares', formatCompactNumber(firstFinite(m, ['shareOutstanding'])));
+
+            setMetric('fundamentals-status', 'Finnhub 已載入');
+            setMetric('fundamentals-note',
+                `資料來源：Finnhub · ${displaySymbol(symbol)} · 沒有提供的指標顯示「—」`
+            );
+
+            setMetric('profile-country', p.country || '—');
+            setMetric('profile-industry', p.finnhubIndustry || '—');
+            setMetric('profile-ipo', p.ipo || '—');
+            setMetric('profile-currency', p.currency || '—');
+
+            const desc = document.getElementById('profile-description');
+            if (desc && p.name) {
+                desc.textContent = `${p.name}${p.finnhubIndustry ? ` · ${p.finnhubIndustry}` : ''}`;
+                desc.classList.remove('hidden');
+            }
+
+            const link = document.getElementById('company-web-link');
+            if (link && p.weburl) {
+                link.href = p.weburl;
+                link.classList.remove('hidden');
+            }
+
+            setMetric('profile-note',
+                `公司：${p.name || displaySymbol(symbol)} · 交易所：${p.exchange || '—'}${p.country ? ` · 國家：${p.country}` : ''}`
+            );
+        }
+
 
         const DEFAULT_STOCKS = [
             { symbol: 'AMD', name: '超微', color: 'orange' },
@@ -576,6 +1033,7 @@
                 document.getElementById('last-update').textContent = '—';
                 document.getElementById('empty-state').style.display = 'flex';
                 candlestickSeries.setData([]);
+                clearCompanyInfo();
             }
         }
 
@@ -727,6 +1185,116 @@
 
         let currentSymbol = null;
 
+        // =========================================================
+        // 公司資訊
+        // =========================================================
+        function marketStateText(state) {
+            const map = {
+                REGULAR: '正常交易',
+                PRE: '盤前交易',
+                POST: '盤後交易',
+                PREPRE: '盤前',
+                POSTPOST: '盤後',
+                CLOSED: '休市'
+            };
+            return map[state] || state || '—';
+        }
+
+        function quoteTypeText(type) {
+            const map = {
+                EQUITY: '股票',
+                ETF: 'ETF',
+                MUTUALFUND: '共同基金',
+                INDEX: '指數',
+                CURRENCY: '外匯',
+                FUTURE: '期貨',
+                CRYPTOCURRENCY: '加密貨幣'
+            };
+            return map[type] || type || '—';
+        }
+
+        function setCompanyField(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value ?? '—';
+        }
+
+        function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
+            const meta = result?.meta || {};
+
+            setCompanyField(
+                'company-long-name',
+                meta.longName || meta.shortName ||
+                watchlist.find(s => s.symbol === symbol)?.name ||
+                displaySymbol(symbol)
+            );
+            setCompanyField('company-exchange', meta.fullExchangeName || meta.exchangeName || '—');
+            setCompanyField('company-market', meta.market || meta.exchangeName || '—');
+            setCompanyField('company-currency', meta.currency || meta.currencyCode || '—');
+            setCompanyField('company-type', quoteTypeText(meta.instrumentType || meta.quoteType));
+            setCompanyField('company-market-state', marketStateText(meta.marketState));
+            setCompanyField('company-symbol', displaySymbol(symbol));
+            setCompanyField('company-price', quote?.latestPrice || '—');
+
+            const note = document.getElementById('company-info-note');
+            if (note) {
+                note.textContent =
+                    `資料來源：${source} · ${meta.fullExchangeName || meta.exchangeName || '交易市場'} · ` +
+                    `代碼 ${displaySymbol(symbol)}`;
+            }
+        }
+
+        function renderFinnhubCompanyInfo(profile, symbol, quote) {
+            const p = profile || {};
+
+            setCompanyField(
+                'company-long-name',
+                p.name || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol)
+            );
+            setCompanyField('company-exchange', p.exchange || '—');
+            setCompanyField('company-market', p.finnhubIndustry || '—');
+            setCompanyField('company-currency', p.currency || '—');
+            setCompanyField('company-type', p.shareClassFIGI ? '股票' : '—');
+            setCompanyField('company-market-state', 'Finnhub 即時資料');
+            setCompanyField('company-symbol', displaySymbol(symbol));
+            setCompanyField('company-price', quote?.latestPrice || '—');
+
+            const note = document.getElementById('company-info-note');
+            if (note) {
+                const extra = [
+                    p.country ? `國家 ${p.country}` : '',
+                    p.marketCapitalization ? `市值 ${Number(p.marketCapitalization).toLocaleString('zh-TW')} 百萬` : '',
+                    p.ipo ? `IPO ${p.ipo}` : ''
+                ].filter(Boolean).join(' · ');
+
+                note.textContent =
+                    `資料來源：Finnhub · ${p.exchange || '交易市場'} · ${displaySymbol(symbol)}` +
+                    (extra ? ` · ${extra}` : '');
+            }
+        }
+
+        function clearCompanyInfo() {
+            [
+                'company-long-name',
+                'company-exchange',
+                'company-market',
+                'company-currency',
+                'company-type',
+                'company-market-state',
+                'company-symbol',
+                'company-price'
+            ].forEach(id => setCompanyField(id, '—'));
+
+            const note = document.getElementById('company-info-note');
+            if (note) note.textContent = '選擇股票後會自動載入公司基本資訊。';
+        }
+
+        function toggleCompanyInfo() {
+            const card = document.getElementById('company-info-card');
+            const button = card.querySelector('button');
+            card.classList.toggle('collapsed');
+            button.textContent = card.classList.contains('collapsed') ? '展開' : '收合';
+        }
+
         async function loadStock(symbol) {
             currentSymbol = symbol;
 
@@ -752,10 +1320,60 @@
             document.getElementById('chart-status').textContent =
                 `${currentPeriod.label} · 載入中`;
 
+            resetFundamentals();
+
             try {
-                const result = await fetchYahooData(symbol);
-                const quote = parseQuote(result);
+                // K線固定使用 Yahoo Worker
+                const yahooResultPromise = fetchYahooData(symbol);
+
+                // Finnhub 有 Key 時優先使用 Finnhub 報價與公司資訊。
+                // 若免費版限制、台股代碼或 CORS 造成失敗，則自動回退 Yahoo。
+                let quote;
+                let companyProfile = null;
+                let metricResult = null;
+                let quoteSource = 'Yahoo Finance';
+
+                if (FINNHUB_API_KEY) {
+                    try {
+                        quote = await fetchFinnhubQuote(symbol);
+                        try {
+                            companyProfile = await fetchFinnhubCompanyProfile(symbol);
+                        } catch (profileError) {
+                            console.warn('Finnhub 公司資訊失敗，改用 Yahoo:', profileError);
+                        }
+                        try {
+                            metricResult = await fetchFinnhubMetrics(symbol);
+                        } catch (metricError) {
+                            console.warn('Finnhub 基本面失敗:', metricError);
+                        }
+                        quoteSource = 'Finnhub';
+                    } catch (finnhubError) {
+                        console.warn('Finnhub 報價失敗，改用 Yahoo:', finnhubError);
+                    }
+                }
+
+                const result = await yahooResultPromise;
+                const yahooQuote = parseQuote(result);
                 const chartData = parseCandles(result);
+
+                if (!quote) {
+                    quote = yahooQuote;
+                }
+
+                if (companyProfile && (companyProfile.name || companyProfile.exchange || companyProfile.finnhubIndustry)) {
+                    renderFinnhubCompanyInfo(companyProfile, symbol, quote);
+                } else {
+                    renderCompanyInfo(result, symbol, quote, quoteSource);
+                }
+
+                if (metricResult) {
+                    renderFinnhubMetrics(metricResult, companyProfile, symbol);
+                } else {
+                    resetFundamentals();
+                    setMetric('fundamentals-status',
+                        FINNHUB_API_KEY ? '基本面暫無資料' : '請設定 Finnhub Key'
+                    );
+                }
 
                 quoteCache[symbol] = quote;
                 saveWatchlist();
@@ -863,6 +1481,7 @@
         document.getElementById('sort-select').value = sortMode;
 
         window.addEventListener('DOMContentLoaded', () => {
+            updateFinnhubStatus();
             document.getElementById('sort-select').value = sortMode;
             renderWatchlist();
             if (watchlist.length > 0) {
