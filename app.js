@@ -2958,6 +2958,9 @@ function initChart() {
                     borderColor: 'rgba(255,255,255,0.08)', 
                     timeVisible: true, 
                     secondsVisible: false,
+                    // 防止文字超出左右邊界
+                    fixLeftEdge: true,
+                    fixRightEdge: true,
                     // 強制將底部的時間軸轉換為台灣本地時間格式
                     tickMarkFormatter: (time, tickMarkType, locale) => {
                         const date = new Date(time * 1000);
@@ -2972,6 +2975,7 @@ function initChart() {
                         return `${hours}:${minutes}`;
                     }
                 },
+
 
                 rightPriceScale: {
                     borderColor:
