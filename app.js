@@ -442,7 +442,7 @@ function removeStock(index) {
             document.getElementById('stock-name').textContent = '選擇或新增股票以查看詳情';
             ['current-price','price-change','open-price','high-price','low-price','previous-close','volume','last-update'].forEach(id => document.getElementById(id).textContent = '—');
             document.getElementById('empty-state').style.display = 'flex';
-            candlestickSeries.setData([]);
+            if (candlestickSeries) candlestickSeries.setData([]);
             clearCompanyInfo();
         }
     }
@@ -756,12 +756,12 @@ async function loadStock(symbol, isSilent = false) {
         document.getElementById('stock-symbol-title').textContent = stockItem?.name || displaySymbol(symbol);
         document.getElementById('stock-name').textContent = displaySymbol(symbol);
 
-        if (chartData.length > 0) {
+        if (chartData.length > 0 && candlestickSeries) {
             candlestickSeries.setData(chartData);
             chart.timeScale().scrollToRealTime();
             document.getElementById('chart-status').textContent = `${currentPeriod.label} · ${chartData.length} 根`;
         } else if (!isSilent) {
-            candlestickSeries.setData([]);
+            if (candlestickSeries) candlestickSeries.setData([]);
             document.getElementById('chart-status').textContent = isForexSymbol(symbol) || isCryptoSymbol(symbol) ? '此標的無 K 線圖表' : (yahooError ? 'K線資料取得失敗，但報價可正常顯示' : '目前週期沒有 K 線資料');
         }
 
@@ -870,9 +870,9 @@ const chart = LightweightCharts.createChart(chartContainer, {
     }
 });
 
-const candlestickSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
-    upColor: '#ef4444', downColor: '#10b981', borderVisible: false, wickUpColor: '#ef4444', wickDownColor: '#10b981'
-});
+const candlestickSeries = chart ? chart.addSeries(LightweightCharts.CandlestickSeries, {
+    upColor: '#ef4444', downColor: '#10b981', borderVisible: true, borderUpColor: '#ef4444', borderDownColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
+}) : null;
 
 window.addEventListener('keydown', (e) => {
     if (document.activeElement.tagName === 'INPUT') return;
@@ -914,7 +914,6 @@ function toggleSidebar() {
 window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('sort-select').value = sortMode;
     
-    // 載入使用者偏好設定 (包含主題、K線顏色、更新頻率)
     loadUserPreferences(); 
 
     renderWatchlist();
@@ -1032,6 +1031,17 @@ function changeThemeColor(themeName, save = true) {
     const theme = THEMES[themeName] || THEMES.blue;
     if (save) localStorage.setItem('stockTheme', themeName);
 
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.classList.remove('ring-2', 'ring-offset-2', 'ring-offset-[#18181b]');
+        btn.style.boxShadow = ''; 
+    });
+    
+    const activeBtn = document.getElementById(`theme-btn-${themeName}`);
+    if (activeBtn) {
+        activeBtn.classList.add('ring-2', 'ring-offset-2', 'ring-offset-[#18181b]');
+        activeBtn.style.setProperty('--tw-ring-color', theme.primary);
+    }
+
     document.documentElement.style.setProperty('--theme-color-1', theme.bg1);
     document.documentElement.style.setProperty('--theme-color-2', theme.bg2);
 
@@ -1057,6 +1067,10 @@ function changeThemeColor(themeName, save = true) {
         .from-blue-600 { --tw-gradient-from: ${theme.primary} !important; }
         .to-purple-600 { --tw-gradient-to: ${theme.secondary} !important; }
         .to-purple-500 { --tw-gradient-to: ${theme.secondary} !important; }
+        input:focus, select:focus {
+            border-color: ${theme.primary}80 !important;
+            box-shadow: 0 0 0 1px ${theme.primary}4D !important;
+        }
     `;
 }
 
@@ -1081,11 +1095,17 @@ function updateChartColors(mode) {
     if (typeof candlestickSeries !== 'undefined' && candlestickSeries) {
         if (mode === 'green-red') {
             candlestickSeries.applyOptions({
-                upColor: '#10b981', downColor: '#ef4444', wickUpColor: '#10b981', wickDownColor: '#ef4444'
+                borderVisible: true,
+                upColor: '#10b981', downColor: '#ef4444', 
+                borderUpColor: '#10b981', borderDownColor: '#ef4444',
+                wickUpColor: '#10b981', wickDownColor: '#ef4444'
             });
         } else {
             candlestickSeries.applyOptions({
-                upColor: '#ef4444', downColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
+                borderVisible: true,
+                upColor: '#ef4444', downColor: '#10b981', 
+                borderUpColor: '#ef4444', borderDownColor: '#10b981',
+                wickUpColor: '#ef4444', wickDownColor: '#10b981'
             });
         }
     }
