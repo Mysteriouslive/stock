@@ -46,7 +46,6 @@
             .fundamental-value { font-size:13px; }
         }
         
-        /* 手機版效能與排版優化 */
         @media (max-width: 768px) {
             .glass, .section-card {
                 backdrop-filter: none !important;
@@ -470,15 +469,15 @@
             setMetric('metric-beta', formatMetric(firstFinite(m, ['beta'])));
             setMetric('metric-52high', formatMetric(firstFinite(m, ['52WeekHigh'])));
             setMetric('metric-52low', formatMetric(firstFinite(m, ['52WeekLow'])));
-            setMetric('metric-dividend', formatPercentMetric(firstFinite(m, ['dividendYieldIndicatedAnnual','dividendYieldTTM'])));
+            setMetric('metric-dividend', formatPercentMetric(firstFinite(m, ['dividendYieldIndicatedAnnual','dividendYieldTTM','currentDividendYieldTTM'])));
             setMetric('metric-roe', formatPercentMetric(firstFinite(m, ['roeTTM','roeRfy'])));
             setMetric('metric-gross-margin', formatPercentMetric(firstFinite(m, ['grossMarginTTM','grossMargin5Y'])));
             setMetric('metric-op-margin', formatPercentMetric(firstFinite(m, ['operatingMarginTTM','operatingMargin5Y'])));
             setMetric('metric-net-margin', formatPercentMetric(firstFinite(m, ['netProfitMarginTTM','netProfitMargin5Y'])));
             setMetric('metric-revenue-growth', formatPercentMetric(firstFinite(m, ['revenueGrowthTTMYoy','revenueGrowth5Y'])));
-            setMetric('metric-forward-pe', formatMetric(firstFinite(m, ['forwardPE'])));
-            setMetric('metric-peg', formatMetric(firstFinite(m, ['pegRatio'])));
-            setMetric('metric-ev-ebitda', formatMetric(firstFinite(m, ['enterpriseValueEbitdaTTM','evToEbitda'])));
+            setMetric('metric-forward-pe', formatMetric(firstFinite(m, ['forwardPE','peForwardAnnual'])));
+            setMetric('metric-peg', formatMetric(firstFinite(m, ['pegRatio','peRatio','PEG'])));
+            setMetric('metric-ev-ebitda', formatMetric(firstFinite(m, ['enterpriseValueEbitdaTTM','evToEbitda','evEbitda'])));
             setMetric('metric-shares', formatCompactNumber(firstFinite(m, ['shareOutstanding'])));
             setMetric('fundamentals-status', 'Finnhub 已載入');
             setMetric('fundamentals-note', `資料來源：Finnhub · ${displaySymbol(symbol)}`);
@@ -490,7 +489,7 @@
             const desc = document.getElementById('profile-description');
             if (desc && p.name) {
                 desc.textContent = `${p.name}${p.finnhubIndustry ? ` · ${p.finnhubIndustry}` : ''}`;
-                desc.classList.remove('hidden');
+                desc.classList.add('hidden');
             }
             const link = document.getElementById('company-web-link');
             if (link && p.weburl) {
@@ -500,12 +499,22 @@
             setMetric('profile-note', `公司：${p.name || displaySymbol(symbol)} · 交易所：${p.exchange || '—'}`);
         }
 
-        // 渲染台股專屬官方數據（結合 Yahoo 補充市值與 52 週高低）
-        function renderTwseMetrics(twseData, symbol, quoteResult) {
+        // 渲染台股專屬官方數據（結合 Yahoo 補充市值、52週高低與 EPS 自動計算）
+        function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
             resetFundamentals();
             document.getElementById('fundamentals-subtitle').textContent = `台灣證交所/櫃買中心 · ${twseData.source}`;
             
+            const peVal = Number(twseData.pe);
+            const priceVal = Number(currentPrice);
+
             setMetric('metric-pe', twseData.pe !== '0' && twseData.pe ? twseData.pe : '—');
+            
+            // 交叉計算：若有即時價格與本益比，直接算出約略 EPS (股價 / 本益比)
+            if (Number.isFinite(priceVal) && Number.isFinite(peVal) && peVal > 0) {
+                const estimatedEps = priceVal / peVal;
+                setMetric('metric-eps', estimatedEps.toFixed(2));
+            }
+
             setMetric('metric-dividend', twseData.dividendYield || '—');
             setMetric('metric-shares', twseData.pb || '—'); // 股價淨值比 PB
 
@@ -538,7 +547,7 @@
             
             const desc = document.getElementById('profile-description');
             if (desc) {
-                desc.textContent = `${meta.longName || displaySymbol(symbol)} - 台灣在地官方公開資訊（包含本益比、殖利率、股價淨值比）。`;
+                desc.textContent = `${meta.longName || displaySymbol(symbol)} - 台灣在地官方公開資訊（包含本益比、殖利率、股價淨值比，EPS 由股價與本益比推算）。`;
                 desc.classList.remove('hidden');
             }
             setMetric('profile-note', `市場別：${twseData.source} · 代碼：${displaySymbol(symbol)}`);
@@ -974,7 +983,7 @@
 
                 if (!isSilent) {
                     if (isTaiwanSymbol(symbol) && twseMetricsData) {
-                        renderTwseMetrics(twseMetricsData, symbol, yahooResult || quoteResult);
+                        renderTwseMetrics(twseMetricsData, symbol, yahooResult || quoteResult, quote.latestPrice);
                         renderCompanyInfo(yahooResult || quoteResult, symbol, quote, 'Yahoo Finance + 證交所');
                     } else if (companyProfile && (companyProfile.name || companyProfile.exchange || companyProfile.finnhubIndustry)) {
                         renderFinnhubCompanyInfo(companyProfile, symbol, quote);
