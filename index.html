@@ -81,7 +81,6 @@
         .company-info-item { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 10px 12px; }
     </style>
 </head>
-<!-- 使用 h-[100dvh] 解決 Safari 底部網址列造成的版面壓縮 -->
 <body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
     
@@ -130,7 +129,7 @@
         <div class="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[140px] pointer-events-none"></div>
         <div class="absolute bottom-[-15%] left-[-5%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
         
-        <!-- 手機版頂部 Header，加上安全距離避免被瀏海吃掉 -->
+        <!-- 手機版頂部 Header -->
         <div class="md:hidden flex items-center gap-3 px-4 pb-4 border-b border-white/5" style="padding-top: max(16px, env(safe-area-inset-top));">
             <button onclick="toggleSidebar()" class="p-2 rounded-lg glass text-gray-300">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
@@ -342,17 +341,23 @@
             return null;
         }
 
+        // ==========================================
+        // 修正：空值檢查 (避免 null 變成 0.00)
+        // ==========================================
         function formatMetric(value, suffix = '', decimals = 2) {
+            if (value == null || value === '') return '—';
             const n = Number(value);
             return Number.isFinite(n) ? `${n.toFixed(decimals)}${suffix}` : '—';
         }
 
         function formatPercentMetric(value) {
+            if (value == null || value === '') return '—';
             const n = Number(value);
             return Number.isFinite(n) ? `${n.toFixed(2)}%` : '—';
         }
 
         function formatCompactNumber(value) {
+            if (value == null || value === '') return '—';
             const n = Number(value);
             if (!Number.isFinite(n)) return '—';
             const a = Math.abs(n);
@@ -362,6 +367,7 @@
             if (a >= 1e3) return `${(n/1e3).toFixed(2)} 千`;
             return n.toFixed(2);
         }
+        // ==========================================
 
         function setMetric(id, value) {
             const el = document.getElementById(id);
@@ -624,9 +630,6 @@
             return Number(value).toFixed(2);
         }
 
-        // ==========================================
-        // 確保精準抓取 Yahoo 成交量與報價
-        // ==========================================
         function parseQuote(result) {
             const meta = result.meta || {};
             const quote = result.indicators?.quote?.[0] || {};
@@ -676,7 +679,6 @@
             const change = currentPrice - previousClose;
             const changePercent = (change / previousClose) * 100;
 
-            // 確保成交量有值 (若 Yahoo regularMarketVolume 為空則嘗試用 K 線最後一根的成交量)
             let vol = meta.regularMarketVolume;
             if (vol == null || isNaN(vol)) {
                 vol = lastVol;
@@ -692,7 +694,7 @@
                 high: formatPrice(meta.regularMarketDayHigh ?? lastHigh),
                 low: formatPrice(meta.regularMarketDayLow ?? lastLow),
                 previousClose: formatPrice(previousClose),
-                volume: formatVolume(vol) // <-- 確保正確顯示成交量
+                volume: formatVolume(vol)
             };
         }
 
@@ -780,9 +782,6 @@
             button.textContent = card.classList.contains('collapsed') ? '展開' : '收合';
         }
 
-        // =========================================================
-        // 修正：徹底分離 Yahoo (報價主力) 與 Finnhub (基本面輔助)
-        // =========================================================
         async function loadStock(symbol, isSilent = false) {
             currentSymbol = symbol;
             
@@ -807,7 +806,6 @@
                 let chartData = [];
                 let yahooError = null;
 
-                // 1. 強制優先抓取 Yahoo Finance 的精準報價與 K 線 (解決 Finnhub 報價卡頓與缺成交量問題)
                 let quoteResult = null;
                 try { 
                     quoteResult = await fetchYahooData(symbol, '5m', '1d'); 
@@ -830,9 +828,7 @@
                     console.warn('Yahoo Worker 失敗', error); 
                 }
 
-                // 2. 如果設定了 Finnhub API，僅用來抓取「基本面指標」與「公司背景資料」
                 if (FINNHUB_API_KEY && !isTaiwanSymbol(symbol)) {
-                    // 如果 Yahoo 徹底大當機抓不到報價，才退回到 Finnhub (無成交量) 作為備用
                     if (!quote) {
                         try { 
                             quote = await fetchFinnhubQuote(symbol); 
@@ -865,7 +861,6 @@
                 quoteCache[symbol] = quote;
                 saveWatchlist();
 
-                // 更新現價與數字
                 document.getElementById('current-price').textContent = quote.latestPrice;
                 document.getElementById('open-price').textContent = quote.open;
                 document.getElementById('high-price').textContent = quote.high;
@@ -891,7 +886,6 @@
                 const stockItem = watchlist.find(s => s.symbol === symbol);
                 document.getElementById('stock-name').textContent = stockItem?.name || displaySymbol(symbol);
 
-                // 更新 K 線資料
                 if (chartData.length > 0) {
                     candlestickSeries.setData(chartData);
                     if (!isSilent) chart.timeScale().fitContent();
@@ -940,14 +934,11 @@
             restartAutoRefresh();
         }
 
-        // =========================================================
-        // 自動更新排程器 (只更新當前股票，休眠時暫停)
-        // =========================================================
         function startAutoRefresh() {
             stopAutoRefresh();
             autoRefreshTimer = setInterval(() => {
                 if (!document.hidden && currentSymbol) {
-                    loadStock(currentSymbol, true); // true 代表靜默背景更新
+                    loadStock(currentSymbol, true);
                 }
             }, AUTO_REFRESH_INTERVAL);
         }
@@ -982,7 +973,6 @@
             if (currentSymbol) await loadStock(currentSymbol);
         }
 
-        // K線圖表初始化
         const chartContainer = document.getElementById('chart-container');
         const chart = LightweightCharts.createChart(chartContainer, {
             layout: { textColor: '#9ca3af', background: { type: 'solid', color: 'transparent' }, fontSize: 12 },
