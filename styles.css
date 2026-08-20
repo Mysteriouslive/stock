@@ -71,14 +71,18 @@ main > .flex-1, main .flex-1.flex-col { min-height: 0; }
     border: 1px solid rgba(255,255,255,0.06); 
     border-radius: 16px;
     padding: 16px;
-    margin-bottom: 1.25rem; 
+    margin-bottom: 1.5rem; 
     height: 440px; 
 }
+
 #chart-container { 
     flex: 1;
     width: 100%; 
-    min-height: 0; 
+    min-height: 340px; 
+    /* 關鍵：在底部留出空間，防止時間軸文字溢出跑到卡片外面 */
+    padding-bottom: 24px; 
 }
+
 .company-info-card.collapsed .company-info-body { display: none; }
 .company-info-item { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 10px 12px; }
 
