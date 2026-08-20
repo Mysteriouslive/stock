@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>個人股票觀測站</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <!-- 使用最新版 lightweight-charts (v5) -->
+    <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -49,7 +50,6 @@
             50% { opacity: 0.4; }
         }
         
-        /* 手機側邊欄 */
         @media (max-width: 768px) {
             #sidebar {
                 position: fixed;
@@ -73,7 +73,6 @@
 </head>
 <body class="h-screen overflow-hidden flex">
 
-    <!-- 手機遮罩 -->
     <div id="overlay" onclick="toggleSidebar()"></div>
 
     <!-- 左側邊欄 -->
@@ -133,11 +132,9 @@
 
     <!-- 右側主內容 -->
     <main class="flex-1 flex flex-col relative overflow-hidden">
-        <!-- 背景光暈 -->
         <div class="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[140px] pointer-events-none"></div>
         <div class="absolute bottom-[-15%] left-[-5%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-        <!-- 頂部工具列（手機用） -->
         <div class="md:hidden flex items-center gap-3 p-4 border-b border-white/5">
             <button onclick="toggleSidebar()" class="p-2 rounded-lg glass text-gray-300">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -148,16 +145,13 @@
         </div>
 
         <div class="flex-1 flex flex-col p-4 md:p-6 overflow-y-auto relative z-10">
-            <!-- 頂部數據卡片 -->
             <header class="glass rounded-2xl p-5 md:p-6 mb-5 relative overflow-hidden">
                 <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-blue-500 via-purple-500 to-transparent opacity-60"></div>
                 
                 <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
                         <div class="flex items-center gap-3">
-                            <h2 id="stock-symbol-title" class="text-3xl md:text-4xl font-black tracking-wider text-white">
-                                —
-                            </h2>
+                            <h2 id="stock-symbol-title" class="text-3xl md:text-4xl font-black tracking-wider text-white">—</h2>
                             <span id="loading-badge" class="hidden text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 loading-pulse">
                                 載入中
                             </span>
@@ -176,11 +170,9 @@
                 </div>
             </header>
 
-            <!-- K 線圖表 -->
             <div class="flex-1 glass rounded-2xl p-3 md:p-4 min-h-[380px] relative">
                 <div id="chart-container" class="w-full h-full min-h-[360px]"></div>
                 
-                <!-- 空狀態提示 -->
                 <div id="empty-state" class="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div class="text-center text-gray-500">
                         <div class="text-4xl mb-3 opacity-30">📈</div>
@@ -197,7 +189,6 @@
         // ==========================================
         const FINNHUB_API_KEY = 'da3fmchr01qual4pud1gda3fmchr01qual4pud20';
 
-        // 股票中文名稱對照
         const STOCK_NAMES = {
             'AMD': '超微 (Advanced Micro Devices)',
             'META': 'Meta Platforms',
@@ -205,7 +196,7 @@
             'TSM': '台積電 ADR (TSMC)'
         };
 
-        // 初始化圖表
+        // 初始化圖表 (v5 API)
         const chartContainer = document.getElementById('chart-container');
         const chart = LightweightCharts.createChart(chartContainer, {
             layout: {
@@ -231,8 +222,8 @@
             }
         });
 
-        // 台灣習慣：紅漲綠跌
-        const candlestickSeries = chart.addCandlestickSeries({
+        // ★ 重要：v5 新寫法
+        const candlestickSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
             upColor: '#ef4444',
             downColor: '#10b981',
             borderVisible: false,
@@ -249,20 +240,18 @@
         });
         resizeObserver.observe(chartContainer);
 
-        // 手機側邊欄切換
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('open');
             document.getElementById('overlay').classList.toggle('show');
         }
 
-        // 取得資料
         async function fetchFinnhubData(symbol) {
             if (!FINNHUB_API_KEY || FINNHUB_API_KEY.trim() === '') {
                 throw new Error('MISSING_API_KEY');
             }
 
             const to = Math.floor(Date.now() / 1000);
-            const from = to - (180 * 24 * 60 * 60); // 近 180 天
+            const from = to - (180 * 24 * 60 * 60);
 
             const [quoteRes, candleRes] = await Promise.all([
                 fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`),
@@ -304,11 +293,10 @@
             return { summaryData, chartData };
         }
 
-        // 載入股票
         let currentSymbol = null;
 
         async function loadStock(symbol) {
-            if (currentSymbol === symbol) return;
+            // 允許重新點擊同一檔股票（方便重試）
             currentSymbol = symbol;
 
             // 更新按鈕選中狀態
@@ -324,6 +312,7 @@
             document.getElementById('current-price').textContent = '—';
             document.getElementById('price-change').textContent = '—';
             document.getElementById('price-change').className = 'text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5';
+            document.getElementById('current-price').className = 'text-4xl md:text-5xl font-extrabold text-white tracking-tight';
 
             try {
                 const { summaryData, chartData } = await fetchFinnhubData(symbol);
@@ -336,10 +325,10 @@
                 
                 if (summaryData.isUp) {
                     changeEl.classList.add('price-up');
-                    document.getElementById('current-price').className = 'text-4xl md:text-5xl font-extrabold tracking-tight price-up';
+                    document.getElementById('current-price').classList.add('price-up');
                 } else {
                     changeEl.classList.add('price-down');
-                    document.getElementById('current-price').className = 'text-4xl md:text-5xl font-extrabold tracking-tight price-down';
+                    document.getElementById('current-price').classList.add('price-down');
                 }
 
                 if (chartData.length > 0) {
@@ -353,12 +342,16 @@
 
             } catch (error) {
                 console.error(error);
-                document.getElementById('stock-symbol-title').textContent = '載入失敗';
-                document.getElementById('stock-name').textContent = '';
                 
                 if (error.message === 'MISSING_API_KEY') {
+                    document.getElementById('stock-symbol-title').textContent = '請設定 API Key';
+                    document.getElementById('stock-name').textContent = '請在程式碼最上方填入 Finnhub API Key';
+                    document.getElementById('current-price').textContent = '—';
+                    document.getElementById('price-change').textContent = '未設定金鑰';
                     alert('請先在程式碼中填入你的 Finnhub API Key！\n\n可至 https://finnhub.io 免費註冊取得。');
                 } else {
+                    document.getElementById('stock-symbol-title').textContent = '載入失敗';
+                    document.getElementById('stock-name').textContent = '請稍後再試或檢查網路連線';
                     document.getElementById('current-price').textContent = '—';
                     document.getElementById('price-change').textContent = '資料取得失敗';
                 }
