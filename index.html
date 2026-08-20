@@ -173,8 +173,10 @@
         }
 
         #chart-card {
-            flex: 1 1 auto;
+            flex: 0 0 auto;
             min-height: 380px;
+            height: 420px;
+            margin-bottom: 1.25rem;
         }
 
         @media (max-width: 768px) {
@@ -189,6 +191,7 @@
 
             #chart-card {
                 min-height: 360px;
+                height: 400px;
             }
         }
 
@@ -382,7 +385,7 @@
                     </div>
                 </div>
             </section>
-<div id="chart-card" class="flex-1 min-h-[380px] min-w-0 glass rounded-2xl p-3 md:p-4 relative">
+<div id="chart-card" class="min-h-[380px] min-w-0 glass rounded-2xl p-3 md:p-4 relative mb-5">
                 <div class="flex items-center justify-between gap-2 px-1 pb-3">
                     <div class="flex items-center gap-1 flex-wrap">
                         <span class="text-[11px] text-gray-500 mr-1">K線</span>
@@ -484,12 +487,6 @@
         // Finnhub 免費版
         // =========================================================
         const FINNHUB_API_KEY = 'da3fmchr01qual4pud1gda3fmchr01qual4pud20'; // ← 直接在這裡填入 Finnhub API Key
-
-
-            if (currentSymbol) {
-                loadStock(currentSymbol);
-            }
-        }
 
         function finnhubSymbol(symbol) {
             // Finnhub 對台股使用 2330.TW；美股直接使用原代碼。
@@ -1299,6 +1296,15 @@
                     }
                 }
 
+                // 報價用較短區間取得即時 meta（避免長週期 chartPreviousClose 造成漲跌錯誤）
+                // K線仍使用使用者選擇的 period
+                let quoteResult = null;
+                try {
+                    quoteResult = await fetchYahooData(symbol, '5m', '1d');
+                } catch (error) {
+                    console.warn('Yahoo 短區間報價失敗，改用圖表區間:', error);
+                }
+
                 try {
                     yahooResult = await fetchYahooData(symbol);
                 } catch (error) {
@@ -1310,14 +1316,35 @@
                 let yahooQuote = null;
                 let chartData = [];
 
-                if (result) {
-                    yahooQuote = parseQuote(result);
-                    chartData = parseCandles(result);
+                if (quoteResult) {
+                    try {
+                        yahooQuote = parseQuote(quoteResult);
+                    } catch (e) {
+                        console.warn('短區間報價解析失敗:', e);
+                    }
+                }
 
-                    if (!quote) {
+                if (result) {
+                    if (!yahooQuote) {
+                        try {
+                            yahooQuote = parseQuote(result);
+                        } catch (e) {
+                            console.warn('圖表區間報價解析失敗:', e);
+                        }
+                    }
+                    try {
+                        chartData = parseCandles(result);
+                    } catch (e) {
+                        console.warn('K線解析失敗:', e);
+                    }
+
+                    if (!quote && yahooQuote) {
                         quote = yahooQuote;
                         quoteSource = 'Yahoo Finance';
                     }
+                } else if (yahooQuote && !quote) {
+                    quote = yahooQuote;
+                    quoteSource = 'Yahoo Finance';
                 }
 
                 if (!quote) {
