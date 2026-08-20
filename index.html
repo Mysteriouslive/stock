@@ -987,7 +987,8 @@
                     const cryptoJson = await fetchCryptoData();
                     const crypto = cryptoJson?.[symbol.toUpperCase()];
                     const priceUSD = Number(crypto?.usd);
-                    const changePercent = Number(crypto?.usd_24h_change || 0);
+                    // 同時支援舊欄位 change24h 與新欄位 usd_24h_change
+                    const changePercent = Number(crypto?.usd_24h_change ?? crypto?.change24h ?? 0);
 
                     if (!Number.isFinite(priceUSD) || priceUSD <= 0) {
                         throw new Error('CRYPTO_NO_PRICE');
@@ -1040,6 +1041,7 @@
                     
                     let yahooResult = null;
                     try { 
+                        // 即使是 silent 也重新抓當前週期的 K 線，確保圖表即時更新
                         yahooResult = await fetchYahooData(symbol); 
                         if (!quote && yahooResult) quote = parseQuote(yahooResult);
                         if (yahooResult) chartData = parseCandles(yahooResult);
@@ -1095,6 +1097,7 @@
                 document.getElementById('stock-symbol-title').textContent = stockItem?.name || displaySymbol(symbol);
                 document.getElementById('stock-name').textContent = displaySymbol(symbol);
 
+                // 圖表資料更新（無論 silent 與否都更新）
                 if (chartData.length > 0) {
                     candlestickSeries.setData(chartData);
                     if (!isSilent) chart.timeScale().fitContent();
