@@ -299,10 +299,11 @@
             <div class="setting-item">
                 <div class="block text-sm text-gray-400 mb-3">主題色系偏好</div>
                 <div class="flex gap-4">
-                    <button class="w-8 h-8 rounded-full bg-blue-500 ring-2 ring-offset-2 ring-offset-[#18181b] ring-blue-500 hover:scale-110 transition-transform" onclick="changeThemeColor('blue')"></button>
-                    <button class="w-8 h-8 rounded-full bg-emerald-500 hover:scale-110 transition-transform" onclick="changeThemeColor('emerald')"></button>
-                    <button class="w-8 h-8 rounded-full bg-purple-500 hover:scale-110 transition-transform" onclick="changeThemeColor('purple')"></button>
-                    <button class="w-8 h-8 rounded-full bg-orange-500 hover:scale-110 transition-transform" onclick="changeThemeColor('orange')"></button>
+                    <!-- 加入 id="theme-btn-..." 與 theme-btn 類別，並拔除寫死的 ring -->
+                    <button id="theme-btn-blue" class="theme-btn w-8 h-8 rounded-full bg-blue-500 hover:scale-110 transition-transform" onclick="changeThemeColor('blue')"></button>
+                    <button id="theme-btn-emerald" class="theme-btn w-8 h-8 rounded-full bg-emerald-500 hover:scale-110 transition-transform" onclick="changeThemeColor('emerald')"></button>
+                    <button id="theme-btn-purple" class="theme-btn w-8 h-8 rounded-full bg-purple-500 hover:scale-110 transition-transform" onclick="changeThemeColor('purple')"></button>
+                    <button id="theme-btn-orange" class="theme-btn w-8 h-8 rounded-full bg-orange-500 hover:scale-110 transition-transform" onclick="changeThemeColor('orange')"></button>
                 </div>
             </div>
             <div class="setting-item pt-4 border-t border-white/5">
