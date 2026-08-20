@@ -1002,3 +1002,60 @@ function closeModals() {
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeModals();
 });
+
+// ==========================================
+// 使用者設定與儲存邏輯 (Settings)
+// ==========================================
+
+// 1. 初始化設定 (當網頁載入時執行)
+function loadUserPreferences() {
+    const savedColorMode = localStorage.getItem('stockKlineColor') || 'red-green';
+    const savedRefreshRate = localStorage.getItem('stockRefreshRate') || '10000';
+
+    // 將下拉選單設定為使用者儲存的值
+    document.getElementById('kline-color').value = savedColorMode;
+    document.getElementById('refresh-rate').value = savedRefreshRate;
+
+    // 立即套用顏色
+    updateChartColors(savedColorMode);
+}
+
+// 2. 當使用者在設定視窗改變選項時觸發
+function applySettings() {
+    const colorMode = document.getElementById('kline-color').value;
+    const refreshRate = document.getElementById('refresh-rate').value;
+
+    // 儲存到 localStorage
+    localStorage.setItem('stockKlineColor', colorMode);
+    localStorage.setItem('stockRefreshRate', refreshRate);
+
+    // 1. 即時套用圖表顏色
+    updateChartColors(colorMode);
+
+    // 2. 即時套用更新頻率
+    AUTO_REFRESH_INTERVAL = Number(refreshRate);
+    restartAutoRefresh(); // 重新啟動計時器
+}
+
+// 3. 負責改變 Lightweight Charts 顏色的函式
+function updateChartColors(mode) {
+    if (!candlestickSeries) return;
+
+    if (mode === 'green-red') {
+        // 國際習慣：綠漲紅跌
+        candlestickSeries.applyOptions({
+            upColor: '#10b981', // 綠色
+            downColor: '#ef4444', // 紅色
+            wickUpColor: '#10b981',
+            wickDownColor: '#ef4444'
+        });
+    } else {
+        // 台灣習慣：紅漲綠跌 (預設)
+        candlestickSeries.applyOptions({
+            upColor: '#ef4444', // 紅色
+            downColor: '#10b981', // 綠色
+            wickUpColor: '#ef4444',
+            wickDownColor: '#10b981'
+        });
+    }
+}
