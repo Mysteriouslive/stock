@@ -88,3 +88,19 @@ main > .flex-1, main .flex-1.flex-col { min-height: 0; }
 
 .company-info-card.collapsed .company-info-body { display: none; }
 .company-info-item { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 10px 12px; }
+
+/* 美化全局與側邊欄的滾動條 */
+::-webkit-scrollbar {
+    width: 5px; /* 寬度變細 */
+    height: 5px;
+}
+::-webkit-scrollbar-track {
+    background: transparent; /* 背景透明 */
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15); /* 半透明白色 */
+    border-radius: 10px; /* 圓角 */
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3); /* 滑鼠游標移過去時變亮 */
+}
