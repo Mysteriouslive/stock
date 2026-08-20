@@ -4,8 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>股票觀測站</title>
+    <!-- 載入必要套件 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    
     <style>
         .section-card { background:rgba(12,12,14,0.65); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.06); border-radius:16px; }
         .section-title { font-size:15px; font-weight:700; color:#f4f4f5; }
@@ -40,15 +43,15 @@
             .fundamental-value { font-size:13px; }
         }
         
-        /* 手機版效能與排版優化 */
+        /* =======================================
+           手機版效能與排版優化 (關閉特效防卡頓)
+           ======================================= */
         @media (max-width: 768px) {
-            /* 1. 關閉手機版的毛玻璃特效，改用深色半透明背景代替，大幅提升流暢度 */
             .glass, .section-card {
                 backdrop-filter: none !important;
                 -webkit-backdrop-filter: none !important;
                 background: rgba(24, 24, 27, 0.95) !important;
             }
-            /* 2. 隱藏背景極度消耗效能的發光裝飾球 */
             .blur-\[140px\], .blur-\[120px\] {
                 display: none !important;
             }
@@ -94,9 +97,7 @@
                     <p class="text-[11px] text-gray-500 mt-0.5">Personal Watchlist</p>
                 </div>
                 <button onclick="toggleSidebar()" class="md:hidden text-gray-400 hover:text-white p-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
             <div class="flex gap-2">
@@ -141,9 +142,7 @@
         
         <div class="md:hidden flex items-center gap-3 p-4 border-b border-white/5">
             <button onclick="toggleSidebar()" class="p-2 rounded-lg glass text-gray-300">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
             </button>
             <span class="font-semibold tracking-wide">股票觀測站</span>
         </div>
@@ -208,6 +207,7 @@
                 </div>
             </section>
 
+            <!-- 圖表區域 -->
             <div id="chart-card" class="min-h-[380px] min-w-0 glass rounded-2xl p-3 md:p-4 relative mb-5">
                 <div class="flex items-center justify-between gap-2 px-1 pb-3">
                     <div class="flex items-center gap-1 flex-wrap">
@@ -506,61 +506,35 @@
             return arr;
         }
 
-        // K線圖表初始化
-        const chartContainer = document.getElementById('chart-container');
-        const chart = LightweightCharts.createChart(chartContainer, {
-            layout: { textColor: '#9ca3af', background: { type: 'solid', color: 'transparent' }, fontSize: 12 },
-            grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
-            crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 }, horzLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 } },
-            timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true, secondsVisible: false },
-            rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' }
-        });
-
-        const candlestickSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
-            upColor: '#ef4444', downColor: '#10b981', borderVisible: false, wickUpColor: '#ef4444', wickDownColor: '#10b981'
-        });
-
         // ==========================================
-        // 修正：手機版效能優化 (ResizeObserver 改良)
+        // 修正：支援手機與電腦的流暢拖曳排序機制
         // ==========================================
-        let currentChartWidth = chartContainer.clientWidth;
-        const resizeObserver = new ResizeObserver(() => {
-            const newWidth = chartContainer.clientWidth;
-            if (newWidth !== currentChartWidth || window.innerWidth > 768) {
-                currentChartWidth = newWidth;
-                chart.applyOptions({ width: chartContainer.clientWidth, height: chartContainer.clientHeight });
-            }
-        });
-        resizeObserver.observe(chartContainer);
-        // ==========================================
-
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('open');
-            document.getElementById('overlay').classList.toggle('show');
-        }
+        let sortableInstance = null;
 
         function renderWatchlist() {
             const listEl = document.getElementById('stock-list');
             listEl.innerHTML = '';
+            
             const sorted = sortedWatchlist();
             if (sorted.length === 0) {
                 listEl.innerHTML = `<p class="text-center text-gray-600 text-sm py-8">尚未新增任何股票</p>`;
                 return;
             }
+            
             sorted.forEach((stock) => {
                 const colorClass = COLOR_MAP[stock.color] || COLOR_MAP.blue;
                 const quote = quoteCache[stock.symbol];
                 const btn = document.createElement('button');
+                
                 btn.className = `stock-btn w-full text-left px-3 py-2.5 rounded-xl text-gray-400 flex items-center gap-2 group`;
                 btn.dataset.symbol = stock.symbol;
-                btn.draggable = sortMode === 'manual';
                 btn.onclick = () => loadStock(stock.symbol);
                 
                 const priceText = quote?.latestPrice ? `<span class="text-[10px] text-gray-400">${quote.latestPrice}</span>` : '';
                 const changeText = quote?.changePercent ? `<span class="text-[10px] ${Number(quote.changePercent) >= 0 ? 'price-up' : 'price-down'}">${Number(quote.changePercent) >= 0 ? '+' : ''}${Number(quote.changePercent).toFixed(2)}%</span>` : '';
                 
                 btn.innerHTML = `
-                    <span class="drag-handle text-xs ${sortMode === 'manual' ? '' : 'opacity-30'}" title="${sortMode === 'manual' ? '拖曳排序' : '切換到自訂順序後可拖曳'}">⋮⋮</span>
+                    <span class="drag-handle text-lg px-2 py-1 ${sortMode === 'manual' ? 'cursor-grab hover:text-white' : 'opacity-30'}" title="${sortMode === 'manual' ? '拖曳排序' : '切換到自訂順序後可拖曳'}">⋮</span>
                     <span class="w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center text-[10px] font-bold shrink-0">${displaySymbol(stock.symbol).slice(0, 4)}</span>
                     <div class="flex-1 min-w-0">
                         <div class="font-medium text-sm truncate">${stock.name || displaySymbol(stock.symbol)}</div>
@@ -570,29 +544,30 @@
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 `;
-
-                if (sortMode === 'manual') {
-                    btn.addEventListener('dragstart', () => { btn.classList.add('dragging'); btn.dataset.dragSymbol = stock.symbol; });
-                    btn.addEventListener('dragend', () => btn.classList.remove('dragging'));
-                    btn.addEventListener('dragover', e => e.preventDefault());
-                    btn.addEventListener('drop', e => {
-                        e.preventDefault();
-                        const dragged = document.querySelector('.stock-btn.dragging');
-                        if (!dragged || dragged === btn) return;
-                        const fromSymbol = dragged.dataset.symbol;
-                        const toSymbol = btn.dataset.symbol;
-                        const fromIndex = watchlist.findIndex(s => s.symbol === fromSymbol);
-                        const toIndex = watchlist.findIndex(s => s.symbol === toSymbol);
-                        if (fromIndex < 0 || toIndex < 0) return;
-                        const [item] = watchlist.splice(fromIndex, 1);
-                        watchlist.splice(toIndex, 0, item);
-                        saveWatchlist();
-                        renderWatchlist();
-                    });
-                }
                 listEl.appendChild(btn);
             });
+
+            initSortable();
         }
+
+        function initSortable() {
+            const listEl = document.getElementById('stock-list');
+            if (sortableInstance) {
+                sortableInstance.option('disabled', sortMode !== 'manual');
+                return;
+            }
+            sortableInstance = new Sortable(listEl, {
+                animation: 150,
+                handle: '.drag-handle',
+                disabled: sortMode !== 'manual',
+                onEnd: function (evt) {
+                    const item = watchlist.splice(evt.oldIndex, 1)[0];
+                    watchlist.splice(evt.newIndex, 0, item);
+                    saveWatchlist();
+                }
+            });
+        }
+        // ==========================================
 
         function addStock() {
             const input = document.getElementById('stock-input');
@@ -660,7 +635,7 @@
         }
 
         // ==========================================
-        // 修正：報價解析函數 (含盤前盤後狀態判斷)
+        // 修正：報價解析函數 (含盤前盤後與避開 Null)
         // ==========================================
         function parseQuote(result) {
             const meta = result.meta || {};
@@ -830,7 +805,10 @@
                 let metricResult = null;
                 let quoteSource = 'Yahoo Finance';
 
-                if (FINNHUB_API_KEY) {
+                // ==========================================
+                // 修正：針對台股直接略過 Finnhub，避免出現 403 錯誤
+                // ==========================================
+                if (FINNHUB_API_KEY && !isTaiwanSymbol(symbol)) {
                     try {
                         quote = await fetchFinnhubQuote(symbol);
                         quoteSource = 'Finnhub';
@@ -951,6 +929,38 @@
             button.classList.add('active');
             currentPeriod = { interval: button.dataset.interval, range: button.dataset.range, label: button.textContent.trim() };
             if (currentSymbol) await loadStock(currentSymbol);
+        }
+
+        // ==========================================
+        // 修正：K線圖與手機版視窗大小的監聽優化
+        // ==========================================
+        const chartContainer = document.getElementById('chart-container');
+        const chart = LightweightCharts.createChart(chartContainer, {
+            layout: { textColor: '#9ca3af', background: { type: 'solid', color: 'transparent' }, fontSize: 12 },
+            grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 }, horzLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 } },
+            timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true, secondsVisible: false },
+            rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' }
+        });
+
+        const candlestickSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
+            upColor: '#ef4444', downColor: '#10b981', borderVisible: false, wickUpColor: '#ef4444', wickDownColor: '#10b981'
+        });
+
+        let currentChartWidth = chartContainer.clientWidth;
+        const resizeObserver = new ResizeObserver(() => {
+            const newWidth = chartContainer.clientWidth;
+            if (newWidth !== currentChartWidth || window.innerWidth > 768) {
+                currentChartWidth = newWidth;
+                chart.applyOptions({ width: chartContainer.clientWidth, height: chartContainer.clientHeight });
+            }
+        });
+        resizeObserver.observe(chartContainer);
+        // ==========================================
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('overlay').classList.toggle('show');
         }
 
         document.getElementById('sort-select').value = sortMode;
