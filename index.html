@@ -39,12 +39,27 @@
             .fundamental-card { padding:10px; }
             .fundamental-value { font-size:13px; }
         }
+        
+        /* 手機版效能與排版優化 */
         @media (max-width: 768px) {
+            /* 1. 關閉手機版的毛玻璃特效，改用深色半透明背景代替，大幅提升流暢度 */
+            .glass, .section-card {
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
+                background: rgba(24, 24, 27, 0.95) !important;
+            }
+            /* 2. 隱藏背景極度消耗效能的發光裝飾球 */
+            .blur-\[140px\], .blur-\[120px\] {
+                display: none !important;
+            }
+
             .company-info-card { margin-bottom: 12px; }
             #stock-symbol-title { font-size: 2rem; line-height: 1.05; }
             .header-price-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-        }
-        @media (max-width: 768px) {
+            main header.glass { padding: 16px; flex: 0 0 auto; min-height: 0; overflow: visible; }
+            main header.glass .grid.grid-cols-5 { gap: 6px; font-size: 10px; }
+            #chart-card { min-height: 360px; height: 400px; }
+            
             #sidebar {
                 position: fixed;
                 left: -100%;
@@ -54,59 +69,15 @@
                 transition: left 0.3s ease;
             }
             #sidebar.open { left: 0; }
-            #overlay {
-                display: none;
-                position: fixed;
-                inset: 0;
-                background: rgba(0,0,0,0.6);
-                z-index: 40;
-            }
+            #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 40; }
             #overlay.show { display: block; }
         }
-        main > .flex-1,
-        main .flex-1.flex-col {
-            min-height: 0;
-        }
-        main header.glass {
-            flex: 0 0 auto;
-            min-height: 0;
-            overflow: visible;
-        }
-        .company-info-card {
-            flex: 0 0 auto;
-            min-height: 0;
-        }
-        #chart-card {
-            flex: 0 0 auto;
-            min-height: 380px;
-            height: 420px;
-            margin-bottom: 1.25rem;
-        }
-        @media (max-width: 768px) {
-            main header.glass {
-                padding: 16px;
-            }
-            main header.glass .grid.grid-cols-5 {
-                gap: 6px;
-                font-size: 10px;
-            }
-            #chart-card {
-                min-height: 360px;
-                height: 400px;
-            }
-        }
-        .company-info-card {
-            transition: all 0.25s ease;
-        }
-        .company-info-card.collapsed .company-info-body {
-            display: none;
-        }
-        .company-info-item {
-            background: rgba(255,255,255,0.025);
-            border: 1px solid rgba(255,255,255,0.05);
-            border-radius: 12px;
-            padding: 10px 12px;
-        }
+
+        main > .flex-1, main .flex-1.flex-col { min-height: 0; }
+        .company-info-card { flex: 0 0 auto; min-height: 0; transition: all 0.25s ease; }
+        #chart-card { flex: 0 0 auto; min-height: 380px; height: 420px; margin-bottom: 1.25rem; }
+        .company-info-card.collapsed .company-info-body { display: none; }
+        .company-info-item { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 10px 12px; }
     </style>
 </head>
 <body class="h-screen overflow-hidden flex">
@@ -215,7 +186,7 @@
                         <div class="w-9 h-9 rounded-xl bg-purple-500/15 text-purple-300 flex items-center justify-center text-lg">🏢</div>
                         <div>
                             <h3 class="font-semibold text-white">公司資訊</h3>
-                            <p class="text-[10px] text-gray-600">Company Information · Finnhub</p>
+                            <p class="text-[10px] text-gray-600">Company Information</p>
                         </div>
                     </div>
                     <button onclick="toggleCompanyInfo()" class="text-[11px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
@@ -328,7 +299,7 @@
         // 股票資料設定
         // =========================================================
         const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
-        const FINNHUB_API_KEY = 'da3fmchr01qual4pud1gda3fmchr01qual4pud20'; // ← 直接在這裡填入 Finnhub API Key
+        const FINNHUB_API_KEY = 'da3fmchr01qual4pud1gda3fmchr01qual4pud20'; // ← 若有 Finnhub API Key 可填入此處
 
         function finnhubSymbol(symbol) {
             return displaySymbol(symbol) + (isTaiwanSymbol(symbol) ? '.TW' : '');
@@ -469,16 +440,11 @@
         ];
 
         const COLOR_MAP = {
-            orange: 'bg-orange-500/20 text-orange-400',
-            blue: 'bg-blue-500/20 text-blue-400',
-            green: 'bg-green-500/20 text-green-400',
-            cyan: 'bg-cyan-500/20 text-cyan-400',
-            purple: 'bg-purple-500/20 text-purple-400',
-            pink: 'bg-pink-500/20 text-pink-400',
-            yellow: 'bg-yellow-500/20 text-yellow-400',
-            red: 'bg-red-500/20 text-red-400',
-            indigo: 'bg-indigo-500/20 text-indigo-400',
-            teal: 'bg-teal-500/20 text-teal-400'
+            orange: 'bg-orange-500/20 text-orange-400', blue: 'bg-blue-500/20 text-blue-400',
+            green: 'bg-green-500/20 text-green-400', cyan: 'bg-cyan-500/20 text-cyan-400',
+            purple: 'bg-purple-500/20 text-purple-400', pink: 'bg-pink-500/20 text-pink-400',
+            yellow: 'bg-yellow-500/20 text-yellow-400', red: 'bg-red-500/20 text-red-400',
+            indigo: 'bg-indigo-500/20 text-indigo-400', teal: 'bg-teal-500/20 text-teal-400'
         };
 
         const COLOR_KEYS = Object.keys(COLOR_MAP);
@@ -554,10 +520,19 @@
             upColor: '#ef4444', downColor: '#10b981', borderVisible: false, wickUpColor: '#ef4444', wickDownColor: '#10b981'
         });
 
+        // ==========================================
+        // 修正：手機版效能優化 (ResizeObserver 改良)
+        // ==========================================
+        let currentChartWidth = chartContainer.clientWidth;
         const resizeObserver = new ResizeObserver(() => {
-            chart.applyOptions({ width: chartContainer.clientWidth, height: chartContainer.clientHeight });
+            const newWidth = chartContainer.clientWidth;
+            if (newWidth !== currentChartWidth || window.innerWidth > 768) {
+                currentChartWidth = newWidth;
+                chart.applyOptions({ width: chartContainer.clientWidth, height: chartContainer.clientHeight });
+            }
         });
         resizeObserver.observe(chartContainer);
+        // ==========================================
 
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('open');
@@ -685,7 +660,7 @@
         }
 
         // ==========================================
-        // 修正後的報價解析函數 (解決台股 null 和現價錯誤)
+        // 修正：報價解析函數 (含盤前盤後狀態判斷)
         // ==========================================
         function parseQuote(result) {
             const meta = result.meta || {};
@@ -711,17 +686,20 @@
             }
 
             const previousCloseValue =
-                meta.previousClose ??
                 meta.regularMarketPreviousClose ??
+                meta.previousClose ??
                 meta.chartPreviousClose;
 
-            const price =
-                meta.regularMarketPrice ??
-                lastClose ??
-                meta.postMarketPrice ??
-                meta.preMarketPrice ??
-                previousCloseValue;
+            let price = null;
+            if (meta.marketState === 'PRE' || meta.marketState === 'PREPRE') {
+                price = meta.preMarketPrice ?? meta.regularMarketPrice ?? lastClose;
+            } else if (meta.marketState === 'POST' || meta.marketState === 'POSTPOST') {
+                price = meta.postMarketPrice ?? meta.regularMarketPrice ?? lastClose;
+            } else {
+                price = meta.regularMarketPrice ?? lastClose ?? meta.postMarketPrice ?? meta.preMarketPrice;
+            }
 
+            price = price ?? previousCloseValue;
             if (price == null) throw new Error('NO_QUOTE_DATA');
 
             const previousClose = Number(previousCloseValue);
@@ -730,14 +708,8 @@
             }
 
             const currentPrice = Number(price);
-            
             const change = currentPrice - previousClose;
             const changePercent = (change / previousClose) * 100;
-
-            const open = meta.regularMarketOpen ?? lastOpen;
-            const high = meta.regularMarketDayHigh ?? lastHigh;
-            const low = meta.regularMarketDayLow ?? lastLow;
-            const volumeValue = meta.regularMarketVolume ?? lastVol;
 
             return {
                 latestPrice: formatPrice(currentPrice),
@@ -745,11 +717,11 @@
                 changePercent: changePercent.toFixed(2),
                 isUp: change > 0,
                 isFlat: change === 0,
-                open: formatPrice(open),
-                high: formatPrice(high),
-                low: formatPrice(low),
+                open: formatPrice(meta.regularMarketOpen ?? lastOpen),
+                high: formatPrice(meta.regularMarketDayHigh ?? lastHigh),
+                low: formatPrice(meta.regularMarketDayLow ?? lastLow),
                 previousClose: formatPrice(previousClose),
-                volume: formatVolume(volumeValue)
+                volume: formatVolume(meta.regularMarketVolume ?? lastVol)
             };
         }
         // ==========================================
