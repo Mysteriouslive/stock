@@ -316,19 +316,21 @@
                 </div>
             </div>
 
-            <!-- 修正 2: 加上 for="kline-color" 與對應的 id="kline-color" 以及 name 屬性 -->
+            <!-- 修正後的 K 線顏色設定 -->
             <div class="setting-item pt-4 border-t border-white/5">
                 <label for="kline-color" class="block text-sm text-gray-400 mb-2">K 線顏色習慣</label>
-                <select id="kline-color" name="klineColor" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
+                <!-- 加上 onchange="applySettings()" -->
+                <select id="kline-color" name="klineColor" onchange="applySettings()" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
                     <option value="red-green">紅漲綠跌 (台灣習慣)</option>
                     <option value="green-red">綠漲紅跌 (國際習慣)</option>
                 </select>
             </div>
 
-            <!-- 修正 3: 加上 for="refresh-rate" 與對應的 id="refresh-rate" 以及 name 屬性 -->
+            <!-- 修正後的更新頻率設定 -->
             <div class="setting-item pt-4 border-t border-white/5">
                 <label for="refresh-rate" class="block text-sm text-gray-400 mb-2">資料更新頻率</label>
-                <select id="refresh-rate" name="refreshRate" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
+                <!-- 加上 onchange="applySettings()" -->
+                <select id="refresh-rate" name="refreshRate" onchange="applySettings()" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
                     <option value="10000">10 秒 (預設)</option>
                     <option value="30000">30 秒</option>
                     <option value="60000">1 分鐘</option>
