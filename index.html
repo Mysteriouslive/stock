@@ -43,9 +43,7 @@
             .fundamental-value { font-size:13px; }
         }
         
-        /* =======================================
-           手機版效能與排版優化 (關閉特效防卡頓)
-           ======================================= */
+        /* 手機版效能與排版優化 */
         @media (max-width: 768px) {
             .glass, .section-card {
                 backdrop-filter: none !important;
@@ -117,7 +115,7 @@
                 </button>
             </div>
             <div class="flex items-center justify-between mt-2 gap-2">
-                <p class="text-[10px] text-gray-600">支援台股代碼：2330、2317，也支援美股 TSLA、NVDA</p>
+                <p class="text-[10px] text-gray-600">支援台股：2330、美股：NVDA</p>
                 <select id="sort-select" onchange="changeSort(this.value)"
                     class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-gray-400 focus:outline-none">
                     <option value="manual">自訂順序</option>
@@ -157,6 +155,9 @@
                             <span id="loading-badge" class="hidden text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 loading-pulse">
                                 載入中
                             </span>
+                            <span id="auto-refresh-indicator" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> 即時觀測中
+                            </span>
                         </div>
                         <p id="stock-name" class="text-gray-400 text-sm mt-1">選擇或新增股票以查看詳情</p>
                         <p id="last-update" class="text-[11px] text-gray-600 mt-2">—</p>
@@ -164,8 +165,8 @@
                     <div class="text-left md:text-right min-w-0 w-full md:w-auto md:min-w-[330px]">
                         <p class="text-xs text-gray-500 mb-1 tracking-wide">現今報價</p>
                         <div class="flex items-baseline gap-3 md:justify-end">
-                            <span id="current-price" class="text-4xl md:text-5xl font-extrabold text-white tracking-tight">—</span>
-                            <span id="price-change" class="text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5">—</span>
+                            <span id="current-price" class="text-4xl md:text-5xl font-extrabold text-white tracking-tight transition-colors duration-300">—</span>
+                            <span id="price-change" class="text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5 transition-colors duration-300">—</span>
                         </div>
                         <div class="grid grid-cols-5 gap-2 mt-4 text-[11px] md:text-xs">
                             <div><div class="text-gray-600 mb-1">今開</div><div id="open-price" class="text-gray-300 font-medium">—</div></div>
@@ -300,6 +301,7 @@
         // =========================================================
         const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
         const FINNHUB_API_KEY = 'da3fmchr01qual4pud1gda3fmchr01qual4pud20'; // ← 若有 Finnhub API Key 可填入此處
+        const AUTO_REFRESH_INTERVAL = 10000; // 自動更新頻率：10 秒
 
         function finnhubSymbol(symbol) {
             return displaySymbol(symbol) + (isTaiwanSymbol(symbol) ? '.TW' : '');
@@ -506,9 +508,6 @@
             return arr;
         }
 
-        // ==========================================
-        // 修正：支援手機與電腦的流暢拖曳排序機制
-        // ==========================================
         let sortableInstance = null;
 
         function renderWatchlist() {
@@ -567,7 +566,6 @@
                 }
             });
         }
-        // ==========================================
 
         function addStock() {
             const input = document.getElementById('stock-input');
@@ -601,6 +599,7 @@
             renderWatchlist();
             if (currentSymbol === removed.symbol) {
                 currentSymbol = null;
+                stopAutoRefresh();
                 document.getElementById('stock-symbol-title').textContent = '—';
                 document.getElementById('stock-name').textContent = '選擇或新增股票以查看詳情';
                 ['current-price','price-change','open-price','high-price','low-price','previous-close','volume','last-update'].forEach(id => document.getElementById(id).textContent = '—');
@@ -634,9 +633,6 @@
             return Number(value).toFixed(2);
         }
 
-        // ==========================================
-        // 修正：報價解析函數 (含盤前盤後與避開 Null)
-        // ==========================================
         function parseQuote(result) {
             const meta = result.meta || {};
             const quote = result.indicators?.quote?.[0] || {};
@@ -699,7 +695,6 @@
                 volume: formatVolume(meta.regularMarketVolume ?? lastVol)
             };
         }
-        // ==========================================
 
         function parseCandles(result) {
             const timestamps = result.timestamp || [];
@@ -724,6 +719,7 @@
         }
 
         let currentSymbol = null;
+        let autoRefreshTimer = null; // 自動更新計時器
 
         function marketStateText(state) {
             const map = { REGULAR: '正常交易', PRE: '盤前交易', POST: '盤後交易', PREPRE: '盤前', POSTPOST: '盤後', CLOSED: '休市' };
@@ -784,18 +780,25 @@
             button.textContent = card.classList.contains('collapsed') ? '展開' : '收合';
         }
 
-        async function loadStock(symbol) {
+        // =========================================================
+        // 載入股票資料 (支援手動點選與靜默自動輪詢)
+        // =========================================================
+        async function loadStock(symbol, isSilent = false) {
             currentSymbol = symbol;
-            document.querySelectorAll('.stock-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.symbol === symbol));
-            document.getElementById('stock-symbol-title').textContent = displaySymbol(symbol);
-            document.getElementById('stock-name').textContent = '載入中...';
-            document.getElementById('loading-badge').classList.remove('hidden');
-            document.getElementById('empty-state').style.display = 'none';
-            ['current-price','price-change','open-price','high-price','low-price','previous-close','volume'].forEach(id => document.getElementById(id).textContent = '—');
-            document.getElementById('price-change').className = 'text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5';
-            document.getElementById('current-price').className = 'text-4xl md:text-5xl font-extrabold text-white tracking-tight';
-            document.getElementById('chart-status').textContent = `${currentPeriod.label} · 載入中`;
-            resetFundamentals();
+            
+            if (!isSilent) {
+                // 手動切換時才顯示轉圈動畫並清空舊數值
+                document.querySelectorAll('.stock-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.symbol === symbol));
+                document.getElementById('stock-symbol-title').textContent = displaySymbol(symbol);
+                document.getElementById('stock-name').textContent = '載入中...';
+                document.getElementById('loading-badge').classList.remove('hidden');
+                document.getElementById('empty-state').style.display = 'none';
+                ['current-price','price-change','open-price','high-price','low-price','previous-close','volume'].forEach(id => document.getElementById(id).textContent = '—');
+                document.getElementById('price-change').className = 'text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5';
+                document.getElementById('current-price').className = 'text-4xl md:text-5xl font-extrabold text-white tracking-tight';
+                document.getElementById('chart-status').textContent = `${currentPeriod.label} · 載入中`;
+                resetFundamentals();
+            }
 
             try {
                 let yahooResult = null;
@@ -805,15 +808,15 @@
                 let metricResult = null;
                 let quoteSource = 'Yahoo Finance';
 
-                // ==========================================
-                // 修正：針對台股直接略過 Finnhub，避免出現 403 錯誤
-                // ==========================================
+                // 台股自動跳過 Finnhub，美股才抓
                 if (FINNHUB_API_KEY && !isTaiwanSymbol(symbol)) {
                     try {
                         quote = await fetchFinnhubQuote(symbol);
                         quoteSource = 'Finnhub';
-                        try { companyProfile = await fetchFinnhubCompanyProfile(symbol); } catch (e) { console.warn('Finnhub 公司資訊失敗', e); }
-                        try { metricResult = await fetchFinnhubMetrics(symbol); } catch (e) { console.warn('Finnhub 基本面失敗', e); }
+                        if (!isSilent) {
+                            try { companyProfile = await fetchFinnhubCompanyProfile(symbol); } catch (e) { console.warn('Finnhub 公司資訊失敗', e); }
+                            try { metricResult = await fetchFinnhubMetrics(symbol); } catch (e) { console.warn('Finnhub 基本面失敗', e); }
+                        }
                     } catch (e) { console.warn('Finnhub 報價失敗', e); }
                 }
 
@@ -841,22 +844,26 @@
 
                 if (!quote) throw (yahooError || new Error('NO_QUOTE_DATA'));
 
-                if (companyProfile && (companyProfile.name || companyProfile.exchange || companyProfile.finnhubIndustry)) {
-                    renderFinnhubCompanyInfo(companyProfile, symbol, quote);
-                } else {
-                    renderCompanyInfo(result, symbol, quote, quoteSource);
-                }
+                // 首次載入或手動切換時才重繪基本面與公司資料（節省運算）
+                if (!isSilent) {
+                    if (companyProfile && (companyProfile.name || companyProfile.exchange || companyProfile.finnhubIndustry)) {
+                        renderFinnhubCompanyInfo(companyProfile, symbol, quote);
+                    } else {
+                        renderCompanyInfo(result, symbol, quote, quoteSource);
+                    }
 
-                if (metricResult) {
-                    renderFinnhubMetrics(metricResult, companyProfile, symbol);
-                } else {
-                    resetFundamentals();
-                    setMetric('fundamentals-status', '基本面暫無資料');
+                    if (metricResult) {
+                        renderFinnhubMetrics(metricResult, companyProfile, symbol);
+                    } else {
+                        resetFundamentals();
+                        setMetric('fundamentals-status', '基本面暫無資料');
+                    }
                 }
 
                 quoteCache[symbol] = quote;
                 saveWatchlist();
 
+                // 更新現價與數字
                 document.getElementById('current-price').textContent = quote.latestPrice;
                 document.getElementById('open-price').textContent = quote.open;
                 document.getElementById('high-price').textContent = quote.high;
@@ -869,60 +876,107 @@
                 changeEl.textContent = `${sign}${quote.change} (${sign}${quote.changePercent}%)`;
 
                 if (quote.isFlat) {
-                    changeEl.classList.add('text-gray-400');
-                    document.getElementById('current-price').classList.add('text-gray-300');
+                    changeEl.className = 'text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5 text-gray-400';
+                    document.getElementById('current-price').className = 'text-4xl md:text-5xl font-extrabold tracking-tight text-gray-300';
                 } else if (quote.isUp) {
-                    changeEl.classList.add('price-up');
-                    document.getElementById('current-price').classList.add('price-up');
+                    changeEl.className = 'text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5 price-up';
+                    document.getElementById('current-price').className = 'text-4xl md:text-5xl font-extrabold tracking-tight price-up';
                 } else {
-                    changeEl.classList.add('price-down');
-                    document.getElementById('current-price').classList.add('price-down');
+                    changeEl.className = 'text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5 price-down';
+                    document.getElementById('current-price').className = 'text-4xl md:text-5xl font-extrabold tracking-tight price-down';
                 }
 
                 const stockItem = watchlist.find(s => s.symbol === symbol);
                 document.getElementById('stock-name').textContent = stockItem?.name || displaySymbol(symbol);
 
+                // 更新 K 線資料
                 if (chartData.length > 0) {
                     candlestickSeries.setData(chartData);
-                    chart.timeScale().fitContent();
+                    if (!isSilent) chart.timeScale().fitContent();
                     document.getElementById('chart-status').textContent = `${currentPeriod.label} · ${chartData.length} 根`;
-                } else {
+                } else if (!isSilent) {
                     candlestickSeries.setData([]);
                     document.getElementById('chart-status').textContent = yahooError ? 'K線資料取得失敗，但報價可正常顯示' : '目前週期沒有 K 線資料';
                 }
 
                 const now = new Date();
                 document.getElementById('last-update').textContent = `最後更新：${now.toLocaleString('zh-TW', { hour12: false })}`;
+                
+                // 刷新左側自選股清單顯示的最新價格
                 renderWatchlist();
 
             } catch (error) {
                 console.error(error);
-                document.getElementById('chart-status').textContent = '資料取得失敗';
-                if (error.message === 'NO_QUOTE_DATA') {
-                    document.getElementById('stock-name').textContent = '找不到報價資料，請確認股票代碼';
-                    document.getElementById('price-change').textContent = '報價失敗';
-                } else if (error.message === 'NO_PREVIOUS_CLOSE') {
-                    document.getElementById('stock-name').textContent = '找不到昨收資料，無法正確計算漲幅';
-                    document.getElementById('price-change').textContent = '漲幅無法計算';
-                } else if (error.message === 'NO_CANDLE_DATA') {
-                    document.getElementById('stock-name').textContent = '目前週期沒有 K 線資料';
-                    document.getElementById('price-change').textContent = 'K線失敗';
-                } else if (error.message === 'YAHOO_FAILED') {
-                    document.getElementById('stock-name').textContent = FINNHUB_API_KEY ? 'Yahoo K線代理連線失敗；Finnhub 報價可獨立使用' : 'Yahoo 資料代理 Worker 連線失敗';
-                    document.getElementById('price-change').textContent = FINNHUB_API_KEY ? 'K線失敗' : 'Worker 失敗';
-                } else {
-                    document.getElementById('stock-name').textContent = `找不到 ${displaySymbol(symbol)} 的資料`;
-                    document.getElementById('price-change').textContent = '載入失敗';
+                if (!isSilent) {
+                    document.getElementById('chart-status').textContent = '資料取得失敗';
+                    if (error.message === 'NO_QUOTE_DATA') {
+                        document.getElementById('stock-name').textContent = '找不到報價資料，請確認股票代碼';
+                        document.getElementById('price-change').textContent = '報價失敗';
+                    } else if (error.message === 'NO_PREVIOUS_CLOSE') {
+                        document.getElementById('stock-name').textContent = '找不到昨收資料，無法正確計算漲幅';
+                        document.getElementById('price-change').textContent = '漲幅無法計算';
+                    } else if (error.message === 'NO_CANDLE_DATA') {
+                        document.getElementById('stock-name').textContent = '目前週期沒有 K 線資料';
+                        document.getElementById('price-change').textContent = 'K線失敗';
+                    } else if (error.message === 'YAHOO_FAILED') {
+                        document.getElementById('stock-name').textContent = FINNHUB_API_KEY ? 'Yahoo K線代理連線失敗；Finnhub 報價可獨立使用' : 'Yahoo 資料代理 Worker 連線失敗';
+                        document.getElementById('price-change').textContent = FINNHUB_API_KEY ? 'K線失敗' : 'Worker 失敗';
+                    } else {
+                        document.getElementById('stock-name').textContent = `找不到 ${displaySymbol(symbol)} 的資料`;
+                        document.getElementById('price-change').textContent = '載入失敗';
+                    }
                 }
             } finally {
-                document.getElementById('loading-badge').classList.add('hidden');
+                if (!isSilent) {
+                    document.getElementById('loading-badge').classList.add('hidden');
+                }
             }
 
-            if (window.innerWidth < 768) {
+            if (!isSilent && window.innerWidth < 768) {
                 document.getElementById('sidebar').classList.remove('open');
                 document.getElementById('overlay').classList.remove('show');
             }
+
+            // 確保當前正在看的這檔股票開始自動輪詢
+            restartAutoRefresh();
         }
+
+        // =========================================================
+        // 自動更新排程器 (只更新當前股票，休眠時暫停)
+        // =========================================================
+        function startAutoRefresh() {
+            stopAutoRefresh();
+            autoRefreshTimer = setInterval(() => {
+                // 只有在視窗處於前景、且有選取股票時才靜默更新
+                if (!document.hidden && currentSymbol) {
+                    loadStock(currentSymbol, true); // true 代表靜默背景更新
+                }
+            }, AUTO_REFRESH_INTERVAL);
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+            }
+        }
+
+        function restartAutoRefresh() {
+            stopAutoRefresh();
+            startAutoRefresh();
+        }
+
+        // 當切換分頁或手機關閉螢幕時暫停輪詢，回到畫面立刻更新一次
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopAutoRefresh();
+            } else {
+                if (currentSymbol) {
+                    loadStock(currentSymbol, true);
+                    startAutoRefresh();
+                }
+            }
+        });
 
         async function changePeriod(button) {
             document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
@@ -931,9 +985,7 @@
             if (currentSymbol) await loadStock(currentSymbol);
         }
 
-        // ==========================================
-        // 修正：K線圖與手機版視窗大小的監聽優化
-        // ==========================================
+        // K線圖表初始化
         const chartContainer = document.getElementById('chart-container');
         const chart = LightweightCharts.createChart(chartContainer, {
             layout: { textColor: '#9ca3af', background: { type: 'solid', color: 'transparent' }, fontSize: 12 },
@@ -956,7 +1008,6 @@
             }
         });
         resizeObserver.observe(chartContainer);
-        // ==========================================
 
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('open');
