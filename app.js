@@ -1,5 +1,5 @@
 const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
-let AUTO_REFRESH_INTERVAL = 10000;
+let AUTO_REFRESH_INTERVAL = Number(localStorage.getItem('stockRefreshRate')) || 10000;
 
 function isForexSymbol(symbol) { 
     const s = symbol.toUpperCase();
