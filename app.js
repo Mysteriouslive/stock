@@ -941,3 +941,64 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     startAutoRefresh();
 });
+// ==========================================
+// 系統設定與帳號資訊 Modal 邏輯
+// ==========================================
+function openSettingsModal() {
+    const overlay = document.getElementById('modal-overlay');
+    const modal = document.getElementById('settings-modal');
+    
+    // 如果手機版側邊欄開著，先把它關掉以免畫面太亂
+    if (window.innerWidth < 768) {
+        document.getElementById('sidebar').classList.remove('open');
+    }
+
+    overlay.classList.remove('hidden');
+    modal.classList.remove('hidden');
+    
+    // 用微小延遲觸發 Tailwind 的過渡動畫
+    setTimeout(() => {
+        overlay.classList.remove('opacity-0');
+        modal.classList.remove('opacity-0', 'scale-95');
+    }, 10);
+}
+
+function openProfileModal() {
+    const overlay = document.getElementById('modal-overlay');
+    const modal = document.getElementById('profile-modal');
+    
+    if (window.innerWidth < 768) {
+        document.getElementById('sidebar').classList.remove('open');
+    }
+
+    overlay.classList.remove('hidden');
+    modal.classList.remove('hidden');
+    
+    setTimeout(() => {
+        overlay.classList.remove('opacity-0');
+        modal.classList.remove('opacity-0', 'scale-95');
+    }, 10);
+}
+
+function closeModals() {
+    const overlay = document.getElementById('modal-overlay');
+    const settingsModal = document.getElementById('settings-modal');
+    const profileModal = document.getElementById('profile-modal');
+
+    // 淡出動畫
+    overlay.classList.add('opacity-0');
+    settingsModal.classList.add('opacity-0', 'scale-95');
+    profileModal.classList.add('opacity-0', 'scale-95');
+
+    // 等待動畫結束後隱藏元素 (與 Tailwind 的 duration-300 一致)
+    setTimeout(() => {
+        overlay.classList.add('hidden');
+        settingsModal.classList.add('hidden');
+        profileModal.classList.add('hidden');
+    }, 300);
+}
+
+// 允許按 ESC 鍵關閉視窗
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModals();
+});
