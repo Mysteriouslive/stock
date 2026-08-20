@@ -262,13 +262,6 @@
         </div>
 
         <div class="flex-1 overflow-y-auto p-3 space-y-1" id="stock-list"></div>
-
-        <div class="p-4 border-t border-white/5 text-[11px] text-gray-500">
-            <div class="flex items-center gap-2">
-                <span id="finnhub-status-dot" class="w-1.5 h-1.5 rounded-full bg-gray-500"></span>
-                <span id="finnhub-status-text">Finnhub 未設定 · K線 Yahoo</span>
-            </div>
-        </div>
     </aside>
 
     <!-- 右側主內容 -->
@@ -477,9 +470,6 @@
     </main>
 
     <script>
-        // ==========================================
-        // ⚠️ 請在此填入你的 Finnhub API Key（只用於報價）
-        // ==========================================
         // =========================================================
         // 股票資料設定
         // =========================================================
@@ -492,48 +482,9 @@
 
         // =========================================================
         // Finnhub 免費版
-        // API Key 會儲存在瀏覽器 localStorage，不寫死在程式碼裡。
-        // 設定後：
-        //   - Finnhub：即時報價 / 公司基本資訊
-        //   - Yahoo Worker：K 線
-        // 若 Finnhub 無資料，會自動退回 Yahoo。
         // =========================================================
-        let FINNHUB_API_KEY = localStorage.getItem('finnhubApiKey') || 'da3fmchr01qual4pud1gda3fmchr01qual4pud20';
+        const FINNHUB_API_KEY = 'da3fmchr01qual4pud1gda3fmchr01qual4pud20'; // ← 直接在這裡填入 Finnhub API Key
 
-        function updateFinnhubStatus() {
-            const dot = document.getElementById('finnhub-status-dot');
-            const text = document.getElementById('finnhub-status-text');
-            if (!dot || !text) return;
-
-            if (FINNHUB_API_KEY) {
-                dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-500';
-                text.textContent = 'Finnhub 已啟用 · K線 Yahoo';
-            } else {
-                dot.className = 'w-1.5 h-1.5 rounded-full bg-gray-500';
-                text.textContent = 'Finnhub 未設定 · K線 Yahoo';
-            }
-        }
-
-        function setFinnhubApiKey() {
-            const current = FINNHUB_API_KEY || '';
-            const key = prompt(
-                '請貼上你的 Finnhub API Key\n\n' +
-                '免費版即可使用。Key 只會儲存在這個瀏覽器。\n' +
-                '如果要清除，請按「確定」後留空。',
-                current
-            );
-
-            if (key === null) return;
-
-            FINNHUB_API_KEY = key.trim();
-
-            if (FINNHUB_API_KEY) {
-                localStorage.setItem('finnhubApiKey', FINNHUB_API_KEY);
-            } else {
-                localStorage.removeItem('finnhubApiKey');
-            }
-
-            updateFinnhubStatus();
 
             if (currentSymbol) {
                 loadStock(currentSymbol);
@@ -1384,7 +1335,7 @@
                 } else {
                     resetFundamentals();
                     setMetric('fundamentals-status',
-                        FINNHUB_API_KEY ? '基本面暫無資料' : '請設定 Finnhub Key'
+                        '基本面暫無資料'
                     );
                 }
 
@@ -1499,7 +1450,6 @@
         document.getElementById('sort-select').value = sortMode;
 
         window.addEventListener('DOMContentLoaded', () => {
-            updateFinnhubStatus();
             document.getElementById('sort-select').value = sortMode;
             renderWatchlist();
             if (watchlist.length > 0) {
