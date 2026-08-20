@@ -199,6 +199,7 @@
                 <div class="flex flex-col md:flex-row md:items-end justify-between gap-5 min-w-0">
                     <div>
                         <div class="flex items-center gap-3">
+                            <!-- 改進：台股主標題顯示為「中文 (代碼)」 -->
                             <h2 id="stock-symbol-title" class="text-3xl md:text-4xl font-black tracking-wider text-white">—</h2>
                             <span id="loading-badge" class="hidden text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 loading-pulse">
                                 載入中
@@ -348,13 +349,41 @@
         const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
         const AUTO_REFRESH_INTERVAL = 10000; // 10 秒自動靜默更新
 
+        // 常見台股中文字典對應表 (中文為主，代碼為輔)
+        const TAIWAN_STOCK_NAMES = {
+            '2330': '台積電',
+            '2303': '聯電',
+            '2317': '鴻海',
+            '2454': '聯發科',
+            '2308': '台達電',
+            '2881': '富邦金',
+            '2882': '國泰金',
+            '2891': '中信金',
+            '2603': '長榮',
+            '2609': '陽明',
+            '2615': '萬海',
+            '3008': '大立光',
+            '2382': '廣達',
+            '3231': '緯創',
+            '2357': '華碩',
+            '2376': '技嘉',
+            '6488': '環球晶'
+        };
+
+        // 取得優化後的顯示名稱 (台股優先顯示「中文 (代碼)」，美股顯示「代碼」)
+        function getFormattedStockTitle(symbol, metaName = '') {
+            const cleanSymbol = displaySymbol(symbol);
+            if (isTaiwanSymbol(symbol)) {
+                const chineseName = TAIWAN_STOCK_NAMES[cleanSymbol] || metaName || cleanSymbol;
+                return `${chineseName} (${cleanSymbol})`;
+            }
+            return metaName ? `${metaName} (${cleanSymbol})` : cleanSymbol;
+        }
+
         function finnhubSymbol(symbol) {
             return displaySymbol(symbol) + (isTaiwanSymbol(symbol) ? '.TW' : '');
         }
 
-        // =========================================================
-        // Finnhub 請求改走 Worker 代理 (安全保護金鑰)
-        // =========================================================
         async function fetchFinnhubWorker(symbol, endpoint, params = {}) {
             const query = new URLSearchParams({
                 source: 'finnhub',
@@ -585,12 +614,16 @@
                 const priceText = quote?.latestPrice ? `<span class="text-[10px] text-gray-400">${quote.latestPrice}</span>` : '';
                 const changeText = quote?.changePercent ? `<span class="text-[10px] ${Number(quote.changePercent) >= 0 ? 'price-up' : 'price-down'}">${Number(quote.changePercent) >= 0 ? '+' : ''}${Number(quote.changePercent).toFixed(2)}%</span>` : '';
                 
+                // 側邊欄也支援中文為主代碼為輔
+                const cleanSym = displaySymbol(stock.symbol);
+                const displayName = isTaiwanSymbol(stock.symbol) ? (TAIWAN_STOCK_NAMES[cleanSym] || stock.name || cleanSym) : (stock.name || cleanSym);
+
                 btn.innerHTML = `
                     <span class="drag-handle text-lg px-2 py-1 ${sortMode === 'manual' ? 'cursor-grab hover:text-white' : 'opacity-30'}" title="${sortMode === 'manual' ? '拖曳排序' : '切換到自訂順序後可拖曳'}">⋮</span>
-                    <span class="w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center text-[10px] font-bold shrink-0">${displaySymbol(stock.symbol).slice(0, 4)}</span>
+                    <span class="w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center text-[10px] font-bold shrink-0">${cleanSym.slice(0, 4)}</span>
                     <div class="flex-1 min-w-0">
-                        <div class="font-medium text-sm truncate">${stock.name || displaySymbol(stock.symbol)}</div>
-                        <div class="text-[11px] text-gray-500 flex items-center gap-2"><span>${displaySymbol(stock.symbol)}</span>${priceText}${changeText}</div>
+                        <div class="font-medium text-sm truncate">${displayName}</div>
+                        <div class="text-[11px] text-gray-500 flex items-center gap-2"><span>${cleanSym}</span>${priceText}${changeText}</div>
                     </div>
                     <button class="delete-btn text-gray-600 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10" onclick="event.stopPropagation(); removeStockBySymbol('${stock.symbol}')" title="移除">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -628,7 +661,8 @@
             const symbol = normalizeSymbol(raw);
             if (watchlist.some(s => s.symbol === symbol)) { alert(`${displaySymbol(symbol)} 已經在清單中了`); input.value = ''; return; }
             const color = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
-            const name = isTaiwanSymbol(symbol) ? displaySymbol(symbol) : symbol;
+            const cleanSym = displaySymbol(symbol);
+            const name = isTaiwanSymbol(symbol) ? (TAIWAN_STOCK_NAMES[cleanSym] || cleanSym) : cleanSym;
             watchlist.push({ symbol, name, color });
             saveWatchlist();
             renderWatchlist();
@@ -796,32 +830,42 @@
 
         function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
             const meta = result?.meta || {};
-            setCompanyField('company-long-name', meta.longName || meta.shortName || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol));
+            const cleanSym = displaySymbol(symbol);
+            const rawLongName = meta.longName || meta.shortName || watchlist.find(s => s.symbol === symbol)?.name || cleanSym;
+            
+            // 讓公司資訊卡片內的名稱也套用中文優先邏輯
+            const finalLongName = isTaiwanSymbol(symbol) ? (TAIWAN_STOCK_NAMES[cleanSym] || rawLongName) : rawLongName;
+
+            setCompanyField('company-long-name', finalLongName);
             setCompanyField('company-exchange', meta.fullExchangeName || meta.exchangeName || '—');
             setCompanyField('company-market', meta.market || meta.exchangeName || '—');
             setCompanyField('company-currency', meta.currency || meta.currencyCode || '—');
             setCompanyField('company-type', quoteTypeText(meta.instrumentType || meta.quoteType));
             setCompanyField('company-market-state', marketStateText(meta.marketState));
-            setCompanyField('company-symbol', displaySymbol(symbol));
+            setCompanyField('company-symbol', cleanSym);
             setCompanyField('company-price', quote?.latestPrice || '—');
             const note = document.getElementById('company-info-note');
-            if (note) note.textContent = `資料來源：${source} · ${meta.fullExchangeName || meta.exchangeName || '交易市場'} · 代碼 ${displaySymbol(symbol)}`;
+            if (note) note.textContent = `資料來源：${source} · ${meta.fullExchangeName || meta.exchangeName || '交易市場'} · 代碼 ${cleanSym}`;
         }
 
         function renderFinnhubCompanyInfo(profile, symbol, quote) {
             const p = profile || {};
-            setCompanyField('company-long-name', p.name || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol));
+            const cleanSym = displaySymbol(symbol);
+            const rawName = p.name || watchlist.find(s => s.symbol === symbol)?.name || cleanSym;
+            const finalName = isTaiwanSymbol(symbol) ? (TAIWAN_STOCK_NAMES[cleanSym] || rawName) : rawName;
+
+            setCompanyField('company-long-name', finalName);
             setCompanyField('company-exchange', p.exchange || '—');
             setCompanyField('company-market', p.finnhubIndustry || '—');
             setCompanyField('company-currency', p.currency || '—');
             setCompanyField('company-type', p.shareClassFIGI ? '股票' : '—');
             setCompanyField('company-market-state', 'Finnhub 即時資料');
-            setCompanyField('company-symbol', displaySymbol(symbol));
+            setCompanyField('company-symbol', cleanSym);
             setCompanyField('company-price', quote?.latestPrice || '—');
             const note = document.getElementById('company-info-note');
             if (note) {
                 const extra = [p.country ? `國家 ${p.country}` : '', p.marketCapitalization ? `市值 ${Number(p.marketCapitalization).toLocaleString('zh-TW')} 百萬` : '', p.ipo ? `IPO ${p.ipo}` : ''].filter(Boolean).join(' · ');
-                note.textContent = `資料來源：Finnhub · ${p.exchange || '交易市場'} · ${displaySymbol(symbol)}` + (extra ? ` · ${extra}` : '');
+                note.textContent = `資料來源：Finnhub · ${p.exchange || '交易市場'} · ${cleanSym}` + (extra ? ` · ${extra}` : '');
             }
         }
 
@@ -840,10 +884,15 @@
 
         async function loadStock(symbol, isSilent = false) {
             currentSymbol = symbol;
+            const cleanSym = displaySymbol(symbol);
             
             if (!isSilent) {
                 document.querySelectorAll('.stock-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.symbol === symbol));
-                document.getElementById('stock-symbol-title').textContent = displaySymbol(symbol);
+                
+                // 套用「中文為主、代碼為輔」到主標題
+                const initialTitle = getFormattedStockTitle(symbol);
+                document.getElementById('stock-symbol-title').textContent = initialTitle;
+
                 document.getElementById('stock-name').textContent = '載入中...';
                 document.getElementById('loading-badge').classList.remove('hidden');
                 document.getElementById('empty-state').style.display = 'none';
@@ -884,9 +933,6 @@
                     console.warn('Yahoo Worker 失敗', error); 
                 }
 
-                // =========================================================
-                // 修正：已經移除前端 `if(FINNHUB_API_KEY)` 判斷，直接無條件發給 Worker
-                // =========================================================
                 if (!isTaiwanSymbol(symbol)) {
                     if (!quote) {
                         try { 
@@ -903,6 +949,18 @@
                 if (!quote) throw (yahooError || new Error('NO_QUOTE_DATA'));
 
                 if (!isSilent) {
+                    let metaName = '';
+                    if (yahooResult?.meta) {
+                        metaName = yahooResult.meta.longName || yahooResult.meta.shortName || '';
+                    }
+                    if (companyProfile?.name) {
+                        metaName = companyProfile.name;
+                    }
+                    
+                    // 最終確認標題顯示為「中文 (代碼)」
+                    const finalTitle = getFormattedStockTitle(symbol, metaName);
+                    document.getElementById('stock-symbol-title').textContent = finalTitle;
+
                     if (companyProfile && (companyProfile.name || companyProfile.exchange || companyProfile.finnhubIndustry)) {
                         renderFinnhubCompanyInfo(companyProfile, symbol, quote);
                     } else {
@@ -943,7 +1001,8 @@
                 }
 
                 const stockItem = watchlist.find(s => s.symbol === symbol);
-                document.getElementById('stock-name').textContent = stockItem?.name || displaySymbol(symbol);
+                const defaultSubName = isTaiwanSymbol(symbol) ? (TAIWAN_STOCK_NAMES[cleanSym] || cleanSym) : cleanSym;
+                document.getElementById('stock-name').textContent = stockItem?.name || defaultSubName;
 
                 if (chartData.length > 0) {
                     candlestickSeries.setData(chartData);
@@ -975,7 +1034,7 @@
                         document.getElementById('stock-name').textContent = '資料代理 Worker 連線失敗';
                         document.getElementById('price-change').textContent = 'Worker 失敗';
                     } else {
-                        document.getElementById('stock-name').textContent = `找不到 ${displaySymbol(symbol)} 的資料`;
+                        document.getElementById('stock-name').textContent = `找不到 ${cleanSym} 的資料`;
                         document.getElementById('price-change').textContent = '載入失敗';
                     }
                 }
