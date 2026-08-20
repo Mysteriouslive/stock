@@ -1,5 +1,5 @@
 /* =========================================================
-   全域基礎
+   全域基礎設定
    ========================================================= */
 
 *,
@@ -8,22 +8,23 @@
     box-sizing: border-box;
 }
 
-html,
-body {
-    margin: 0;
-    padding: 0;
+html {
     width: 100%;
     min-height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 0;
 
     background-color: #000;
     color: #fff;
 
     overflow-x: hidden;
-}
-
-body {
-    background-color: #000;
-    color: #fff;
 }
 
 
@@ -63,18 +64,22 @@ body {
 .section-title {
     font-size: 15px;
     font-weight: 700;
+
     color: #f4f4f5;
 }
 
 .section-subtitle {
     font-size: 10px;
+
     color: #52525b;
+
     margin-top: 2px;
 }
 
 
 /* =========================================================
-   漲跌顏色
+   預設漲跌色
+   JS 可以動態覆蓋
    ========================================================= */
 
 .price-up {
@@ -90,6 +95,21 @@ body {
    基本面卡片
    ========================================================= */
 
+.fundamentals-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    gap: 12px;
+
+    width: 100%;
+
+    min-width: 0;
+
+    box-sizing: border-box;
+}
+
 .fundamental-card {
     background: rgba(255, 255, 255, 0.02);
 
@@ -102,6 +122,8 @@ body {
     box-sizing: border-box;
 
     min-width: 0;
+
+    width: 100%;
 }
 
 .fundamental-label {
@@ -110,6 +132,16 @@ body {
     color: #9ca3af;
 
     margin-bottom: 4px;
+
+    line-height: 1.3;
+
+    min-width: 0;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
 }
 
 .fundamental-value {
@@ -119,24 +151,15 @@ body {
 
     color: #e5e7eb;
 
+    line-height: 1.3;
+
     min-width: 0;
 
     overflow: hidden;
+
     text-overflow: ellipsis;
+
     white-space: nowrap;
-}
-
-.fundamentals-grid {
-    display: grid;
-
-    grid-template-columns:
-        repeat(4, minmax(0, 1fr));
-
-    gap: 12px;
-
-    width: 100%;
-
-    box-sizing: border-box;
 }
 
 
@@ -155,8 +178,7 @@ body {
 
     transition:
         background 0.2s ease,
-        color 0.2s ease,
-        transform 0.15s ease;
+        color 0.2s ease;
 
     white-space: nowrap;
 
@@ -206,18 +228,20 @@ body {
    ========================================================= */
 
 .company-info-card {
+    position: relative;
+
     flex: 0 0 auto;
 
-    min-height: 0;
-
     width: 100%;
+
+    min-width: 0;
+    min-height: 0;
 
     box-sizing: border-box;
 
     margin-bottom: 12px;
 
-    transition:
-        all 0.25s ease;
+    transition: all 0.25s ease;
 }
 
 .company-info-card.collapsed
@@ -242,11 +266,15 @@ body {
 
 /* =========================================================
    主內容區
-   防止 Flex 子元素把版面撐爆
+   防止 Flex 撐爆
    ========================================================= */
 
 main {
+    width: 100%;
+
     min-width: 0;
+    min-height: 0;
+
     max-width: 100%;
 
     box-sizing: border-box;
@@ -267,9 +295,16 @@ main > .flex-1 {
 
 /* =========================================================
    K 線圖卡片
+   =========================================================
+   
+   注意：
+   這裡固定的是「整張 K 線卡片」高度。
+   chart-container 不再使用 height:100%。
    ========================================================= */
 
 #chart-card {
+    position: relative;
+
     display: flex;
 
     flex-direction: column;
@@ -292,15 +327,14 @@ main > .flex-1 {
     margin-bottom: 24px;
 
     /*
-     * 固定卡片高度
-     * 防止圖表內容把下面的基本面往下推
+     * Desktop / 平板
      */
     height: 440px;
 
     min-height: 440px;
 
     /*
-     * 防止 K 線 / 時間軸超出卡片
+     * 讓圖表的時間軸保持在卡片裡
      */
     overflow: hidden;
 }
@@ -308,21 +342,32 @@ main > .flex-1 {
 
 /* =========================================================
    K 線圖容器
+   =========================================================
+   
+   ★ 最重要的修正：
+   不使用 height:100%
+   不使用 min-height:340px
+   不使用 padding-bottom:24px
    ========================================================= */
 
 #chart-container {
-    flex: 1 1 auto;
+    position: relative;
+
+    /*
+     * Flex 自動取得剩餘空間
+     */
+    flex: 1 1 0;
 
     width: 100%;
 
     min-width: 0;
 
-    /*
-     * 非常重要
-     * 不再使用 min-height: 340px
-     * 避免手機版把 chart-card 撐爆
-     */
     min-height: 0;
+
+    /*
+     * ★ 不要 height:100%
+     */
+    height: auto;
 
     box-sizing: border-box;
 
@@ -335,17 +380,27 @@ main > .flex-1 {
 
 
 /* =========================================================
-   Chart Canvas / SVG 防止超出
+   Chart Canvas
    ========================================================= */
 
-#chart-container canvas,
+#chart-container canvas {
+    display: block;
+
+    max-width: 100%;
+}
+
+
+/* =========================================================
+   Chart SVG
+   ========================================================= */
+
 #chart-container svg {
     max-width: 100%;
 }
 
 
 /* =========================================================
-   WebKit Scrollbar
+   滾動條
    ========================================================= */
 
 ::-webkit-scrollbar {
@@ -388,13 +443,12 @@ main > .flex-1 {
 
 @media (max-width: 768px) {
 
-    /* -----------------------------------------
+    /* -----------------------------------------------------
        Glass 效能優化
-       ----------------------------------------- */
+       ----------------------------------------------------- */
 
     .glass,
     .section-card {
-
         backdrop-filter: none !important;
 
         -webkit-backdrop-filter: none !important;
@@ -404,9 +458,9 @@ main > .flex-1 {
     }
 
 
-    /* -----------------------------------------
+    /* -----------------------------------------------------
        移除大型背景 Blur
-       ----------------------------------------- */
+       ----------------------------------------------------- */
 
     .blur-\[140px\],
     .blur-\[120px\] {
@@ -414,13 +468,17 @@ main > .flex-1 {
     }
 
 
-    /* -----------------------------------------
-       公司資訊
-       ----------------------------------------- */
+    /* -----------------------------------------------------
+       公司資訊卡
+       ----------------------------------------------------- */
 
     .company-info-card {
+        position: relative;
 
         width: 100%;
+
+        min-width: 0;
+        min-height: 0;
 
         margin-bottom: 12px;
 
@@ -428,12 +486,11 @@ main > .flex-1 {
     }
 
 
-    /* -----------------------------------------
+    /* -----------------------------------------------------
        股票名稱
-       ----------------------------------------- */
+       ----------------------------------------------------- */
 
     #stock-symbol-title {
-
         font-size: 2rem;
 
         line-height: 1.05;
@@ -448,30 +505,29 @@ main > .flex-1 {
     }
 
 
-    /* -----------------------------------------
-       股票價格資訊
-       ----------------------------------------- */
+    /* -----------------------------------------------------
+       價格資訊
+       ----------------------------------------------------- */
 
     .header-price-grid {
+        display: grid;
 
         grid-template-columns:
             repeat(5, minmax(0, 1fr));
 
-        min-width: 0;
-
         width: 100%;
+
+        min-width: 0;
     }
 
 
     main header.glass {
-
         padding: 16px;
 
         flex: 0 0 auto;
 
-        min-height: 0;
-
         min-width: 0;
+        min-height: 0;
 
         overflow: visible;
     }
@@ -493,6 +549,7 @@ main > .flex-1 {
        ===================================================== */
 
     #chart-card {
+        position: relative;
 
         display: flex;
 
@@ -500,31 +557,44 @@ main > .flex-1 {
 
         width: 100%;
 
+        /*
+         * ★ 手機固定 400px
+         */
         height: 400px;
 
         min-height: 400px;
 
-        max-height: 400px;
+        /*
+         * 不限制 max-height
+         */
+        max-height: none;
 
         box-sizing: border-box;
 
         padding: 12px;
 
-        margin-bottom: 16px;
+        margin-bottom: 20px;
 
         border-radius: 16px;
 
+        /*
+         * ★ 時間軸不能跑到下一張卡片
+         */
         overflow: hidden;
     }
 
 
-    /* -----------------------------------------
-       手機 K 線圖
-       ----------------------------------------- */
+    /* =====================================================
+       手機 K 線圖容器
+       ===================================================== */
 
     #chart-container {
+        position: relative;
 
-        flex: 1 1 auto;
+        /*
+         * ★ 不使用 height:100%
+         */
+        flex: 1 1 0;
 
         width: 100%;
 
@@ -544,16 +614,23 @@ main > .flex-1 {
     }
 
 
-    /* -----------------------------------------
-       K 線 Canvas / SVG
-       ----------------------------------------- */
+    /* -----------------------------------------------------
+       Canvas
+       ----------------------------------------------------- */
 
-    #chart-container canvas,
-    #chart-container svg {
+    #chart-container canvas {
+        display: block;
 
         max-width: 100%;
+    }
 
-        max-height: 100%;
+
+    /* -----------------------------------------------------
+       SVG
+       ----------------------------------------------------- */
+
+    #chart-container svg {
+        max-width: 100%;
     }
 
 
@@ -562,7 +639,6 @@ main > .flex-1 {
        ===================================================== */
 
     .fundamentals-grid {
-
         display: grid;
 
         grid-template-columns:
@@ -579,24 +655,24 @@ main > .flex-1 {
 
 
     .fundamental-card {
-
-        padding: 10px;
+        width: 100%;
 
         min-width: 0;
 
-        width: 100%;
+        padding: 10px;
 
         box-sizing: border-box;
     }
 
 
     .fundamental-label {
-
         font-size: 11px;
 
         line-height: 1.3;
 
         margin-bottom: 4px;
+
+        min-width: 0;
 
         overflow: hidden;
 
@@ -607,7 +683,6 @@ main > .flex-1 {
 
 
     .fundamental-value {
-
         font-size: 13px;
 
         line-height: 1.3;
@@ -623,11 +698,10 @@ main > .flex-1 {
 
 
     /* =====================================================
-       K 線週期列
+       K 線週期按鈕
        ===================================================== */
 
     .period-btn {
-
         font-size: 11px;
 
         padding: 5px 7px;
@@ -643,7 +717,6 @@ main > .flex-1 {
        ===================================================== */
 
     #sidebar {
-
         position: fixed;
 
         left: -100%;
@@ -656,25 +729,22 @@ main > .flex-1 {
 
         z-index: 50;
 
+        box-sizing: border-box;
+
         transition:
             left 0.3s ease;
-
-        box-sizing: border-box;
     }
 
-
     #sidebar.open {
-
         left: 0;
     }
 
 
-    /* -----------------------------------------
+    /* =====================================================
        遮罩
-       ----------------------------------------- */
+       ===================================================== */
 
     #overlay {
-
         display: none;
 
         position: fixed;
@@ -687,9 +757,7 @@ main > .flex-1 {
         z-index: 40;
     }
 
-
     #overlay.show {
-
         display: block;
     }
 }
@@ -697,91 +765,77 @@ main > .flex-1 {
 
 /* =========================================================
    520px 以下
-   小手機
    ========================================================= */
 
 @media (max-width: 520px) {
 
-    /* -----------------------------------------
+    /* -----------------------------------------------------
        基本面
-       ----------------------------------------- */
+       ----------------------------------------------------- */
 
     .fundamentals-grid {
-
         grid-template-columns:
             repeat(2, minmax(0, 1fr));
 
         gap: 8px;
     }
 
-
     .fundamental-card {
-
         padding: 10px;
 
         border-radius: 10px;
     }
 
-
     .fundamental-label {
-
         font-size: 10px;
 
         margin-bottom: 3px;
     }
 
-
     .fundamental-value {
-
         font-size: 13px;
     }
 
 
-    /* -----------------------------------------
+    /* -----------------------------------------------------
        Section
-       ----------------------------------------- */
+       ----------------------------------------------------- */
 
     .section-card {
-
         border-radius: 16px;
     }
 
-
     .section-title {
-
         font-size: 15px;
     }
 
-
     .section-subtitle {
-
         font-size: 10px;
     }
 
 
-    /* -----------------------------------------
-       K 線圖
-       ----------------------------------------- */
+    /* -----------------------------------------------------
+       K 線
+       ----------------------------------------------------- */
 
     #chart-card {
-
         height: 390px;
 
         min-height: 390px;
 
-        max-height: 390px;
+        max-height: none;
 
         padding: 10px;
 
-        margin-bottom: 14px;
+        margin-bottom: 18px;
 
         border-radius: 16px;
     }
 
-
     #chart-container {
-
         min-height: 0;
+
+        height: auto;
 
         padding: 0;
 
@@ -791,12 +845,11 @@ main > .flex-1 {
     }
 
 
-    /* -----------------------------------------
-       K 線週期按鈕
-       ----------------------------------------- */
+    /* -----------------------------------------------------
+       K 線按鈕
+       ----------------------------------------------------- */
 
     .period-btn {
-
         font-size: 10px;
 
         padding: 5px 6px;
@@ -806,34 +859,54 @@ main > .flex-1 {
 
 /* =========================================================
    430px 以下
-   iPhone 類小螢幕
+   iPhone 小螢幕
    ========================================================= */
 
 @media (max-width: 430px) {
 
-    #chart-card {
+    /* -----------------------------------------------------
+       K 線
+       ----------------------------------------------------- */
 
+    #chart-card {
         height: 380px;
 
         min-height: 380px;
 
-        max-height: 380px;
+        max-height: none;
 
         padding: 9px;
+
+        margin-bottom: 18px;
+    }
+
+    #chart-container {
+        min-height: 0;
+
+        height: auto;
+
+        padding: 0;
+
+        margin: 0;
     }
 
 
-    #stock-symbol-title {
+    /* -----------------------------------------------------
+       股票名稱
+       ----------------------------------------------------- */
 
+    #stock-symbol-title {
         font-size: 1.8rem;
     }
 
 
-    main header.glass {
+    /* -----------------------------------------------------
+       Header
+       ----------------------------------------------------- */
 
+    main header.glass {
         padding: 14px;
     }
-
 
     main header.glass
     .grid.grid-cols-5 {
@@ -844,28 +917,30 @@ main > .flex-1 {
     }
 
 
-    .period-btn {
+    /* -----------------------------------------------------
+       K 線按鈕
+       ----------------------------------------------------- */
 
+    .period-btn {
         font-size: 10px;
 
         padding: 4px 5px;
     }
 
 
-    .fundamentals-grid {
+    /* -----------------------------------------------------
+       基本面
+       ----------------------------------------------------- */
 
+    .fundamentals-grid {
         gap: 7px;
     }
 
-
     .fundamental-card {
-
         padding: 9px;
     }
 
-
     .fundamental-value {
-
         font-size: 12px;
     }
 }
@@ -877,38 +952,53 @@ main > .flex-1 {
 
 @media (max-width: 390px) {
 
-    #chart-card {
+    /* -----------------------------------------------------
+       K 線
+       ----------------------------------------------------- */
 
+    #chart-card {
         height: 370px;
 
         min-height: 370px;
 
-        max-height: 370px;
+        max-height: none;
+
+        padding: 8px;
+    }
+
+    #chart-container {
+        min-height: 0;
+
+        height: auto;
+
+        padding: 0;
     }
 
 
-    .period-btn {
+    /* -----------------------------------------------------
+       K 線按鈕
+       ----------------------------------------------------- */
 
+    .period-btn {
         font-size: 9px;
 
         padding: 4px;
     }
 
 
-    .fundamental-card {
+    /* -----------------------------------------------------
+       基本面
+       ----------------------------------------------------- */
 
+    .fundamental-card {
         padding: 8px;
     }
 
-
     .fundamental-label {
-
         font-size: 9px;
     }
 
-
     .fundamental-value {
-
         font-size: 12px;
     }
 }
