@@ -305,8 +305,9 @@
             </button>
         </div>
         <div class="space-y-5">
+            <!-- 修正 1: 主題色系是按鈕群組，不屬於表單輸入框，所以把 <label> 改為一般的 <div> -->
             <div class="setting-item">
-                <label class="block text-sm text-gray-400 mb-3">主題色系偏好</label>
+                <div class="block text-sm text-gray-400 mb-3">主題色系偏好</div>
                 <div class="flex gap-4">
                     <button class="w-8 h-8 rounded-full bg-blue-500 ring-2 ring-offset-2 ring-offset-[#18181b] ring-blue-500 hover:scale-110 transition-transform" onclick="alert('日後可串接更換藍色主題功能！')"></button>
                     <button class="w-8 h-8 rounded-full bg-emerald-500 hover:scale-110 transition-transform" onclick="alert('日後可串接更換綠色主題功能！')"></button>
@@ -314,16 +315,20 @@
                     <button class="w-8 h-8 rounded-full bg-orange-500 hover:scale-110 transition-transform" onclick="alert('日後可串接更換橘色主題功能！')"></button>
                 </div>
             </div>
+
+            <!-- 修正 2: 加上 for="kline-color" 與對應的 id="kline-color" 以及 name 屬性 -->
             <div class="setting-item pt-4 border-t border-white/5">
-                <label class="block text-sm text-gray-400 mb-2">K 線顏色習慣</label>
-                <select class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
+                <label for="kline-color" class="block text-sm text-gray-400 mb-2">K 線顏色習慣</label>
+                <select id="kline-color" name="klineColor" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
                     <option value="red-green">紅漲綠跌 (台灣習慣)</option>
                     <option value="green-red">綠漲紅跌 (國際習慣)</option>
                 </select>
             </div>
+
+            <!-- 修正 3: 加上 for="refresh-rate" 與對應的 id="refresh-rate" 以及 name 屬性 -->
             <div class="setting-item pt-4 border-t border-white/5">
-                <label class="block text-sm text-gray-400 mb-2">資料更新頻率</label>
-                <select class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
+                <label for="refresh-rate" class="block text-sm text-gray-400 mb-2">資料更新頻率</label>
+                <select id="refresh-rate" name="refreshRate" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
                     <option value="10000">10 秒 (預設)</option>
                     <option value="30000">30 秒</option>
                     <option value="60000">1 分鐘</option>
@@ -343,8 +348,8 @@
             </button>
         </div>
         <div class="mt-3">
-            <h2 class="text-2xl font-bold text-white tracking-wide">陳逸鍇 (子衡)</h2>
-            <p class="text-sm text-gray-400 mt-0.5">@Mo-yun-sheng (墨雲生)</p>
+            <h2 class="text-2xl font-bold text-white tracking-wide"> CC </h2>
+            <p class="text-sm text-gray-400 mt-0.5">@Mo-cc</p>
         </div>
         <div class="mt-6 space-y-3">
             <div class="bg-white/5 rounded-xl p-3.5 border border-white/5 flex items-center justify-between">
