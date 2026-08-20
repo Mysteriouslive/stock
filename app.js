@@ -912,5 +912,3 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
     startAutoRefresh();
 });
-</body>
-</html>
