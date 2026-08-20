@@ -1168,14 +1168,25 @@
         }
 
         const chartContainer = document.getElementById('chart-container');
+        const isMobile = window.innerWidth < 768;
         const chart = LightweightCharts.createChart(chartContainer, {
             layout: { textColor: '#9ca3af', background: { type: 'solid', color: 'transparent' }, fontSize: 12 },
             grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
-            crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 }, horzLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 } },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
             timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true, secondsVisible: false },
             rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' },
-            handleScroll: false, // 禁止滑鼠滾輪滑動
-            handleScale: false   // 禁止滑鼠滾輪縮放
+            // 手機版開啟觸控，電腦版關閉滑鼠操作
+            handleScroll: {
+                mouseWheel: !isMobile,
+                pressedMouseMove: true,
+                horzTouchDrag: true,
+                vertTouchDrag: true
+            },
+            handleScale: {
+                axisPressedMouseMove: true,
+                mouseWheel: !isMobile,
+                pinch: true
+            }
         });
 
         const candlestickSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
