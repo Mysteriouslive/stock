@@ -1,38 +1,31 @@
 const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
 const AUTO_REFRESH_INTERVAL = 10000;
 
-function isForexSymbol(symbol) { return symbol === 'USDTWD' || symbol === 'USD/TWD'; }
-function isCryptoSymbol(symbol) { return ['BTC', 'ETH', 'SOL', 'XRP', 'ADA'].includes(symbol.toUpperCase()); }
-
-async function fetchForexData() {
-    try {
-        const res = await fetch(`${WORKER_URL}/?source=forex`, { cache: 'no-store' });
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data) throw new Error(data?.error || `FOREX_HTTP_${res.status}`);
-        const rate = Number(data.rate ?? data.rates?.TWD);
-        if (!Number.isFinite(rate) || rate <= 0) throw new Error('FOREX_NO_RATE');
-        return {
-            rate,
-            change: Number(data.change) || 0,
-            changePercent: Number(data.changePercent) || 0,
-            source: data.source || 'Frankfurter'
-        };
-    } catch (error) {
-        console.error('fetchForexData:', error);
-        return null;
-    }
+function isForexSymbol(symbol) { 
+    const s = symbol.toUpperCase();
+    return s === 'USDTWD' || s === 'USD/TWD' || s === 'USDTWD=X'; 
 }
 
-async function fetchCryptoData() {
-    try {
-        const res = await fetch(`${WORKER_URL}/?source=crypto`, { cache: 'no-store' });
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data || data.error) throw new Error(data?.error || `CRYPTO_HTTP_${res.status}`);
-        return data;
-    } catch (error) {
-        console.error('fetchCryptoData:', error);
-        return null;
-    }
+function isCryptoSymbol(symbol) { 
+    const s = symbol.toUpperCase().replace('-USD', '');
+    return ['BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE', 'BNB'].includes(s); 
+}
+
+function toYahooSymbol(symbol) {
+    let s = symbol.trim().toUpperCase();
+    if (isForexSymbol(s)) return 'USDTWD=X';
+    if (isCryptoSymbol(s)) return `${s.replace('-USD', '')}-USD`;
+    if (/^\d{4,6}\.(TW|TWO)$/.test(s)) return s;
+    if (/^\d{4,6}$/.test(s)) return `${s}.TW`;
+    return s;
+}
+
+function displaySymbol(symbol) { 
+    return symbol.replace(/\.(TW|TWO)$/i, '').replace(/=X$/i, '').replace(/-USD$/i, ''); 
+}
+
+function isTaiwanSymbol(symbol) { 
+    return /^\d{4,6}\.(TW|TWO)$/i.test(symbol) || /^\d{4,6}$/.test(symbol); 
 }
 
 function finnhubSymbol(symbol) {
@@ -78,15 +71,15 @@ async function fetchFinnhubQuote(symbol) {
     const change = current - previous;
     const changePercent = (change / previous) * 100;
     return {
-        latestPrice: formatPrice(current),
+        latestPrice: formatPrice(current, symbol),
         change: change.toFixed(2),
         changePercent: changePercent.toFixed(2),
         isUp: change > 0,
         isFlat: change === 0,
-        open: formatPrice(data.o),
-        high: formatPrice(data.h),
-        low: formatPrice(data.l),
-        previousClose: formatPrice(previous),
+        open: formatPrice(data.o, symbol),
+        high: formatPrice(data.h, symbol),
+        low: formatPrice(data.l, symbol),
+        previousClose: formatPrice(previous, symbol),
         volume: '—'
     };
 }
@@ -205,7 +198,7 @@ function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
     }
 
     setMetric('metric-dividend', twseData.dividendYield || '—');
-    setMetric('metric-shares', twseData.pb || '—'); // 股價淨值比 PB
+    setMetric('metric-shares', twseData.pb || '—');
 
     const meta = quoteResult?.meta || {};
     const quotes = quoteResult?.indicators?.quote?.[0] || {};
@@ -220,8 +213,8 @@ function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
         low52 = Math.min(...quotes.low.filter(v => v != null));
     }
 
-    setMetric('metric-52high', formatPrice(high52));
-    setMetric('metric-52low', formatPrice(low52));
+    setMetric('metric-52high', formatPrice(high52, symbol));
+    setMetric('metric-52low', formatPrice(low52, symbol));
     
     if (meta.marketCap) {
         setMetric('metric-marketcap', formatCompactNumber(meta.marketCap));
@@ -265,18 +258,6 @@ let currentSymbol = localStorage.getItem('stockCurrentSymbol') || (watchlist.len
 
 let currentPeriod = { interval: '5m', range: '5d', label: '5分K' };
 
-function normalizeSymbol(input) {
-    let s = input.trim().toUpperCase();
-    if (isForexSymbol(s)) return 'USDTWD';
-    if (isCryptoSymbol(s)) return s;
-    if (/^\d{4,6}\.(TW|TWO)$/.test(s)) return s;
-    if (/^\d{4,6}$/.test(s)) return `${s}.TW`;
-    return s;
-}
-
-function displaySymbol(symbol) { return symbol.replace(/\.(TW|TWO)$/i, ''); }
-function isTaiwanSymbol(symbol) { return /^\d{4,6}\.(TW|TWO)$/i.test(symbol) || /^\d{4,6}$/.test(symbol); }
-
 function saveWatchlist() {
     localStorage.setItem('stockWatchlist', JSON.stringify(watchlist));
     localStorage.setItem('stockSortMode', sortMode);
@@ -295,7 +276,7 @@ function changeSort(value) {
 function sortedWatchlist() {
     const arr = [...watchlist];
     if (sortMode === 'manual') return arr;
-    const getNumber = stock => Number(quoteCache[stock.symbol]?.latestPrice ?? NaN);
+    const getNumber = stock => Number(quoteCache[stock.symbol]?.latestPrice?.replace(/,/g, '') ?? NaN);
     const getChange = stock => Number(quoteCache[stock.symbol]?.changePercent ?? NaN);
     arr.sort((a, b) => {
         let av, bv;
@@ -385,9 +366,13 @@ async function addStock() {
     const input = document.getElementById('stock-input');
     const raw = input.value.trim().toUpperCase();
     if (!raw) { input.focus(); return; }
-    if (!/^[A-Z0-9.\-]+$/.test(raw)) { alert('請輸入有效的代碼，例如 2330、USDTWD、BTC、AAPL'); return; }
+    if (!/^[A-Z0-9.\-=]+$/.test(raw)) { alert('請輸入有效的代碼，例如 2330、USDTWD、BTC、AAPL'); return; }
     
-    const symbol = normalizeSymbol(raw);
+    let symbol = raw;
+    if (isForexSymbol(raw)) symbol = 'USDTWD';
+    else if (isCryptoSymbol(raw)) symbol = raw.replace('-USD', '');
+    else if (/^\d{4,6}$/.test(raw)) symbol = `${raw}.TW`;
+
     if (watchlist.some(s => s.symbol === symbol)) { alert(`${displaySymbol(symbol)} 已經在清單中了`); input.value = ''; return; }
     const color = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
     
@@ -440,7 +425,7 @@ function removeStock(index) {
 }
 
 async function fetchYahooData(symbol, interval = currentPeriod.interval, range = currentPeriod.range) {
-    const yahooSymbol = normalizeSymbol(symbol);
+    const yahooSymbol = toYahooSymbol(symbol);
     const url = `${WORKER_URL}/?symbol=${encodeURIComponent(yahooSymbol)}&interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}`;
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('YAHOO_FAILED');
@@ -458,12 +443,17 @@ function formatVolume(value) {
     return n.toLocaleString('zh-TW');
 }
 
-function formatPrice(value) {
+function formatPrice(value, symbol = '') {
     if (value == null || Number.isNaN(Number(value))) return '—';
-    return Number(value).toFixed(2);
+    const n = Number(value);
+    if (isForexSymbol(symbol)) return n.toFixed(4);
+    if (isCryptoSymbol(symbol) && n >= 1) {
+        return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
-function parseQuote(result) {
+function parseQuote(result, symbol = '') {
     const meta = result.meta || {};
     const quote = result.indicators?.quote?.[0] || {};
 
@@ -490,17 +480,18 @@ function parseQuote(result) {
     const currentPrice = Number(price);
     const change = Number.isFinite(previousClose) ? currentPrice - previousClose : 0;
     const changePercent = Number.isFinite(previousClose) && previousClose > 0 ? (change / previousClose) * 100 : 0;
+    const decimals = isForexSymbol(symbol) ? 4 : 2;
 
     return {
-        latestPrice: formatPrice(currentPrice),
-        change: change.toFixed(2),
+        latestPrice: formatPrice(currentPrice, symbol),
+        change: change.toFixed(decimals),
         changePercent: changePercent.toFixed(2),
         isUp: change > 0,
         isFlat: change === 0,
-        open: formatPrice(meta.regularMarketOpen ?? lastOpen),
-        high: formatPrice(meta.regularMarketDayHigh ?? lastHigh),
-        low: formatPrice(meta.regularMarketDayLow ?? lastLow),
-        previousClose: formatPrice(previousClose),
+        open: formatPrice(meta.regularMarketOpen ?? lastOpen, symbol),
+        high: formatPrice(meta.regularMarketDayHigh ?? lastHigh, symbol),
+        low: formatPrice(meta.regularMarketDayLow ?? lastLow, symbol),
+        previousClose: formatPrice(previousClose, symbol),
         volume: formatVolume(meta.regularMarketVolume ?? lastVol)
     };
 }
@@ -538,13 +529,34 @@ function setCompanyField(id, value) {
 
 function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
     const meta = result?.meta || {};
-    setCompanyField('company-long-name', meta.longName || meta.shortName || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol));
-    setCompanyField('company-exchange', meta.fullExchangeName || meta.exchangeName || '—');
-    setCompanyField('company-market', meta.market || meta.exchangeName || '—');
-    setCompanyField('company-currency', meta.currency || meta.currencyCode || '—');
-    setCompanyField('company-type', quoteTypeText(meta.instrumentType || meta.quoteType));
-    setCompanyField('company-market-state', marketStateText(meta.marketState));
-    setCompanyField('company-symbol', displaySymbol(symbol));
+    
+    if (isForexSymbol(symbol)) {
+        setCompanyField('company-long-name', '美元/台幣 (USD/TWD)');
+        setCompanyField('company-exchange', '外匯市場 (Forex)');
+        setCompanyField('company-market', 'Forex');
+        setCompanyField('company-currency', 'TWD');
+        setCompanyField('company-type', '外匯');
+        setCompanyField('company-market-state', marketStateText(meta.marketState) || '全球外匯市場');
+        setCompanyField('company-symbol', 'USD/TWD');
+    } else if (isCryptoSymbol(symbol)) {
+        const nameMap = { BTC: '比特幣 (Bitcoin)', ETH: '以太幣 (Ethereum)', SOL: 'Solana', XRP: 'XRP', ADA: 'Cardano' };
+        setCompanyField('company-long-name', nameMap[displaySymbol(symbol)] || displaySymbol(symbol));
+        setCompanyField('company-exchange', '加密貨幣 (Crypto)');
+        setCompanyField('company-market', 'Crypto');
+        setCompanyField('company-currency', 'USD');
+        setCompanyField('company-type', '加密貨幣');
+        setCompanyField('company-market-state', '24 小時市場');
+        setCompanyField('company-symbol', displaySymbol(symbol));
+    } else {
+        setCompanyField('company-long-name', meta.longName || meta.shortName || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol));
+        setCompanyField('company-exchange', meta.fullExchangeName || meta.exchangeName || '—');
+        setCompanyField('company-market', meta.market || meta.exchangeName || '—');
+        setCompanyField('company-currency', meta.currency || meta.currencyCode || '—');
+        setCompanyField('company-type', quoteTypeText(meta.instrumentType || meta.quoteType));
+        setCompanyField('company-market-state', marketStateText(meta.marketState));
+        setCompanyField('company-symbol', displaySymbol(symbol));
+    }
+
     setCompanyField('company-price', quote?.latestPrice || '—');
     const note = document.getElementById('company-info-note');
     if (note) note.textContent = `資料來源：${source} · ${meta.fullExchangeName || meta.exchangeName || '交易市場'} · 代碼 ${displaySymbol(symbol)}`;
@@ -600,100 +612,46 @@ async function loadStock(symbol, isSilent = false) {
 
     try {
         let quote = null;
-        let companyProfile = null;
-        let metricResult = null;
-        let twseMetricsData = null;
-        let quoteSource = 'Yahoo Finance';
         let chartData = [];
+        let yahooResult = null;
         let yahooError = null;
 
-        // 1. 外匯匯率 (USDTWD)
-        if (isForexSymbol(symbol)) {
-            const forex = await fetchForexData();
-            if (!forex) throw new Error('FOREX_NO_DATA');
-            const rate = Number(forex.rate);
-            const change = Number(forex.change || 0);
-            const changePercent = Number(forex.changePercent || 0);
+        // 全面統一透過 Yahoo Finance 獲取 K 線與即時報價 (支援台美股、外匯、加密貨幣)
+        try {
+            yahooResult = await fetchYahooData(symbol);
+            if (yahooResult) {
+                quote = parseQuote(yahooResult, symbol);
+                chartData = parseCandles(yahooResult);
+            }
+        } catch (e) {
+            yahooError = e;
+        }
 
-            quote = {
-                latestPrice: rate.toFixed(4),
-                change: change.toFixed(4),
-                changePercent: changePercent.toFixed(2),
-                isUp: change > 0,
-                isFlat: change === 0,
-                open: '—', high: '—', low: '—',
-                previousClose: change !== 0 ? (rate - change).toFixed(4) : '—',
-                volume: '—'
-            };
-            setCompanyField('company-long-name', '美元/台幣 (USD/TWD)');
-            setCompanyField('company-exchange', `外匯市場 (${forex.source})`);
-            setCompanyField('company-market', 'Forex');
-            setCompanyField('company-currency', 'TWD');
-            setCompanyField('company-type', '外匯');
-            setCompanyField('company-market-state', '最新工作日匯率');
-            setCompanyField('company-symbol', 'USD/TWD');
-            setCompanyField('company-price', quote.latestPrice);
-        } 
-        // 2. 加密貨幣 (BTC, ETH, SOL)
-        else if (isCryptoSymbol(symbol)) {
-            const cryptoJson = await fetchCryptoData();
-            const crypto = cryptoJson?.[symbol.toUpperCase()];
-            const priceUSD = Number(crypto?.usd);
-            const changePercent = Number(crypto?.usd_24h_change ?? crypto?.change24h ?? 0);
-
-            if (!Number.isFinite(priceUSD) || priceUSD <= 0) throw new Error('CRYPTO_NO_PRICE');
-
-            const previousClose = changePercent !== -100 ? priceUSD / (1 + changePercent / 100) : null;
-            const change = Number.isFinite(previousClose) ? priceUSD - previousClose : 0;
-
-            quote = {
-                latestPrice: priceUSD.toLocaleString('en-US', { minimumFractionDigits: priceUSD >= 1 ? 2 : 6, maximumFractionDigits: priceUSD >= 1 ? 2 : 8 }),
-                change: change.toFixed(priceUSD >= 1 ? 2 : 6),
-                changePercent: changePercent.toFixed(2),
-                isUp: changePercent > 0,
-                isFlat: changePercent === 0,
-                open: '—', high: '—', low: '—',
-                previousClose: Number.isFinite(previousClose) ? previousClose.toLocaleString('en-US', { maximumFractionDigits: 8 }) : '—',
-                volume: crypto?.usd_24h_vol ? Number(crypto.usd_24h_vol).toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'
-            };
-
-            setCompanyField('company-long-name', { BTC: '比特幣', ETH: '以太幣', SOL: 'Solana', XRP: 'XRP', ADA: 'Cardano' }[symbol.toUpperCase()] || symbol.toUpperCase());
-            setCompanyField('company-exchange', `加密貨幣 (${crypto?.source || 'CoinGecko'})`);
-            setCompanyField('company-market', 'Crypto');
-            setCompanyField('company-currency', 'USD');
-            setCompanyField('company-type', '加密貨幣');
-            setCompanyField('company-market-state', '24 小時市場');
-            setCompanyField('company-symbol', symbol.toUpperCase());
-            setCompanyField('company-price', quote.latestPrice);
-        } 
-        // 3. 一般台美股
-        else {
-            let quoteResult = null;
-            try { quoteResult = await fetchYahooData(symbol, '5m', '1d'); if (quoteResult) quote = parseQuote(quoteResult); } catch (e) {}
-            
-            let yahooResult = null;
-            try { 
-                yahooResult = await fetchYahooData(symbol); 
-                if (!quote && yahooResult) quote = parseQuote(yahooResult);
-                if (yahooResult) chartData = parseCandles(yahooResult);
-            } catch (e) { yahooError = e; }
-
-            if (isTaiwanSymbol(symbol)) {
-                try { twseMetricsData = await fetchTwseMetrics(symbol); } catch (e) {}
-                if (twseMetricsData && !isSilent) {
-                    renderTwseMetrics(twseMetricsData, symbol, yahooResult || quoteResult, quote?.latestPrice);
-                    renderCompanyInfo(yahooResult || quoteResult, symbol, quote, 'Yahoo Finance + 證交所');
-                }
-            } else {
-                if (!quote) {
-                    try { quote = await fetchFinnhubQuote(symbol); quoteSource = 'Finnhub (無成交量)'; } catch (e) {}
-                }
-                if (!isSilent) {
-                    companyProfile = await fetchFinnhubCompanyProfile(symbol).catch(() => null);
-                    metricResult = await fetchFinnhubMetrics(symbol).catch(() => null);
-                    if (companyProfile) renderFinnhubCompanyInfo(companyProfile, symbol, quote);
-                    if (metricResult) renderFinnhubMetrics(metricResult, companyProfile, symbol);
-                }
+        // 基本面與公司資訊處理
+        if (isTaiwanSymbol(symbol)) {
+            let twseMetricsData = null;
+            try { twseMetricsData = await fetchTwseMetrics(symbol); } catch (e) {}
+            if (twseMetricsData && !isSilent) {
+                renderTwseMetrics(twseMetricsData, symbol, yahooResult, quote?.latestPrice);
+            }
+            if (!isSilent && yahooResult) {
+                renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance + 證交所');
+            }
+        } else if (isForexSymbol(symbol) || isCryptoSymbol(symbol)) {
+            if (!isSilent && yahooResult) {
+                renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
+            }
+        } else {
+            // 美股 Finnhub 補充資訊
+            if (!quote) {
+                try { quote = await fetchFinnhubQuote(symbol); } catch (e) {}
+            }
+            if (!isSilent) {
+                const companyProfile = await fetchFinnhubCompanyProfile(symbol).catch(() => null);
+                const metricResult = await fetchFinnhubMetrics(symbol).catch(() => null);
+                if (companyProfile) renderFinnhubCompanyInfo(companyProfile, symbol, quote);
+                else if (yahooResult) renderCompanyInfo(yahooResult, symbol, quote);
+                if (metricResult) renderFinnhubMetrics(metricResult, companyProfile, symbol);
             }
         }
 
@@ -730,14 +688,11 @@ async function loadStock(symbol, isSilent = false) {
 
         if (chartData.length > 0) {
             candlestickSeries.setData(chartData);
-            
-            // 無論電腦或手機，載入或更新後都將視角鎖定在最新 K 線
             chart.timeScale().scrollToRealTime();
-
             document.getElementById('chart-status').textContent = `${currentPeriod.label} · ${chartData.length} 根`;
         } else if (!isSilent) {
             candlestickSeries.setData([]);
-            document.getElementById('chart-status').textContent = isForexSymbol(symbol) || isCryptoSymbol(symbol) ? '此標的無 K 線圖表' : (yahooError ? 'K線資料取得失敗，但報價可正常顯示' : '目前週期沒有 K 線資料');
+            document.getElementById('chart-status').textContent = '目前週期沒有 K 線資料';
         }
 
         const now = new Date();
@@ -748,28 +703,8 @@ async function loadStock(symbol, isSilent = false) {
         console.error(error);
         if (!isSilent) {
             document.getElementById('chart-status').textContent = '資料取得失敗';
-            if (error.message === 'NO_QUOTE_DATA') {
-                document.getElementById('stock-name').textContent = '找不到報價資料，請確認代碼';
-                document.getElementById('price-change').textContent = '報價失敗';
-            } else if (error.message === 'NO_PREVIOUS_CLOSE') {
-                document.getElementById('stock-name').textContent = '找不到昨收資料，無法正確計算漲幅';
-                document.getElementById('price-change').textContent = '漲幅無法計算';
-            } else if (error.message === 'NO_CANDLE_DATA') {
-                document.getElementById('stock-name').textContent = '目前週期沒有 K 線資料';
-                document.getElementById('price-change').textContent = 'K線失敗';
-            } else if (error.message === 'YAHOO_FAILED') {
-                document.getElementById('stock-name').textContent = '資料代理 Worker 連線失敗';
-                document.getElementById('price-change').textContent = 'Worker 失敗';
-            } else if (error.message === 'FOREX_NO_DATA') {
-                document.getElementById('stock-name').textContent = 'USD/TWD 匯率來源暫時無法取得';
-                document.getElementById('price-change').textContent = '匯率失敗';
-            } else if (error.message === 'CRYPTO_NO_DATA' || error.message === 'CRYPTO_NO_PRICE') {
-                document.getElementById('stock-name').textContent = `${displaySymbol(symbol)} 加密貨幣資料暫時無法取得`;
-                document.getElementById('price-change').textContent = '加密貨幣失敗';
-            } else {
-                document.getElementById('stock-name').textContent = `找不到 ${displaySymbol(symbol)} 的資料`;
-                document.getElementById('price-change').textContent = '載入失敗';
-            }
+            document.getElementById('stock-name').textContent = `找不到 ${displaySymbol(symbol)} 的資料，請確認代碼`;
+            document.getElementById('price-change').textContent = '載入失敗';
         }
     } finally {
         if (!isSilent) {
@@ -821,7 +756,7 @@ async function changePeriod(button) {
     document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
     button.classList.add('active');
     currentPeriod = { interval: button.dataset.interval, range: button.dataset.range, label: button.textContent.trim() };
-    if (currentSymbol && !isForexSymbol(currentSymbol) && !isCryptoSymbol(currentSymbol)) await loadStock(currentSymbol);
+    if (currentSymbol) await loadStock(currentSymbol);
 }
 
 const chartContainer = document.getElementById('chart-container');
@@ -833,14 +768,14 @@ const chart = LightweightCharts.createChart(chartContainer, {
     timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true, secondsVisible: false },
     rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' },
     handleScroll: {
-        mouseWheel: false, // 徹底禁用滑鼠滾輪滑動
+        mouseWheel: false,
         pressedMouseMove: !isMobile,
         horzTouchDrag: true,
         vertTouchDrag: true
     },
     handleScale: {
         axisPressedMouseMove: !isMobile,
-        mouseWheel: false, // 徹底禁用滑鼠滾輪縮放
+        mouseWheel: false,
         pinch: true
     }
 });
@@ -849,7 +784,6 @@ const candlestickSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
     upColor: '#ef4444', downColor: '#10b981', borderVisible: false, wickUpColor: '#ef4444', wickDownColor: '#10b981'
 });
 
-// 鍵盤 [+] 與 [-] 縮放圖表時間軸
 window.addEventListener('keydown', (e) => {
     if (document.activeElement.tagName === 'INPUT') return;
     const timeScale = chart.timeScale();
