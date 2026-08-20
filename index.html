@@ -155,6 +155,7 @@
             #overlay.show { display: block; }
         }
 
+        /* 防止主資訊卡在 flex 版面中被壓縮，造成上方內容被切掉 */
         main > .flex-1,
         main .flex-1.flex-col {
             min-height: 0;
@@ -392,9 +393,30 @@
                     </div>
                 </div>
             </section>
+<div id="chart-card" class="flex-1 min-h-[380px] min-w-0 glass rounded-2xl p-3 md:p-4 relative">
+                <div class="flex items-center justify-between gap-2 px-1 pb-3">
+                    <div class="flex items-center gap-1 flex-wrap">
+                        <span class="text-[11px] text-gray-500 mr-1">K線</span>
+                        <button class="period-btn" data-interval="1m" data-range="1d" onclick="changePeriod(this)">1分K</button>
+                        <button class="period-btn active" data-interval="5m" data-range="5d" onclick="changePeriod(this)">5分K</button>
+                        <button class="period-btn" data-interval="15m" data-range="1mo" onclick="changePeriod(this)">15分K</button>
+                        <button class="period-btn" data-interval="30m" data-range="1mo" onclick="changePeriod(this)">30分K</button>
+                        <button class="period-btn" data-interval="60m" data-range="3mo" onclick="changePeriod(this)">60分K</button>
+                        <button class="period-btn" data-interval="1d" data-range="6mo" onclick="changePeriod(this)">日K</button>
+                    </div>
+                    <span id="chart-status" class="text-[10px] text-gray-600">—</span>
+                </div>
+                <div id="chart-container" class="w-full h-full min-h-[330px]"></div>
+                
+                <div id="empty-state" class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div class="text-center text-gray-500">
+                        <div class="text-4xl mb-3 opacity-30">📈</div>
+                        <p class="text-sm">選擇或新增股票開始觀測</p>
+                    </div>
+                </div>
+            </div>
 
-
-            <!-- 基本面 -->
+<!-- 基本面 -->
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
@@ -420,7 +442,7 @@
                 <div id="fundamentals-note" class="text-[10px] text-gray-600 mt-3">—</div>
             </section>
 
-            <!-- 估值與風險 -->
+<!-- 估值與風險 -->
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="mb-4">
                     <div class="section-title">🎯 估值與風險</div>
@@ -434,7 +456,7 @@
                 </div>
             </section>
 
-            <!-- 公司詳細資訊 -->
+<!-- 公司詳細資訊 -->
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
@@ -455,29 +477,6 @@
                 <div id="profile-description" class="text-xs text-gray-400 leading-6 mt-4 hidden"></div>
                 <div id="profile-note" class="text-[10px] text-gray-600 mt-3">—</div>
             </section>
-
-            <div id="chart-card" class="flex-1 min-h-[380px] min-w-0 glass rounded-2xl p-3 md:p-4 relative">
-                <div class="flex items-center justify-between gap-2 px-1 pb-3">
-                    <div class="flex items-center gap-1 flex-wrap">
-                        <span class="text-[11px] text-gray-500 mr-1">K線</span>
-                        <button class="period-btn" data-interval="1m" data-range="1d" onclick="changePeriod(this)">1分K</button>
-                        <button class="period-btn active" data-interval="5m" data-range="5d" onclick="changePeriod(this)">5分K</button>
-                        <button class="period-btn" data-interval="15m" data-range="1mo" onclick="changePeriod(this)">15分K</button>
-                        <button class="period-btn" data-interval="30m" data-range="1mo" onclick="changePeriod(this)">30分K</button>
-                        <button class="period-btn" data-interval="60m" data-range="3mo" onclick="changePeriod(this)">60分K</button>
-                        <button class="period-btn" data-interval="1d" data-range="6mo" onclick="changePeriod(this)">日K</button>
-                    </div>
-                    <span id="chart-status" class="text-[10px] text-gray-600">—</span>
-                </div>
-                <div id="chart-container" class="w-full h-full min-h-[330px]"></div>
-                
-                <div id="empty-state" class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div class="text-center text-gray-500">
-                        <div class="text-4xl mb-3 opacity-30">📈</div>
-                        <p class="text-sm">選擇或新增股票開始觀測</p>
-                    </div>
-                </div>
-            </div>
         </div>
     </main>
 
@@ -1323,12 +1322,11 @@
             resetFundamentals();
 
             try {
-                // K線固定使用 Yahoo Worker
-                const yahooResultPromise = fetchYahooData(symbol);
-
-                // Finnhub 有 Key 時優先使用 Finnhub 報價與公司資訊。
-                // 若免費版限制、台股代碼或 CORS 造成失敗，則自動回退 Yahoo。
-                let quote;
+                // K線與報價分開處理：
+                // Yahoo Worker 失敗時，不讓它把已成功取得的 Finnhub 報價一起拖垮。
+                let yahooResult = null;
+                let yahooError = null;
+                let quote = null;
                 let companyProfile = null;
                 let metricResult = null;
                 let quoteSource = 'Yahoo Finance';
@@ -1336,28 +1334,47 @@
                 if (FINNHUB_API_KEY) {
                     try {
                         quote = await fetchFinnhubQuote(symbol);
+                        quoteSource = 'Finnhub';
+
                         try {
                             companyProfile = await fetchFinnhubCompanyProfile(symbol);
                         } catch (profileError) {
                             console.warn('Finnhub 公司資訊失敗，改用 Yahoo:', profileError);
                         }
+
                         try {
                             metricResult = await fetchFinnhubMetrics(symbol);
                         } catch (metricError) {
                             console.warn('Finnhub 基本面失敗:', metricError);
                         }
-                        quoteSource = 'Finnhub';
                     } catch (finnhubError) {
                         console.warn('Finnhub 報價失敗，改用 Yahoo:', finnhubError);
                     }
                 }
 
-                const result = await yahooResultPromise;
-                const yahooQuote = parseQuote(result);
-                const chartData = parseCandles(result);
+                try {
+                    yahooResult = await fetchYahooData(symbol);
+                } catch (error) {
+                    yahooError = error;
+                    console.warn('Yahoo Worker 失敗:', error);
+                }
+
+                let result = yahooResult;
+                let yahooQuote = null;
+                let chartData = [];
+
+                if (result) {
+                    yahooQuote = parseQuote(result);
+                    chartData = parseCandles(result);
+
+                    if (!quote) {
+                        quote = yahooQuote;
+                        quoteSource = 'Yahoo Finance';
+                    }
+                }
 
                 if (!quote) {
-                    quote = yahooQuote;
+                    throw (yahooError || new Error('NO_QUOTE_DATA'));
                 }
 
                 if (companyProfile && (companyProfile.name || companyProfile.exchange || companyProfile.finnhubIndustry)) {
@@ -1406,14 +1423,16 @@
                 document.getElementById('stock-name').textContent =
                     stockItem?.name || displaySymbol(symbol);
 
-                // 更新 K 線
+                // 更新 K 線；K線失敗不影響已成功取得的報價。
                 if (chartData.length > 0) {
                     candlestickSeries.setData(chartData);
                     chart.timeScale().fitContent();
                     document.getElementById('chart-status').textContent =
                         `${currentPeriod.label} · ${chartData.length} 根`;
                 } else {
-                    throw new Error('NO_CANDLE_DATA');
+                    candlestickSeries.setData([]);
+                    document.getElementById('chart-status').textContent =
+                        yahooError ? 'K線資料取得失敗，但報價可正常顯示' : '目前週期沒有 K 線資料';
                 }
 
                 const now = new Date();
@@ -1443,8 +1462,11 @@
                     document.getElementById('price-change').textContent = 'K線失敗';
                 } else if (error.message === 'YAHOO_FAILED') {
                     document.getElementById('stock-name').textContent =
-                        'Yahoo 資料代理 Worker 連線失敗';
-                    document.getElementById('price-change').textContent = 'Worker 失敗';
+                        FINNHUB_API_KEY
+                            ? 'Yahoo K線代理連線失敗；Finnhub 報價可獨立使用'
+                            : 'Yahoo 資料代理 Worker 連線失敗';
+                    document.getElementById('price-change').textContent =
+                        FINNHUB_API_KEY ? 'K線失敗' : 'Worker 失敗';
                 } else {
                     document.getElementById('stock-name').textContent =
                         `找不到 ${displaySymbol(symbol)} 的資料`;
