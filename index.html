@@ -1075,8 +1075,13 @@
 
                 if (chartData.length > 0) {
                     candlestickSeries.setData(chartData);
-                    // 強制視角鎖定在最新 K 線 (最右側)
-                    chart.timeScale().scrollToRealTime(); 
+                    // 根據裝置決定對齊方式
+                    if (isMobile) {
+                        // 手機版不強制鎖定，讓使用者可以自由滑動查看歷史
+                    } else {
+                        // 電腦版強制對齊最右側
+                        chart.timeScale().scrollToRealTime();
+                    }
                     document.getElementById('chart-status').textContent = `${currentPeriod.label} · ${chartData.length} 根`;
                 } else if (!isSilent) {
                     candlestickSeries.setData([]);
