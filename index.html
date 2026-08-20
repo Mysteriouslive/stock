@@ -282,7 +282,7 @@
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
                         <div class="section-title">📊 基本面</div>
-                        <div class="section-subtitle">Finnhub · Fundamental Metrics</div>
+                        <div class="section-subtitle" id="fundamentals-subtitle">Finnhub · Fundamental Metrics</div>
                     </div>
                     <span id="fundamentals-status" class="text-[10px] text-gray-600">—</span>
                 </div>
@@ -313,7 +313,7 @@
                     <div class="fundamental-card"><div class="fundamental-label">前瞻 P/E</div><div id="metric-forward-pe" class="fundamental-value">—</div></div>
                     <div class="fundamental-card"><div class="fundamental-label">PEG</div><div id="metric-peg" class="fundamental-value">—</div></div>
                     <div class="fundamental-card"><div class="fundamental-label">EV / EBITDA</div><div id="metric-ev-ebitda" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">流通股數</div><div id="metric-shares" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">股價淨值比 PB</div><div id="metric-shares" class="fundamental-value">—</div></div>
                 </div>
             </section>
 
@@ -342,33 +342,32 @@
     </main>
 
     <script>
-        // =========================================================
-        // 股票資料設定
-        // =========================================================
         const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
-        const AUTO_REFRESH_INTERVAL = 10000; // 10 秒自動靜默更新
+        const AUTO_REFRESH_INTERVAL = 10000;
 
         function finnhubSymbol(symbol) {
             return displaySymbol(symbol) + (isTaiwanSymbol(symbol) ? '.TW' : '');
         }
 
-        // =========================================================
-        // 取得台股中文名稱 (透過 Cloudflare Worker 代理查詢證交所)
-        // =========================================================
         async function fetchTwseName(code) {
             try {
                 const res = await fetch(`${WORKER_URL}/?source=twse_name&symbol=${encodeURIComponent(code)}`, { cache: 'no-store' });
                 if (!res.ok) return null;
                 const data = await res.json();
                 return data?.name || null;
-            } catch {
-                return null;
-            }
+            } catch { return null; }
         }
 
-        // =========================================================
-        // Finnhub 請求改走 Worker 代理 (安全保護金鑰)
-        // =========================================================
+        // 取得台灣證交所/櫃買中心本益比、殖利率、股價淨值比
+        async function fetchTwseMetrics(symbol) {
+            try {
+                const code = displaySymbol(symbol);
+                const res = await fetch(`${WORKER_URL}/?source=twse_metrics&symbol=${encodeURIComponent(code)}`, { cache: 'no-store' });
+                if (!res.ok) return null;
+                return await res.json();
+            } catch { return null; }
+        }
+
         async function fetchFinnhubWorker(symbol, endpoint, params = {}) {
             const query = new URLSearchParams({
                 source: 'finnhub',
@@ -456,6 +455,7 @@
             setMetric('fundamentals-status', '—');
             setMetric('fundamentals-note', '—');
             setMetric('profile-note', '—');
+            document.getElementById('fundamentals-subtitle').textContent = 'Finnhub · Fundamental Metrics';
             const desc = document.getElementById('profile-description');
             if (desc) { desc.textContent = ''; desc.classList.add('hidden'); }
             const link = document.getElementById('company-web-link');
@@ -482,7 +482,7 @@
             setMetric('metric-ev-ebitda', formatMetric(firstFinite(m, ['enterpriseValueEbitdaTTM','evToEbitda'])));
             setMetric('metric-shares', formatCompactNumber(firstFinite(m, ['shareOutstanding'])));
             setMetric('fundamentals-status', 'Finnhub 已載入');
-            setMetric('fundamentals-note', `資料來源：Finnhub · ${displaySymbol(symbol)} · 沒有提供的指標顯示「—」`);
+            setMetric('fundamentals-note', `資料來源：Finnhub · ${displaySymbol(symbol)}`);
             setMetric('profile-country', p.country || '—');
             setMetric('profile-industry', p.finnhubIndustry || '—');
             setMetric('profile-ipo', p.ipo || '—');
@@ -498,7 +498,31 @@
                 link.href = p.weburl;
                 link.classList.remove('hidden');
             }
-            setMetric('profile-note', `公司：${p.name || displaySymbol(symbol)} · 交易所：${p.exchange || '—'}${p.country ? ` · 國家：${p.country}` : ''}`);
+            setMetric('profile-note', `公司：${p.name || displaySymbol(symbol)} · 交易所：${p.exchange || '—'}`);
+        }
+
+        // 渲染台股專屬官方數據
+        function renderTwseMetrics(twseData, symbol) {
+            resetFundamentals();
+            document.getElementById('fundamentals-subtitle').textContent = `台灣證交所/櫃買中心 · ${twseData.source}`;
+            
+            setMetric('metric-pe', twseData.pe !== '0' && twseData.pe ? twseData.pe : '—');
+            setMetric('metric-dividend', twseData.dividendYield || '—');
+            setMetric('metric-shares', twseData.pb || '—'); // 借用流通股數位置顯示股價淨值比 (PB)
+            
+            setMetric('fundamentals-status', `${twseData.source} 已載入`);
+            setMetric('fundamentals-note', `資料來源：${twseData.source} · 代碼 ${displaySymbol(symbol)} (台股個股日報表)`);
+            
+            setMetric('profile-country', '台灣');
+            setMetric('profile-industry', '上市櫃股票');
+            setMetric('profile-currency', 'TWD');
+            
+            const desc = document.getElementById('profile-description');
+            if (desc) {
+                desc.textContent = `台灣在地官方公開資訊（包含本益比、殖利率、股價淨值比）。`;
+                desc.classList.remove('hidden');
+            }
+            setMetric('profile-note', `市場別：${twseData.source} · 代碼：${displaySymbol(symbol)}`);
         }
 
         const DEFAULT_STOCKS = [
@@ -646,7 +670,7 @@
             let name = displaySymbol(symbol);
             if (isTaiwanSymbol(symbol)) {
                 const code = displaySymbol(symbol);
-                name = (await fetchTwseName(code)) || code; // 自動抓取中文名稱
+                name = (await fetchTwseName(code)) || code;
             } else {
                 name = symbol;
             }
@@ -881,6 +905,7 @@
                 let quote = null;
                 let companyProfile = null;
                 let metricResult = null;
+                let twseMetricsData = null;
                 let quoteSource = 'Yahoo Finance';
                 let chartData = [];
                 let yahooError = null;
@@ -907,7 +932,14 @@
                     console.warn('Yahoo Worker 失敗', error); 
                 }
 
-                if (!isTaiwanSymbol(symbol)) {
+                // 判斷是否為台股：若是則抓取台灣證交所/櫃買中心官方本益比殖利率
+                if (isTaiwanSymbol(symbol)) {
+                    try {
+                        twseMetricsData = await fetchTwseMetrics(symbol);
+                    } catch (e) {
+                        console.warn('TWSE metrics fetch failed', e);
+                    }
+                } else {
                     if (!quote) {
                         try { 
                             quote = await fetchFinnhubQuote(symbol); 
@@ -923,17 +955,15 @@
                 if (!quote) throw (yahooError || new Error('NO_QUOTE_DATA'));
 
                 if (!isSilent) {
-                    if (companyProfile && (companyProfile.name || companyProfile.exchange || companyProfile.finnhubIndustry)) {
+                    if (isTaiwanSymbol(symbol) && twseMetricsData) {
+                        renderTwseMetrics(twseMetricsData, symbol);
+                        renderCompanyInfo(yahooResult || quoteResult, symbol, quote, 'Yahoo Finance + 證交所');
+                    } else if (companyProfile && (companyProfile.name || companyProfile.exchange || companyProfile.finnhubIndustry)) {
                         renderFinnhubCompanyInfo(companyProfile, symbol, quote);
+                        if (metricResult) renderFinnhubMetrics(metricResult, companyProfile, symbol);
                     } else {
                         renderCompanyInfo(yahooResult || quoteResult, symbol, quote, quoteSource);
-                    }
-
-                    if (metricResult) {
-                        renderFinnhubMetrics(metricResult, companyProfile, symbol);
-                    } else {
                         resetFundamentals();
-                        setMetric('fundamentals-status', '基本面暫無資料');
                     }
                 }
 
@@ -1087,7 +1117,6 @@
             document.getElementById('sort-select').value = sortMode;
             renderWatchlist();
 
-            // 啟動時自動補齊還沒抓到中文名稱的台股項目
             for (const stock of watchlist) {
                 if (isTaiwanSymbol(stock.symbol)) {
                     const code = displaySymbol(stock.symbol);
