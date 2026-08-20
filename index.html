@@ -351,18 +351,39 @@
         async function fetchForexData() {
             try {
                 const res = await fetch(`${WORKER_URL}/?source=forex`, { cache: 'no-store' });
-                if (!res.ok) return null;
-                const data = await res.json();
-                return data?.rates?.TWD || null;
-            } catch { return null; }
+                const data = await res.json().catch(() => null);
+                if (!res.ok || !data) throw new Error(data?.error || `FOREX_HTTP_${res.status}`);
+
+                const rate = Number(data.rate ?? data.rates?.TWD);
+                if (!Number.isFinite(rate) || rate <= 0) throw new Error('FOREX_NO_RATE');
+
+                return {
+                    rate,
+                    change: Number(data.change) || 0,
+                    changePercent: Number(data.changePercent) || 0,
+                    source: data.source || 'Frankfurter'
+                };
+            } catch (error) {
+                console.error('fetchForexData:', error);
+                return null;
+            }
         }
 
         async function fetchCryptoData() {
             try {
                 const res = await fetch(`${WORKER_URL}/?source=crypto`, { cache: 'no-store' });
-                if (!res.ok) return null;
-                return await res.json();
-            } catch { return null; }
+                const data = await res.json().catch(() => null);
+                if (!res.ok || !data || data.error) {
+                    throw new Error(data?.error || `CRYPTO_HTTP_${res.status}`);
+                }
+                if (!data.BTC && !data.ETH && !data.SOL && !data.XRP && !data.ADA) {
+                    throw new Error('CRYPTO_NO_DATA');
+                }
+                return data;
+            } catch (error) {
+                console.error('fetchCryptoData:', error);
+                return null;
+            }
         }
 
         function finnhubSymbol(symbol) {
@@ -932,32 +953,85 @@
 
                 // 1. 外匯匯率 (USDTWD)
                 if (isForexSymbol(symbol)) {
-                    const rate = await fetchForexData();
+                    const forex = await fetchForexData();
+                    if (!forex) throw new Error('FOREX_NO_DATA');
+
+                    const rate = Number(forex.rate);
+                    const change = Number(forex.change || 0);
+                    const changePercent = Number(forex.changePercent || 0);
+
                     quote = {
-                        latestPrice: rate ? rate.toFixed(4) : '—',
-                        change: '0.00', changePercent: '0.00', isUp: true,
-                        open: '—', high: '—', low: '—', previousClose: '—', volume: '—'
+                        latestPrice: rate.toFixed(4),
+                        change: change.toFixed(4),
+                        changePercent: changePercent.toFixed(2),
+                        isUp: change > 0,
+                        isFlat: change === 0,
+                        open: '—',
+                        high: '—',
+                        low: '—',
+                        previousClose: change !== 0 ? (rate - change).toFixed(4) : '—',
+                        volume: '—'
                     };
+
                     setCompanyField('company-long-name', '美元/台幣 (USD/TWD)');
-                    setCompanyField('company-exchange', '外匯市場 (Frankfurter API)');
+                    setCompanyField('company-exchange', `外匯市場 (${forex.source})`);
                     setCompanyField('company-market', 'Forex');
                     setCompanyField('company-currency', 'TWD');
+                    setCompanyField('company-type', '外匯');
+                    setCompanyField('company-market-state', '最新工作日匯率');
+                    setCompanyField('company-symbol', 'USD/TWD');
+                    setCompanyField('company-price', quote.latestPrice);
                 } 
-                // 2. 加密貨幣 (BTC, ETH, SOL)
+                // 2. 加密貨幣 (BTC, ETH, SOL, XRP, ADA)
                 else if (isCryptoSymbol(symbol)) {
                     const cryptoJson = await fetchCryptoData();
-                    const key = symbol.toLowerCase() === 'btc' ? 'bitcoin' : (symbol.toLowerCase() === 'eth' ? 'ethereum' : 'solana');
-                    const priceUSD = cryptoJson?.[key]?.usd;
-                    
+                    const crypto = cryptoJson?.[symbol.toUpperCase()];
+                    const priceUSD = Number(crypto?.usd);
+                    const changePercent = Number(crypto?.usd_24h_change || 0);
+
+                    if (!Number.isFinite(priceUSD) || priceUSD <= 0) {
+                        throw new Error('CRYPTO_NO_PRICE');
+                    }
+
+                    const previousClose = changePercent !== -100
+                        ? priceUSD / (1 + changePercent / 100)
+                        : null;
+                    const change = Number.isFinite(previousClose) ? priceUSD - previousClose : 0;
+
                     quote = {
-                        latestPrice: priceUSD ? priceUSD.toLocaleString() : '—',
-                        change: '0.00', changePercent: '0.00', isUp: true,
-                        open: '—', high: '—', low: '—', previousClose: '—', volume: '—'
+                        latestPrice: priceUSD.toLocaleString('en-US', {
+                            minimumFractionDigits: priceUSD >= 1 ? 2 : 6,
+                            maximumFractionDigits: priceUSD >= 1 ? 2 : 8
+                        }),
+                        change: change.toFixed(priceUSD >= 1 ? 2 : 6),
+                        changePercent: changePercent.toFixed(2),
+                        isUp: changePercent > 0,
+                        isFlat: changePercent === 0,
+                        open: '—',
+                        high: '—',
+                        low: '—',
+                        previousClose: Number.isFinite(previousClose)
+                            ? previousClose.toLocaleString('en-US', { maximumFractionDigits: 8 })
+                            : '—',
+                        volume: crypto?.usd_24h_vol
+                            ? Number(crypto.usd_24h_vol).toLocaleString('en-US', { maximumFractionDigits: 0 })
+                            : '—'
                     };
-                    setCompanyField('company-long-name', symbol.toUpperCase());
-                    setCompanyField('company-exchange', '加密貨幣 (CoinGecko API)');
+
+                    setCompanyField('company-long-name', {
+                        BTC: '比特幣',
+                        ETH: '以太幣',
+                        SOL: 'Solana',
+                        XRP: 'XRP',
+                        ADA: 'Cardano'
+                    }[symbol.toUpperCase()] || symbol.toUpperCase());
+                    setCompanyField('company-exchange', `加密貨幣 (${crypto.source || 'CoinGecko'})`);
                     setCompanyField('company-market', 'Crypto');
                     setCompanyField('company-currency', 'USD');
+                    setCompanyField('company-type', '加密貨幣');
+                    setCompanyField('company-market-state', '24 小時市場');
+                    setCompanyField('company-symbol', symbol.toUpperCase());
+                    setCompanyField('company-price', quote.latestPrice);
                 } 
                 // 3. 一般台美股
                 else {
@@ -1050,6 +1124,12 @@
                     } else if (error.message === 'YAHOO_FAILED') {
                         document.getElementById('stock-name').textContent = '資料代理 Worker 連線失敗';
                         document.getElementById('price-change').textContent = 'Worker 失敗';
+                    } else if (error.message === 'FOREX_NO_DATA') {
+                        document.getElementById('stock-name').textContent = 'USD/TWD 匯率來源暫時無法取得';
+                        document.getElementById('price-change').textContent = '匯率失敗';
+                    } else if (error.message === 'CRYPTO_NO_DATA' || error.message === 'CRYPTO_NO_PRICE') {
+                        document.getElementById('stock-name').textContent = `${displaySymbol(symbol)} 加密貨幣資料暫時無法取得`;
+                        document.getElementById('price-change').textContent = '加密貨幣失敗';
                     } else {
                         document.getElementById('stock-name').textContent = `找不到 ${displaySymbol(symbol)} 的資料`;
                         document.getElementById('price-change').textContent = '載入失敗';
