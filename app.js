@@ -920,6 +920,11 @@ document.getElementById('sort-select').value = sortMode;
 
 window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('sort-select').value = sortMode;
+    
+    // --- 新增這行：載入使用者偏好設定 ---
+    loadUserPreferences(); 
+    // ---------------------------------
+
     renderWatchlist();
 
     for (const stock of watchlist) {
@@ -1012,50 +1017,85 @@ function loadUserPreferences() {
     const savedColorMode = localStorage.getItem('stockKlineColor') || 'red-green';
     const savedRefreshRate = localStorage.getItem('stockRefreshRate') || '10000';
 
-    // 將下拉選單設定為使用者儲存的值
-    document.getElementById('kline-color').value = savedColorMode;
-    document.getElementById('refresh-rate').value = savedRefreshRate;
+    const colorSelect = document.getElementById('kline-color');
+    const refreshSelect = document.getElementById('refresh-rate');
 
-    // 立即套用顏色
+    // 將下拉選單設定為使用者儲存的值，並由 JS 直接綁定事件 (確保一定能觸發)
+    if (colorSelect) {
+        colorSelect.value = savedColorMode;
+        colorSelect.addEventListener('change', applySettings);
+    }
+    if (refreshSelect) {
+        refreshSelect.value = savedRefreshRate;
+        refreshSelect.addEventListener('change', applySettings);
+    }
+
+    // 立即套用顏色與更新頻率
     updateChartColors(savedColorMode);
+    AUTO_REFRESH_INTERVAL = Number(savedRefreshRate);
 }
 
 // 2. 當使用者在設定視窗改變選項時觸發
 function applySettings() {
-    const colorMode = document.getElementById('kline-color').value;
-    const refreshRate = document.getElementById('refresh-rate').value;
+    const colorSelect = document.getElementById('kline-color');
+    const refreshSelect = document.getElementById('refresh-rate');
+    
+    if (!colorSelect || !refreshSelect) return;
+
+    const colorMode = colorSelect.value;
+    const refreshRate = refreshSelect.value;
 
     // 儲存到 localStorage
     localStorage.setItem('stockKlineColor', colorMode);
     localStorage.setItem('stockRefreshRate', refreshRate);
 
-    // 1. 即時套用圖表顏色
+    // 即時套用圖表與文字顏色
     updateChartColors(colorMode);
 
-    // 2. 即時套用更新頻率
+    // 即時套用更新頻率
     AUTO_REFRESH_INTERVAL = Number(refreshRate);
-    restartAutoRefresh(); // 重新啟動計時器
+    restartAutoRefresh();
 }
 
-// 3. 負責改變 Lightweight Charts 顏色的函式
+// 3. 負責改變「圖表」與「所有網頁文字」顏色的函式
 function updateChartColors(mode) {
-    if (!candlestickSeries) return;
+    // 【A. 更新 K 線圖表顏色】
+    if (typeof candlestickSeries !== 'undefined' && candlestickSeries) {
+        if (mode === 'green-red') {
+            // 國際習慣：綠漲紅跌
+            candlestickSeries.applyOptions({
+                upColor: '#10b981', downColor: '#ef4444', wickUpColor: '#10b981', wickDownColor: '#ef4444'
+            });
+        } else {
+            // 台灣習慣：紅漲綠跌 (預設)
+            candlestickSeries.applyOptions({
+                upColor: '#ef4444', downColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
+            });
+        }
+    }
+
+    // 【B. 動態寫入 CSS，強制覆蓋網頁文字的漲跌顏色】
+    let styleTag = document.getElementById('dynamic-theme-styles');
+    if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'dynamic-theme-styles';
+        document.head.appendChild(styleTag);
+    }
 
     if (mode === 'green-red') {
-        // 國際習慣：綠漲紅跌
-        candlestickSeries.applyOptions({
-            upColor: '#10b981', // 綠色
-            downColor: '#ef4444', // 紅色
-            wickUpColor: '#10b981',
-            wickDownColor: '#ef4444'
-        });
+        // 國際習慣：漲=綠，跌=紅
+        styleTag.innerHTML = `
+            .price-up { color: #10b981 !important; }    
+            .price-down { color: #ef4444 !important; }  
+        `;
     } else {
-        // 台灣習慣：紅漲綠跌 (預設)
-        candlestickSeries.applyOptions({
-            upColor: '#ef4444', // 紅色
-            downColor: '#10b981', // 綠色
-            wickUpColor: '#ef4444',
-            wickDownColor: '#10b981'
-        });
+        // 台灣習慣：漲=紅，跌=綠
+        styleTag.innerHTML = `
+            .price-up { color: #ef4444 !important; }    
+            .price-down { color: #10b981 !important; }  
+        `;
     }
+    
+    // 重新渲染 watchlist 以確保左側清單的漲跌幅顏色立刻更新
+    renderWatchlist();
 }
