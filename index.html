@@ -1075,7 +1075,8 @@
 
                 if (chartData.length > 0) {
                     candlestickSeries.setData(chartData);
-                    if (!isSilent) chart.timeScale().fitContent();
+                    // 強制視角鎖定在最新 K 線 (最右側)
+                    chart.timeScale().scrollToRealTime(); 
                     document.getElementById('chart-status').textContent = `${currentPeriod.label} · ${chartData.length} 根`;
                 } else if (!isSilent) {
                     candlestickSeries.setData([]);
