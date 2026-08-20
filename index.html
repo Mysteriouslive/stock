@@ -358,7 +358,6 @@
             } catch { return null; }
         }
 
-        // 取得台灣證交所/櫃買中心本益比、殖利率、股價淨值比
         async function fetchTwseMetrics(symbol) {
             try {
                 const code = displaySymbol(symbol);
@@ -501,25 +500,45 @@
             setMetric('profile-note', `公司：${p.name || displaySymbol(symbol)} · 交易所：${p.exchange || '—'}`);
         }
 
-        // 渲染台股專屬官方數據
-        function renderTwseMetrics(twseData, symbol) {
+        // 渲染台股專屬官方數據（結合 Yahoo 補充市值與 52 週高低）
+        function renderTwseMetrics(twseData, symbol, quoteResult) {
             resetFundamentals();
             document.getElementById('fundamentals-subtitle').textContent = `台灣證交所/櫃買中心 · ${twseData.source}`;
             
             setMetric('metric-pe', twseData.pe !== '0' && twseData.pe ? twseData.pe : '—');
             setMetric('metric-dividend', twseData.dividendYield || '—');
-            setMetric('metric-shares', twseData.pb || '—'); // 借用流通股數位置顯示股價淨值比 (PB)
+            setMetric('metric-shares', twseData.pb || '—'); // 股價淨值比 PB
+
+            const meta = quoteResult?.meta || {};
+            const quotes = quoteResult?.indicators?.quote?.[0] || {};
             
+            let high52 = meta.fiftyTwoWeekHigh;
+            let low52 = meta.fiftyTwoWeekLow;
+            
+            if (!high52 && quotes.high) {
+                high52 = Math.max(...quotes.high.filter(v => v != null));
+            }
+            if (!low52 && quotes.low) {
+                low52 = Math.min(...quotes.low.filter(v => v != null));
+            }
+
+            setMetric('metric-52high', formatPrice(high52));
+            setMetric('metric-52low', formatPrice(low52));
+            
+            if (meta.marketCap) {
+                setMetric('metric-marketcap', formatCompactNumber(meta.marketCap));
+            }
+
             setMetric('fundamentals-status', `${twseData.source} 已載入`);
-            setMetric('fundamentals-note', `資料來源：${twseData.source} · 代碼 ${displaySymbol(symbol)} (台股個股日報表)`);
+            setMetric('fundamentals-note', `資料來源：${twseData.source} + Yahoo Finance · 代碼 ${displaySymbol(symbol)}`);
             
             setMetric('profile-country', '台灣');
-            setMetric('profile-industry', '上市櫃股票');
-            setMetric('profile-currency', 'TWD');
+            setMetric('profile-industry', meta.fullExchangeName || '上市櫃股票');
+            setMetric('profile-currency', meta.currency || 'TWD');
             
             const desc = document.getElementById('profile-description');
             if (desc) {
-                desc.textContent = `台灣在地官方公開資訊（包含本益比、殖利率、股價淨值比）。`;
+                desc.textContent = `${meta.longName || displaySymbol(symbol)} - 台灣在地官方公開資訊（包含本益比、殖利率、股價淨值比）。`;
                 desc.classList.remove('hidden');
             }
             setMetric('profile-note', `市場別：${twseData.source} · 代碼：${displaySymbol(symbol)}`);
@@ -932,7 +951,6 @@
                     console.warn('Yahoo Worker 失敗', error); 
                 }
 
-                // 判斷是否為台股：若是則抓取台灣證交所/櫃買中心官方本益比殖利率
                 if (isTaiwanSymbol(symbol)) {
                     try {
                         twseMetricsData = await fetchTwseMetrics(symbol);
@@ -956,7 +974,7 @@
 
                 if (!isSilent) {
                     if (isTaiwanSymbol(symbol) && twseMetricsData) {
-                        renderTwseMetrics(twseMetricsData, symbol);
+                        renderTwseMetrics(twseMetricsData, symbol, yahooResult || quoteResult);
                         renderCompanyInfo(yahooResult || quoteResult, symbol, quote, 'Yahoo Finance + 證交所');
                     } else if (companyProfile && (companyProfile.name || companyProfile.exchange || companyProfile.finnhubIndustry)) {
                         renderFinnhubCompanyInfo(companyProfile, symbol, quote);
