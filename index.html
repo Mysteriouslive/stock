@@ -4,12 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>個人股票觀測站</title>
-    <!-- 引入 Tailwind CSS 框架來快速排版 -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入 TradingView 圖表套件 -->
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <style>
-        /* 隱藏滾動條但保留滾動功能 */
         ::-webkit-scrollbar { display: none; }
         body { background-color: #121212; color: #e0e0e0; }
     </style>
@@ -22,23 +19,19 @@
             <h1 class="text-xl font-bold text-white">自選股清單</h1>
         </div>
         <div class="flex-1 overflow-y-auto p-2" id="stock-list">
-            <!-- 股票切換按鈕 -->
-            <button onclick="loadStock('2330.TW')" class="w-full text-left px-4 py-3 mb-2 rounded hover:bg-gray-800 transition">台積電 (2330.TW)</button>
             <button onclick="loadStock('AMD')" class="w-full text-left px-4 py-3 mb-2 rounded hover:bg-gray-800 transition">超微 (AMD)</button>
             <button onclick="loadStock('META')" class="w-full text-left px-4 py-3 mb-2 rounded hover:bg-gray-800 transition">Meta (META)</button>
             <button onclick="loadStock('NVDA')" class="w-full text-left px-4 py-3 mb-2 rounded hover:bg-gray-800 transition">輝達 (NVDA)</button>
-            <button onclick="loadStock('0050.TW')" class="w-full text-left px-4 py-3 mb-2 rounded hover:bg-gray-800 transition">元大台灣50 (0050)</button>
+            <button onclick="loadStock('TSM')" class="w-full text-left px-4 py-3 mb-2 rounded hover:bg-gray-800 transition">台積電 ADR (TSM)</button>
         </div>
     </aside>
 
     <!-- 右側主內容區 -->
     <main class="flex-1 flex flex-col p-6 overflow-y-auto">
-        
-        <!-- 頂部數據卡片 -->
         <header class="flex justify-between items-end mb-6 bg-gray-900 p-6 rounded-lg border border-gray-800">
             <div>
                 <h2 id="stock-symbol-title" class="text-3xl font-bold text-white tracking-wider">載入中...</h2>
-                <p id="stock-currency" class="text-gray-400 text-sm mt-1">--</p>
+                <p id="stock-currency" class="text-gray-400 text-sm mt-1">資料來源: Finnhub</p>
             </div>
             <div class="text-right">
                 <p class="text-sm text-gray-400 mb-1">最新成交價</p>
@@ -49,16 +42,18 @@
             </div>
         </header>
 
-        <!-- K 線圖表區塊 -->
         <div class="flex-1 bg-gray-900 rounded-lg border border-gray-800 p-4 min-h-[400px]">
             <div id="chart-container" class="w-full h-full"></div>
         </div>
-
     </main>
 
-    <!-- 腳本邏輯區 -->
     <script>
-        // === 1. 初始化 TradingView 圖表 ===
+        // ==========================================
+        // ⚠️ 請在這裡填入你的 Finnhub API Key ⚠️
+        // ==========================================
+        const FINNHUB_API_KEY = '請替換成你的_API_KEY'; 
+
+        // 1. 初始化圖表
         const chartContainer = document.getElementById('chart-container');
         const chart = LightweightCharts.createChart(chartContainer, {
             layout: { textColor: '#d1d4dc', backgroundColor: 'transparent' },
@@ -68,83 +63,76 @@
         });
 
         const candlestickSeries = chart.addCandlestickSeries({
-            upColor: '#ef5350',      // 台灣習慣：紅漲 (如要美股習慣可改為綠色 #26a69a)
-            downColor: '#26a69a',    // 台灣習慣：綠跌 (如要美股習慣可改為紅色 #ef5350)
-            borderVisible: false,
-            wickUpColor: '#ef5350',
-            wickDownColor: '#26a69a',
+            upColor: '#ef5350', downColor: '#26a69a',
+            borderVisible: false, wickUpColor: '#ef5350', wickDownColor: '#26a69a',
         });
 
-        // 確保圖表隨視窗縮放
         window.addEventListener('resize', () => {
             chart.applyOptions({ width: chartContainer.clientWidth, height: chartContainer.clientHeight });
         });
 
-        // === 2. 抓取 Yahoo Finance API 邏輯 ===
-        async function fetchYahooStockData(symbol) {
-            const range = '3mo'; // 預設抓取近三個月資料
-            const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=${range}`;
-            // 使用 allorigins 作為 CORS Proxy 繞過瀏覽器限制
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`;
+        // 2. 抓取 Finnhub 資料
+        async function fetchFinnhubData(symbol) {
+            if (FINNHUB_API_KEY === 'da3fmchr01qual4pud1gda3fmchr01qual4pud20') {
+                throw new Error("請先在程式碼中設定 FINNHUB_API_KEY");
+            }
 
-            const response = await fetch(proxyUrl);
-            if (!response.ok) throw new Error('API 請求失敗');
-            
-            const json = await response.json();
-            const result = json.chart.result[0];
-            const meta = result.meta;
-            const timestamps = result.timestamp;
-            const quote = result.indicators.quote[0];
+            // 計算時間範圍 (抓取近半年)
+            const to = Math.floor(Date.now() / 1000);
+            const from = to - (180 * 24 * 60 * 60); 
 
-            // 整理最新報價
-            const latestPrice = meta.regularMarketPrice;
-            const prevClose = meta.chartPreviousClose || meta.previousClose;
-            const priceChange = latestPrice - prevClose;
-            const changePercent = (priceChange / prevClose) * 100;
+            // 同時發出兩個請求：即時報價 (quote) 與歷史 K 線 (candle)
+            const [quoteRes, candleRes] = await Promise.all([
+                fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`),
+                fetch(`https://finnhub.io/api/v1/stock/candle?symbol=${symbol}&resolution=D&from=${from}&to=${to}&token=${FINNHUB_API_KEY}`)
+            ]);
 
+            if (!quoteRes.ok || !candleRes.ok) throw new Error('API 請求失敗');
+
+            const quoteData = await quoteRes.json();
+            const candleData = await candleRes.json();
+
+            // 整理報價
             const summaryData = {
-                symbol: meta.symbol,
-                currency: meta.currency,
-                latestPrice: latestPrice.toFixed(2),
-                change: priceChange.toFixed(2),
-                changePercent: changePercent.toFixed(2) + '%',
-                isUp: priceChange >= 0
+                symbol: symbol,
+                latestPrice: quoteData.c.toFixed(2),
+                change: quoteData.d.toFixed(2),
+                changePercent: quoteData.dp.toFixed(2) + '%',
+                isUp: quoteData.d >= 0
             };
 
-            // 整理 K 線資料
-            const candleData = [];
-            for (let i = 0; i < timestamps.length; i++) {
-                if (quote.open[i] !== null && quote.close[i] !== null) {
-                    const date = new Date(timestamps[i] * 1000);
-                    candleData.push({
+            // 整理 K 線
+            const chartData = [];
+            if (candleData.s === 'ok') {
+                for (let i = 0; i < candleData.t.length; i++) {
+                    const date = new Date(candleData.t[i] * 1000);
+                    chartData.push({
                         time: date.toISOString().split('T')[0],
-                        open: Number(quote.open[i].toFixed(2)),
-                        high: Number(quote.high[i].toFixed(2)),
-                        low: Number(quote.low[i].toFixed(2)),
-                        close: Number(quote.close[i].toFixed(2)),
+                        open: candleData.o[i],
+                        high: candleData.h[i],
+                        low: candleData.l[i],
+                        close: candleData.c[i],
                     });
                 }
             }
-            return { summaryData, candleData };
+
+            return { summaryData, chartData };
         }
 
-        // === 3. 更新畫面邏輯 ===
+        // 3. 更新畫面
         async function loadStock(symbol) {
             document.getElementById('stock-symbol-title').innerText = '資料載入中...';
             
             try {
-                const { summaryData, candleData } = await fetchYahooStockData(symbol);
+                const { summaryData, chartData } = await fetchFinnhubData(symbol);
 
-                // 更新文字與價格
                 document.getElementById('stock-symbol-title').innerText = summaryData.symbol;
-                document.getElementById('stock-currency').innerText = `幣別: ${summaryData.currency}`;
                 document.getElementById('current-price').innerText = summaryData.latestPrice;
                 
                 const changeEl = document.getElementById('price-change');
                 const sign = summaryData.isUp ? '+' : '';
                 changeEl.innerText = `${sign}${summaryData.change} (${sign}${summaryData.changePercent})`;
                 
-                // 設定漲跌顏色 (台灣習慣紅漲綠跌)
                 if (summaryData.isUp) {
                     changeEl.className = "text-lg font-medium text-red-500";
                     document.getElementById('current-price').className = "text-4xl font-bold text-red-500";
@@ -153,18 +141,21 @@
                     document.getElementById('current-price').className = "text-4xl font-bold text-green-500";
                 }
 
-                // 更新圖表資料
-                candlestickSeries.setData(candleData);
-                chart.timeScale().fitContent(); // 自動縮放視圖
+                candlestickSeries.setData(chartData);
+                chart.timeScale().fitContent();
 
             } catch (error) {
                 console.error(error);
                 document.getElementById('stock-symbol-title').innerText = '載入失敗';
-                alert('無法取得資料，請檢查網路狀態或重試。');
+                if (error.message.includes("FINNHUB_API_KEY")) {
+                    alert(error.message);
+                } else {
+                    alert('無法取得資料，請確認 API Key 是否正確，或稍後再試。');
+                }
             }
         }
 
-        // === 4. 網頁載入時，預設顯示第一檔股票 ===
+        // 預設載入 AMD
         window.addEventListener('DOMContentLoaded', () => {
             loadStock('AMD'); 
         });
