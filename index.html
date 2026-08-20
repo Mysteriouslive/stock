@@ -1172,7 +1172,9 @@
             grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
             crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 }, horzLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 } },
             timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true, secondsVisible: false },
-            rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' }
+            rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' },
+            handleScroll: false, // 禁止滑鼠滾輪滑動
+            handleScale: false   // 禁止滑鼠滾輪縮放
         });
 
         const candlestickSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
