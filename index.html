@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>股票觀測站</title>
     <!-- 載入必要套件 -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -81,12 +81,14 @@
         .company-info-item { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 10px 12px; }
     </style>
 </head>
-<body class="h-screen overflow-hidden flex">
+<!-- 使用 h-[100dvh] 解決 Safari 底部網址列造成的版面壓縮 -->
+<body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
     
     <!-- 左側邊欄 -->
     <aside id="sidebar" class="w-72 glass flex flex-col shrink-0 border-r border-white/5 z-20">
-        <div class="p-5 border-b border-white/5">
+        <!-- 針對手機上方瀏海/動態島推移 -->
+        <div class="px-5 pb-5 border-b border-white/5" style="padding-top: max(20px, env(safe-area-inset-top));">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h1 class="text-lg font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">
@@ -102,31 +104,21 @@
                 <input 
                     id="stock-input" 
                     type="text" 
-                    placeholder="輸入代碼 (例: 2330 / AAPL)" 
+                    placeholder="代碼 (例: 2330 / AAPL)" 
                     class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
                     onkeydown="if(event.key==='Enter') addStock()"
                     maxlength="12"
                 >
-                <button 
-                    onclick="addStock()" 
-                    class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-sm font-medium transition-colors shrink-0"
-                >
-                    新增
-                </button>
+                <button onclick="addStock()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-sm font-medium transition-colors shrink-0">新增</button>
             </div>
             <div class="flex items-center justify-between mt-2 gap-2">
-                <p class="text-[10px] text-gray-600">支援台股：2330、美股：NVDA</p>
-                <select id="sort-select" onchange="changeSort(this.value)"
-                    class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-gray-400 focus:outline-none">
+                <p class="text-[10px] text-gray-600">支援台美股代碼</p>
+                <select id="sort-select" onchange="changeSort(this.value)" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-gray-400 focus:outline-none">
                     <option value="manual">自訂順序</option>
-                    <option value="symbol-asc">代碼 ↑</option>
-                    <option value="symbol-desc">代碼 ↓</option>
-                    <option value="name-asc">名稱 ↑</option>
-                    <option value="name-desc">名稱 ↓</option>
-                    <option value="price-desc">價格 ↓</option>
-                    <option value="price-asc">價格 ↑</option>
-                    <option value="change-desc">漲幅 ↓</option>
-                    <option value="change-asc">漲幅 ↑</option>
+                    <option value="symbol-asc">代碼 ↑</option><option value="symbol-desc">代碼 ↓</option>
+                    <option value="name-asc">名稱 ↑</option><option value="name-desc">名稱 ↓</option>
+                    <option value="price-desc">價格 ↓</option><option value="price-asc">價格 ↑</option>
+                    <option value="change-desc">漲幅 ↓</option><option value="change-asc">漲幅 ↑</option>
                 </select>
             </div>
         </div>
@@ -138,7 +130,8 @@
         <div class="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[140px] pointer-events-none"></div>
         <div class="absolute bottom-[-15%] left-[-5%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
         
-        <div class="md:hidden flex items-center gap-3 p-4 border-b border-white/5">
+        <!-- 手機版頂部 Header，加上安全距離避免被瀏海吃掉 -->
+        <div class="md:hidden flex items-center gap-3 px-4 pb-4 border-b border-white/5" style="padding-top: max(16px, env(safe-area-inset-top));">
             <button onclick="toggleSidebar()" class="p-2 rounded-lg glass text-gray-300">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
             </button>
@@ -189,9 +182,7 @@
                             <p class="text-[10px] text-gray-600">Company Information</p>
                         </div>
                     </div>
-                    <button onclick="toggleCompanyInfo()" class="text-[11px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
-                        收合
-                    </button>
+                    <button onclick="toggleCompanyInfo()" class="text-[11px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">收合</button>
                 </div>
                 <div id="company-info-body" class="company-info-body mt-4">
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5">
@@ -633,6 +624,9 @@
             return Number(value).toFixed(2);
         }
 
+        // ==========================================
+        // 確保精準抓取 Yahoo 成交量與報價
+        // ==========================================
         function parseQuote(result) {
             const meta = result.meta || {};
             const quote = result.indicators?.quote?.[0] || {};
@@ -682,6 +676,12 @@
             const change = currentPrice - previousClose;
             const changePercent = (change / previousClose) * 100;
 
+            // 確保成交量有值 (若 Yahoo regularMarketVolume 為空則嘗試用 K 線最後一根的成交量)
+            let vol = meta.regularMarketVolume;
+            if (vol == null || isNaN(vol)) {
+                vol = lastVol;
+            }
+
             return {
                 latestPrice: formatPrice(currentPrice),
                 change: change.toFixed(2),
@@ -692,7 +692,7 @@
                 high: formatPrice(meta.regularMarketDayHigh ?? lastHigh),
                 low: formatPrice(meta.regularMarketDayLow ?? lastLow),
                 previousClose: formatPrice(previousClose),
-                volume: formatVolume(meta.regularMarketVolume ?? lastVol)
+                volume: formatVolume(vol) // <-- 確保正確顯示成交量
             };
         }
 
@@ -719,7 +719,7 @@
         }
 
         let currentSymbol = null;
-        let autoRefreshTimer = null; // 自動更新計時器
+        let autoRefreshTimer = null; 
 
         function marketStateText(state) {
             const map = { REGULAR: '正常交易', PRE: '盤前交易', POST: '盤後交易', PREPRE: '盤前', POSTPOST: '盤後', CLOSED: '休市' };
@@ -781,13 +781,12 @@
         }
 
         // =========================================================
-        // 載入股票資料 (支援手動點選與靜默自動輪詢)
+        // 修正：徹底分離 Yahoo (報價主力) 與 Finnhub (基本面輔助)
         // =========================================================
         async function loadStock(symbol, isSilent = false) {
             currentSymbol = symbol;
             
             if (!isSilent) {
-                // 手動切換時才顯示轉圈動畫並清空舊數值
                 document.querySelectorAll('.stock-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.symbol === symbol));
                 document.getElementById('stock-symbol-title').textContent = displaySymbol(symbol);
                 document.getElementById('stock-name').textContent = '載入中...';
@@ -801,55 +800,58 @@
             }
 
             try {
-                let yahooResult = null;
-                let yahooError = null;
                 let quote = null;
                 let companyProfile = null;
                 let metricResult = null;
                 let quoteSource = 'Yahoo Finance';
-
-                // 台股自動跳過 Finnhub，美股才抓
-                if (FINNHUB_API_KEY && !isTaiwanSymbol(symbol)) {
-                    try {
-                        quote = await fetchFinnhubQuote(symbol);
-                        quoteSource = 'Finnhub';
-                        if (!isSilent) {
-                            try { companyProfile = await fetchFinnhubCompanyProfile(symbol); } catch (e) { console.warn('Finnhub 公司資訊失敗', e); }
-                            try { metricResult = await fetchFinnhubMetrics(symbol); } catch (e) { console.warn('Finnhub 基本面失敗', e); }
-                        }
-                    } catch (e) { console.warn('Finnhub 報價失敗', e); }
-                }
-
-                let quoteResult = null;
-                try { quoteResult = await fetchYahooData(symbol, '5m', '1d'); } catch (e) { console.warn('Yahoo 短區間報價失敗', e); }
-                try { yahooResult = await fetchYahooData(symbol); } catch (error) { yahooError = error; console.warn('Yahoo Worker 失敗', error); }
-
-                let result = yahooResult;
-                let yahooQuote = null;
                 let chartData = [];
+                let yahooError = null;
 
-                if (quoteResult) {
-                    try { yahooQuote = parseQuote(quoteResult); } catch (e) { console.warn('短區間報價解析失敗', e); }
+                // 1. 強制優先抓取 Yahoo Finance 的精準報價與 K 線 (解決 Finnhub 報價卡頓與缺成交量問題)
+                let quoteResult = null;
+                try { 
+                    quoteResult = await fetchYahooData(symbol, '5m', '1d'); 
+                    if (quoteResult) quote = parseQuote(quoteResult);
+                } catch (e) { 
+                    console.warn('Yahoo 短區間報價失敗', e); 
+                }
+                
+                let yahooResult = null;
+                try { 
+                    yahooResult = await fetchYahooData(symbol); 
+                    if (!quote && yahooResult) {
+                        quote = parseQuote(yahooResult);
+                    }
+                    if (yahooResult) {
+                        chartData = parseCandles(yahooResult);
+                    }
+                } catch (error) { 
+                    yahooError = error; 
+                    console.warn('Yahoo Worker 失敗', error); 
                 }
 
-                if (result) {
-                    if (!yahooQuote) {
-                        try { yahooQuote = parseQuote(result); } catch (e) { console.warn('圖表區間報價解析失敗', e); }
+                // 2. 如果設定了 Finnhub API，僅用來抓取「基本面指標」與「公司背景資料」
+                if (FINNHUB_API_KEY && !isTaiwanSymbol(symbol)) {
+                    // 如果 Yahoo 徹底大當機抓不到報價，才退回到 Finnhub (無成交量) 作為備用
+                    if (!quote) {
+                        try { 
+                            quote = await fetchFinnhubQuote(symbol); 
+                            quoteSource = 'Finnhub (無成交量)';
+                        } catch (e) { console.warn('Finnhub 備用報價失敗', e); }
                     }
-                    try { chartData = parseCandles(result); } catch (e) { console.warn('K線解析失敗', e); }
-                    if (!quote && yahooQuote) { quote = yahooQuote; quoteSource = 'Yahoo Finance'; }
-                } else if (yahooQuote && !quote) {
-                    quote = yahooQuote; quoteSource = 'Yahoo Finance';
+                    if (!isSilent) {
+                        try { companyProfile = await fetchFinnhubCompanyProfile(symbol); } catch (e) {}
+                        try { metricResult = await fetchFinnhubMetrics(symbol); } catch (e) {}
+                    }
                 }
 
                 if (!quote) throw (yahooError || new Error('NO_QUOTE_DATA'));
 
-                // 首次載入或手動切換時才重繪基本面與公司資料（節省運算）
                 if (!isSilent) {
                     if (companyProfile && (companyProfile.name || companyProfile.exchange || companyProfile.finnhubIndustry)) {
                         renderFinnhubCompanyInfo(companyProfile, symbol, quote);
                     } else {
-                        renderCompanyInfo(result, symbol, quote, quoteSource);
+                        renderCompanyInfo(yahooResult || quoteResult, symbol, quote, quoteSource);
                     }
 
                     if (metricResult) {
@@ -901,8 +903,6 @@
 
                 const now = new Date();
                 document.getElementById('last-update').textContent = `最後更新：${now.toLocaleString('zh-TW', { hour12: false })}`;
-                
-                // 刷新左側自選股清單顯示的最新價格
                 renderWatchlist();
 
             } catch (error) {
@@ -937,7 +937,6 @@
                 document.getElementById('overlay').classList.remove('show');
             }
 
-            // 確保當前正在看的這檔股票開始自動輪詢
             restartAutoRefresh();
         }
 
@@ -947,7 +946,6 @@
         function startAutoRefresh() {
             stopAutoRefresh();
             autoRefreshTimer = setInterval(() => {
-                // 只有在視窗處於前景、且有選取股票時才靜默更新
                 if (!document.hidden && currentSymbol) {
                     loadStock(currentSymbol, true); // true 代表靜默背景更新
                 }
@@ -966,7 +964,6 @@
             startAutoRefresh();
         }
 
-        // 當切換分頁或手機關閉螢幕時暫停輪詢，回到畫面立刻更新一次
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
                 stopAutoRefresh();
