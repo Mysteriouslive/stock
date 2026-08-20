@@ -4,16 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>股票觀測站</title>
-    <!-- 網頁分頁專屬 Logo -->
     <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImIiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxODE4MWIiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiMwOTA5MGIiLz48L2xpbmVhckdyYWRpZW50PjxsaW5lYXJHcmFkaWVudCBpZD0idCIgeDE9IjAlIiB5MT0iMTAwJSIgeDI9IjEwMCUiIHkyPSIwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2VmNDQ0NCIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2E4NTVmNyIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI1MDAiIGhlaWdodD0iNTAwIiByeD0iMTEwIiBmaWxsPSJ1cmwoI2IpIi8+PGcgZmlsbD0iIzMzNDE1NSIgb3BhY2l0eT0iMC41Ij48cmVjdCB4PSIxMzAiIHk9IjI4MCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjEyMCIgcng9IjEwIi8+PHJlY3QgeD0iMjMwIiB5PSIyMjAiIHdpZHRoPSI0MCIgaGVpZ2h0PSIxODAiIHJ4PSIxMCIvPjxyZWN0IHg9IjMzMCIgeT0iMTIwIiB3aWR0aD0iNDAiIGhlaWdodD0iMjgwIiByeD0iMTAiLz48L2c+PHBhdGggZD0iTTEwMCAzNTBsMTIwLTEyMCA2MCA0MCAxMDAtMTMwIiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjdCkiIHN0cm9rZS13aWR0aD0iMzUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik0zMTAgMTQwaDcwdjcwIiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjdCkiIHN0cm9rZS13aWR0aD0iMzUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==" type="image/svg+xml">
     
-    <!-- 載入必要套件 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <!-- 載入外部 CSS -->
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./styles.css?v=3">
 </head>
 <body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
@@ -55,12 +52,13 @@
                     </div>
                 </div>
                 <button onclick="toggleSidebar()" class="md:hidden text-gray-400 hover:text-white p-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
             </div>
             <div class="flex gap-2">
                 <input 
                     id="stock-input" 
+                    name="stockInput"
                     type="text" 
                     placeholder="代碼 (例: 2330 / USDTWD / BTC)" 
                     class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
@@ -71,7 +69,7 @@
             </div>
             <div class="flex items-center justify-between mt-2 gap-2">
                 <p class="text-[10px] text-gray-600">支援台美股、外匯、加密貨幣</p>
-                <select id="sort-select" onchange="changeSort(this.value)" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-gray-400 focus:outline-none">
+                <select id="sort-select" name="sortSelect" onchange="changeSort(this.value)" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-gray-400 focus:outline-none">
                     <option value="manual">自訂順序</option>
                     <option value="symbol-asc">代碼 ↑</option><option value="symbol-desc">代碼 ↓</option>
                     <option value="name-asc">名稱 ↑</option><option value="name-desc">名稱 ↓</option>
@@ -81,20 +79,18 @@
             </div>
         </div>
         <div class="flex-1 overflow-y-auto p-3 space-y-1" id="stock-list"></div>
-
+        
+        <!-- 側邊欄底部 (頭像與設定鍵) -->
         <div class="mt-auto border-t border-white/5 p-3 flex items-center justify-between bg-black/20 shrink-0">
-            <!-- 頭像鍵 -->
             <button onclick="openProfileModal()" class="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-white/5 transition-colors text-left group">
                 <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md group-hover:shadow-purple-500/20 transition-all">
                     衡
                 </div>
                 <div class="hidden sm:block">
-                    <div class="text-[13px] font-bold text-gray-200">CC</div>
-                    <div class="text-[10px] text-gray-500">@Mo-cc</div>
+                    <div class="text-[13px] font-bold text-gray-200">陳逸鍇</div>
+                    <div class="text-[10px] text-gray-500">@Mo-yun-sheng</div>
                 </div>
             </button>
-
-            <!-- 設定鍵 -->
             <button onclick="openSettingsModal()" class="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors" title="系統設定">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -106,10 +102,10 @@
 
     <!-- 右側主內容 -->
     <main class="flex-1 min-w-0 flex flex-col relative overflow-hidden">
-        <div class="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[140px] pointer-events-none"></div>
-        <div class="absolute bottom-[-15%] left-[-5%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+        <!-- 背景發光球體 (透過 var(--theme-color) 動態變色) -->
+        <div id="glow-1" class="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[140px] pointer-events-none transition-colors duration-1000" style="background-color: var(--theme-color-1, rgba(59, 130, 246, 0.1));"></div>
+        <div id="glow-2" class="absolute bottom-[-15%] left-[-5%] w-[40%] h-[40%] rounded-full blur-[120px] pointer-events-none transition-colors duration-1000" style="background-color: var(--theme-color-2, rgba(139, 92, 246, 0.1));"></div>
         
-        <!-- 手機版頂部 Header -->
         <div class="md:hidden flex items-center justify-between gap-3 px-4 pb-4 border-b border-white/5" style="padding-top: max(16px, env(safe-area-inset-top));">
             <div class="flex items-center gap-3">
                 <button onclick="toggleSidebar()" class="p-2 rounded-lg glass text-gray-300">
@@ -179,7 +175,6 @@
                 </div>
             </header>
 
-            <!-- 公司資訊 -->
             <section id="company-info-card" class="company-info-card glass rounded-2xl p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3">
                     <div class="flex items-center gap-3">
@@ -206,7 +201,6 @@
                 </div>
             </section>
 
-            <!-- 圖表區域 -->
             <div id="chart-card" class="glass rounded-2xl p-3 md:p-4 relative mb-5">
                 <div class="flex items-center justify-between gap-2 px-1 pb-3 shrink-0">
                     <div class="flex items-center gap-1 flex-wrap">
@@ -229,7 +223,6 @@
                 </div>
             </div>
 
-            <!-- 基本面 -->
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
@@ -255,7 +248,6 @@
                 <div id="fundamentals-note" class="text-[10px] text-gray-600 mt-3">—</div>
             </section>
 
-            <!-- 估值與風險 -->
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="mb-4">
                     <div class="section-title">🎯 估值與風險</div>
@@ -269,7 +261,6 @@
                 </div>
             </section>
 
-            <!-- 公司詳細資訊 -->
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
@@ -292,8 +283,8 @@
             </section>
         </div>
     </main>
-    <!-- ================= 新增：彈出視窗 (Modal) 結構 ================= -->
-    <!-- 背景遮罩 -->
+
+    <!-- 彈出視窗 (Modal) -->
     <div id="modal-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden opacity-0 transition-opacity duration-300" onclick="closeModals()"></div>
 
     <!-- 設定視窗 -->
@@ -305,32 +296,25 @@
             </button>
         </div>
         <div class="space-y-5">
-            <!-- 修正 1: 主題色系是按鈕群組，不屬於表單輸入框，所以把 <label> 改為一般的 <div> -->
             <div class="setting-item">
                 <div class="block text-sm text-gray-400 mb-3">主題色系偏好</div>
                 <div class="flex gap-4">
-                    <button class="w-8 h-8 rounded-full bg-blue-500 ring-2 ring-offset-2 ring-offset-[#18181b] ring-blue-500 hover:scale-110 transition-transform" onclick="alert('日後可串接更換藍色主題功能！')"></button>
-                    <button class="w-8 h-8 rounded-full bg-emerald-500 hover:scale-110 transition-transform" onclick="alert('日後可串接更換綠色主題功能！')"></button>
-                    <button class="w-8 h-8 rounded-full bg-purple-500 hover:scale-110 transition-transform" onclick="alert('日後可串接更換紫色主題功能！')"></button>
-                    <button class="w-8 h-8 rounded-full bg-orange-500 hover:scale-110 transition-transform" onclick="alert('日後可串接更換橘色主題功能！')"></button>
+                    <button class="w-8 h-8 rounded-full bg-blue-500 ring-2 ring-offset-2 ring-offset-[#18181b] ring-blue-500 hover:scale-110 transition-transform" onclick="changeThemeColor('blue')"></button>
+                    <button class="w-8 h-8 rounded-full bg-emerald-500 hover:scale-110 transition-transform" onclick="changeThemeColor('emerald')"></button>
+                    <button class="w-8 h-8 rounded-full bg-purple-500 hover:scale-110 transition-transform" onclick="changeThemeColor('purple')"></button>
+                    <button class="w-8 h-8 rounded-full bg-orange-500 hover:scale-110 transition-transform" onclick="changeThemeColor('orange')"></button>
                 </div>
             </div>
-
-            <!-- 修正後的 K 線顏色設定 -->
             <div class="setting-item pt-4 border-t border-white/5">
                 <label for="kline-color" class="block text-sm text-gray-400 mb-2">K 線顏色習慣</label>
-                <!-- 加上 onchange="applySettings()" -->
-                <select id="kline-color" name="klineColor" onchange="applySettings()" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
+                <select id="kline-color" name="klineColor" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
                     <option value="red-green">紅漲綠跌 (台灣習慣)</option>
                     <option value="green-red">綠漲紅跌 (國際習慣)</option>
                 </select>
             </div>
-
-            <!-- 修正後的更新頻率設定 -->
             <div class="setting-item pt-4 border-t border-white/5">
                 <label for="refresh-rate" class="block text-sm text-gray-400 mb-2">資料更新頻率</label>
-                <!-- 加上 onchange="applySettings()" -->
-                <select id="refresh-rate" name="refreshRate" onchange="applySettings()" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
+                <select id="refresh-rate" name="refreshRate" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
                     <option value="10000">10 秒 (預設)</option>
                     <option value="30000">30 秒</option>
                     <option value="60000">1 分鐘</option>
@@ -343,20 +327,20 @@
     <div id="profile-modal" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm glass bg-[#18181b]/95 border border-white/10 rounded-2xl z-50 hidden opacity-0 scale-95 transition-all duration-300 p-6 shadow-2xl">
         <div class="flex justify-between items-start mb-2">
             <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-600 to-purple-500 flex items-center justify-center text-2xl text-white font-bold shadow-lg shadow-purple-500/30">
-                CC
+                子
             </div>
             <button onclick="closeModals()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
         </div>
         <div class="mt-3">
-            <h2 class="text-2xl font-bold text-white tracking-wide"> CC </h2>
-            <p class="text-sm text-gray-400 mt-0.5">@Mo-cc</p>
+            <h2 class="text-2xl font-bold text-white tracking-wide">陳逸鍇 (子衡)</h2>
+            <p class="text-sm text-gray-400 mt-0.5">@Mo-yun-sheng (墨雲生)</p>
         </div>
         <div class="mt-6 space-y-3">
             <div class="bg-white/5 rounded-xl p-3.5 border border-white/5 flex items-center justify-between">
                 <div class="text-xs text-gray-500">主修學系</div>
-                <div class="text-sm font-medium text-gray-200">FCU CE</div>
+                <div class="text-sm font-medium text-gray-200">FCU 通訊工程學系</div>
             </div>
             <div class="bg-white/5 rounded-xl p-3.5 border border-white/5 flex items-center justify-between">
                 <div class="text-xs text-gray-500">系統權限</div>
@@ -368,8 +352,8 @@
             </div>
         </div>
     </div>
-    <!-- ================================================================= -->
+
     <!-- 載入外部 JS -->
-    <script src="./app.js"></script>
+    <script src="./app.js?v=3"></script>
 </body>
 </html>
