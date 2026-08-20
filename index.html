@@ -80,18 +80,21 @@
         main > .flex-1, main .flex-1.flex-col { min-height: 0; }
         .company-info-card { flex: 0 0 auto; min-height: 0; transition: all 0.25s ease; }
         #chart-card { 
-            flex: 0 0 auto; 
-            min-height: 420px; 
-            height: 450px; 
+            display: flex;
+            flex-direction: column;
+            background: rgba(12,12,14,0.65); 
+            backdrop-filter: blur(20px); 
+            border: 1px solid rgba(255,255,255,0.06); 
+            border-radius: 16px;
+            padding: 16px;
             margin-bottom: 1.25rem; 
-            position: relative; 
-            overflow: hidden; 
+            height: 440px; /* 固定卡片總高度 */
         }
         #chart-container { 
+            flex: 1;
             width: 100%; 
-            height: 100%; 
-            min-height: 360px; 
-        }        
+            min-height: 0; /* 讓 flex 容器能正確收縮與展開 */
+        }
         .company-info-card.collapsed .company-info-body { display: none; }
         .company-info-item { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 10px 12px; }
     </style>
