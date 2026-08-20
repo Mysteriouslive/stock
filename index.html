@@ -122,7 +122,7 @@
         <div class="p-4 border-t border-white/5 text-[11px] text-gray-500">
             <div class="flex items-center gap-2">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                報價 Finnhub · K線 Yahoo
+                報價 Finnhub · K線 Yahoo (Worker)
             </div>
         </div>
     </aside>
@@ -185,6 +185,9 @@
         // ⚠️ 請在此填入你的 Finnhub API Key（只用於報價）
         // ==========================================
         const FINNHUB_API_KEY = 'da3fmchr01qual4pud1gda3fmchr01qual4pud20';
+
+        // Cloudflare Worker 網址（已幫你填好）
+        const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
 
         const DEFAULT_STOCKS = [
             { symbol: 'AMD', name: '超微', color: 'orange' },
@@ -364,9 +367,9 @@
             };
         }
 
-        // 2. Yahoo Finance 拿日K線（免費、不需Key）
+        // 2. 透過 Cloudflare Worker 拿 Yahoo K線
         async function fetchCandles(symbol) {
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=6mo`;
+            const url = `${WORKER_URL}/?symbol=${encodeURIComponent(symbol)}`;
             const res = await fetch(url);
             if (!res.ok) throw new Error('CANDLE_FAILED');
             const json = await res.json();
@@ -379,7 +382,6 @@
 
             const chartData = [];
             for (let i = 0; i < timestamps.length; i++) {
-                // 過濾無效資料
                 if (quotes.open[i] == null || quotes.high[i] == null || 
                     quotes.low[i] == null || quotes.close[i] == null) continue;
 
@@ -413,9 +415,8 @@
             document.getElementById('current-price').className = 'text-4xl md:text-5xl font-extrabold text-white tracking-tight';
 
             try {
-                // 同時請求報價 + K線
                 const [quote, chartData] = await Promise.all([
-                    fetchQuote(symbol).catch(err => { throw err; }),
+                    fetchQuote(symbol),
                     fetchCandles(symbol)
                 ]);
 
@@ -453,7 +454,7 @@
                     document.getElementById('stock-symbol-title').textContent = '請設定 API Key';
                     document.getElementById('stock-name').textContent = '請在程式碼填入 Finnhub API Key（報價用）';
                     document.getElementById('price-change').textContent = '未設定金鑰';
-                    alert('請先在程式碼中填入 Finnhub API Key！\n（K線已改用 Yahoo，不需要Key）');
+                    alert('請先在程式碼中填入 Finnhub API Key！\n（K線已透過 Worker 取得）');
                 } else if (error.message === 'NO_QUOTE_DATA' || error.message === 'QUOTE_FAILED') {
                     document.getElementById('stock-name').textContent = '找不到報價資料';
                     document.getElementById('price-change').textContent = '報價失敗';
