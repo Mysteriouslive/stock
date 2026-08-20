@@ -1027,7 +1027,7 @@
                     document.getElementById('chart-status').textContent = `${currentPeriod.label} · ${chartData.length} 根`;
                 } else if (!isSilent) {
                     candlestickSeries.setData([]);
-                    document.getElementById('chart-status').textContent = yahooError ? 'K線資料取得失敗，但報價可正常顯示' : '目前週期沒有 K 線資料';
+                    document.getElementById('chart-status').textContent = isForexSymbol(symbol) || isCryptoSymbol(symbol) ? '此標的無 K 線圖表' : (yahooError ? 'K線資料取得失敗，但報價可正常顯示' : '目前週期沒有 K 線資料');
                 }
 
                 const now = new Date();
