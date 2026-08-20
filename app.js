@@ -84,6 +84,30 @@ async function fetchFinnhubQuote(symbol) {
     };
 }
 
+async function fetchForexData() {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=forex`, { cache: 'no-store' });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data) throw new Error(data?.error || `FOREX_HTTP_${res.status}`);
+        const rate = Number(data.rate ?? data.rates?.TWD);
+        if (!Number.isFinite(rate) || rate <= 0) throw new Error('FOREX_NO_RATE');
+        return { rate, source: data.source || 'Frankfurter' };
+    } catch (error) {
+        return null;
+    }
+}
+
+async function fetchCryptoData() {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=crypto`, { cache: 'no-store' });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || data.error) throw new Error(data?.error || `CRYPTO_HTTP_${res.status}`);
+        return data;
+    } catch (error) {
+        return null;
+    }
+}
+
 async function fetchFinnhubCompanyProfile(symbol) { return await fetchFinnhubWorker(symbol, 'profile2'); }
 async function fetchFinnhubMetrics(symbol) { return await fetchFinnhubWorker(symbol, 'metric', { metric: 'all' }); }
 
@@ -188,7 +212,8 @@ function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
     document.getElementById('fundamentals-subtitle').textContent = `台灣證交所/櫃買中心 · ${twseData.source}`;
     
     const peVal = Number(twseData.pe);
-    const priceVal = Number(currentPrice);
+    // 解決台積電超過千元含有逗號導致 NaN 的問題
+    const priceVal = Number(String(currentPrice).replace(/,/g, ''));
 
     setMetric('metric-pe', twseData.pe !== '0' && twseData.pe ? twseData.pe : '—');
     
@@ -616,33 +641,83 @@ async function loadStock(symbol, isSilent = false) {
         let yahooResult = null;
         let yahooError = null;
 
-        // 全面統一透過 Yahoo Finance 獲取 K 線與即時報價 (支援台美股、外匯、加密貨幣)
+        // 1. 先用 Yahoo Finance 取得 K線資料 與 昨收價
         try {
             yahooResult = await fetchYahooData(symbol);
             if (yahooResult) {
-                quote = parseQuote(yahooResult, symbol);
+                quote = parseQuote(yahooResult, symbol); // 預設先拿 Yahoo 報價
                 chartData = parseCandles(yahooResult);
             }
         } catch (e) {
             yahooError = e;
         }
 
-        // 基本面與公司資訊處理
-        if (isTaiwanSymbol(symbol)) {
+        // 2. 針對各別資產，混合即時報價 (Hybrid 模式)
+        if (isForexSymbol(symbol)) {
+            try {
+                const forex = await fetchForexData();
+                if (forex && forex.rate && yahooResult) {
+                    const currentPrice = Number(forex.rate);
+                    // 從 Yahoo 抓取昨收
+                    const prevClose = yahooResult.meta?.regularMarketPreviousClose ?? yahooResult.meta?.previousClose ?? yahooResult.meta?.chartPreviousClose;
+                    
+                    if (prevClose) {
+                        const change = currentPrice - prevClose;
+                        const changePercent = (change / prevClose) * 100;
+                        
+                        quote.latestPrice = formatPrice(currentPrice, symbol);
+                        quote.change = change.toFixed(4);
+                        quote.changePercent = changePercent.toFixed(2);
+                        quote.isUp = change > 0;
+                        quote.isFlat = change === 0;
+                    }
+                }
+            } catch (e) { console.warn('Forex API fallback failed', e); }
+            
+            if (!isSilent && quote) {
+                renderCompanyInfo(yahooResult, symbol, quote, 'Frankfurter (現價) + Yahoo Finance (K線)');
+            }
+        } 
+        else if (isCryptoSymbol(symbol)) {
+            try {
+                const cryptoJson = await fetchCryptoData();
+                const cryptoSymbol = symbol.toUpperCase().replace('-USD', '');
+                const crypto = cryptoJson?.[cryptoSymbol];
+                
+                if (crypto && crypto.usd && yahooResult) {
+                    const currentPrice = Number(crypto.usd);
+                    // 從 Yahoo 抓取昨收
+                    const prevClose = yahooResult.meta?.regularMarketPreviousClose ?? yahooResult.meta?.previousClose ?? yahooResult.meta?.chartPreviousClose;
+                    
+                    if (prevClose) {
+                        const change = currentPrice - prevClose;
+                        const changePercent = (change / prevClose) * 100;
+                        
+                        quote.latestPrice = formatPrice(currentPrice, symbol);
+                        quote.change = change.toFixed(currentPrice >= 1 ? 2 : 6);
+                        quote.changePercent = changePercent.toFixed(2);
+                        quote.isUp = change > 0;
+                        quote.isFlat = change === 0;
+                    }
+                }
+            } catch (e) { console.warn('Crypto API fallback failed', e); }
+
+            if (!isSilent && quote) {
+                renderCompanyInfo(yahooResult, symbol, quote, 'CoinGecko (現價) + Yahoo Finance (K線)');
+            }
+        }
+        else if (isTaiwanSymbol(symbol)) {
             let twseMetricsData = null;
             try { twseMetricsData = await fetchTwseMetrics(symbol); } catch (e) {}
             if (twseMetricsData && !isSilent) {
-                renderTwseMetrics(twseMetricsData, symbol, yahooResult, quote?.latestPrice);
+                const rawPrice = quote?.latestPrice ? Number(quote.latestPrice.replace(/,/g, '')) : NaN;
+                renderTwseMetrics(twseMetricsData, symbol, yahooResult, rawPrice);
             }
             if (!isSilent && yahooResult) {
                 renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance + 證交所');
             }
-        } else if (isForexSymbol(symbol) || isCryptoSymbol(symbol)) {
-            if (!isSilent && yahooResult) {
-                renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
-            }
-        } else {
-            // 美股 Finnhub 補充資訊
+        } 
+        else {
             if (!quote) {
                 try { quote = await fetchFinnhubQuote(symbol); } catch (e) {}
             }
@@ -692,7 +767,7 @@ async function loadStock(symbol, isSilent = false) {
             document.getElementById('chart-status').textContent = `${currentPeriod.label} · ${chartData.length} 根`;
         } else if (!isSilent) {
             candlestickSeries.setData([]);
-            document.getElementById('chart-status').textContent = '目前週期沒有 K 線資料';
+            document.getElementById('chart-status').textContent = isForexSymbol(symbol) || isCryptoSymbol(symbol) ? '此標的無 K 線圖表' : (yahooError ? 'K線資料取得失敗，但報價可正常顯示' : '目前週期沒有 K 線資料');
         }
 
         const now = new Date();
@@ -703,8 +778,28 @@ async function loadStock(symbol, isSilent = false) {
         console.error(error);
         if (!isSilent) {
             document.getElementById('chart-status').textContent = '資料取得失敗';
-            document.getElementById('stock-name').textContent = `找不到 ${displaySymbol(symbol)} 的資料，請確認代碼`;
-            document.getElementById('price-change').textContent = '載入失敗';
+            if (error.message === 'NO_QUOTE_DATA') {
+                document.getElementById('stock-name').textContent = '找不到報價資料，請確認代碼';
+                document.getElementById('price-change').textContent = '報價失敗';
+            } else if (error.message === 'NO_PREVIOUS_CLOSE') {
+                document.getElementById('stock-name').textContent = '找不到昨收資料，無法正確計算漲幅';
+                document.getElementById('price-change').textContent = '漲幅無法計算';
+            } else if (error.message === 'NO_CANDLE_DATA') {
+                document.getElementById('stock-name').textContent = '目前週期沒有 K 線資料';
+                document.getElementById('price-change').textContent = 'K線失敗';
+            } else if (error.message === 'YAHOO_FAILED') {
+                document.getElementById('stock-name').textContent = '資料代理 Worker 連線失敗';
+                document.getElementById('price-change').textContent = 'Worker 失敗';
+            } else if (error.message === 'FOREX_NO_DATA') {
+                document.getElementById('stock-name').textContent = 'USD/TWD 匯率來源暫時無法取得';
+                document.getElementById('price-change').textContent = '匯率失敗';
+            } else if (error.message === 'CRYPTO_NO_DATA' || error.message === 'CRYPTO_NO_PRICE') {
+                document.getElementById('stock-name').textContent = `${displaySymbol(symbol)} 加密貨幣資料暫時無法取得`;
+                document.getElementById('price-change').textContent = '加密貨幣失敗';
+            } else {
+                document.getElementById('stock-name').textContent = `找不到 ${displaySymbol(symbol)} 的資料`;
+                document.getElementById('price-change').textContent = '載入失敗';
+            }
         }
     } finally {
         if (!isSilent) {
