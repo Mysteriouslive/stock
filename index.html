@@ -3,123 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>個人股票觀測站</title>
+    <title>股票觀測站</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <style>
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-        
-        body {
-            background: #030303;
-            color: #e5e5e5;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
-        }
-        
-        .glass {
-            background: rgba(12, 12, 14, 0.65);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-        }
-        
-        .stock-btn {
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .stock-btn:hover {
-            background: rgba(255, 255, 255, 0.06);
-        }
-        .stock-btn.active {
-            background: linear-gradient(90deg, rgba(59, 130, 246, 0.18), rgba(139, 92, 246, 0.1));
-            border-left: 3px solid #3b82f6;
-            color: #fff;
-        }
-        
-        .price-up { color: #ef4444; }
-        .price-down { color: #10b981; }
-        
-        .loading-pulse {
-            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-
-        .delete-btn {
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-
-        .period-btn {
-            font-size: 11px;
-            padding: 5px 9px;
-            border-radius: 8px;
-            color: #9ca3af;
-            background: rgba(255,255,255,0.035);
-            border: 1px solid rgba(255,255,255,0.06);
-            transition: all 0.2s;
-        }
-        .period-btn:hover {
-            color: #fff;
-            background: rgba(255,255,255,0.08);
-        }
-        .period-btn.active {
-            color: #fff;
-            background: rgba(59,130,246,0.22);
-            border-color: rgba(59,130,246,0.45);
-        }
-        .stock-btn.dragging {
-            opacity: 0.45;
-            transform: scale(0.98);
-        }
-        .drag-handle {
-            cursor: grab;
-            color: #52525b;
-        }
-        .drag-handle:active {
-            cursor: grabbing;
-        }
-        .stock-btn:hover .delete-btn {
-            opacity: 1;
-        }
-        
-
-        html, body { width: 100%; max-width: 100%; }
-        body { min-width: 0; }
-        #sidebar, #main-content, main { min-width: 0; }
-
-        .fundamentals-grid {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 10px;
-        }
-        .fundamental-card {
-            background: rgba(255,255,255,0.035);
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 12px;
-            padding: 12px;
-            min-width: 0;
-        }
-        .fundamental-label { color:#71717a; font-size:10px; margin-bottom:5px; }
-        .fundamental-value {
-            color:#e5e7eb; font-size:14px; font-weight:700;
-            overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-        }
-        .section-card {
-            background:rgba(12,12,14,0.65);
-            backdrop-filter:blur(20px);
-            -webkit-backdrop-filter:blur(20px);
-            border:1px solid rgba(255,255,255,0.06);
-            border-radius:16px;
-        }
+        .section-card { background:rgba(12,12,14,0.65); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.06); border-radius:16px; }
         .section-title { font-size:15px; font-weight:700; color:#f4f4f5; }
         .section-subtitle { font-size:10px; color:#52525b; margin-top:2px; }
         .metric-positive { color:#ef4444; }
         .metric-negative { color:#10b981; }
         .metric-neutral { color:#d4d4d8; }
+        
+        body { background-color: #000; color: #fff; }
+        .glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.05); }
+        .price-up { color: #ef4444; }
+        .price-down { color: #10b981; }
+        
+        .fundamental-card { background: rgba(255,255,255,0.02); border-radius: 8px; padding: 12px; border: 1px solid rgba(255,255,255,0.03); }
+        .fundamental-label { font-size: 11px; color: #9ca3af; margin-bottom: 4px; }
+        .fundamental-value { font-size: 14px; font-weight: 600; color: #e5e7eb; }
+        .fundamentals-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+        
+        .period-btn { font-size: 11px; padding: 4px 8px; border-radius: 6px; color: #9ca3af; transition: all 0.2s; }
+        .period-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        .period-btn.active { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+        
+        @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        .loading-pulse { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+
         @media (max-width: 900px) {
             .fundamentals-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
         }
@@ -128,13 +39,11 @@
             .fundamental-card { padding:10px; }
             .fundamental-value { font-size:13px; }
         }
-
         @media (max-width: 768px) {
             .company-info-card { margin-bottom: 12px; }
             #stock-symbol-title { font-size: 2rem; line-height: 1.05; }
             .header-price-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
         }
-
         @media (max-width: 768px) {
             #sidebar {
                 position: fixed;
@@ -154,47 +63,38 @@
             }
             #overlay.show { display: block; }
         }
-
-        /* 防止主資訊卡在 flex 版面中被壓縮，造成上方內容被切掉 */
         main > .flex-1,
         main .flex-1.flex-col {
             min-height: 0;
         }
-
         main header.glass {
             flex: 0 0 auto;
             min-height: 0;
             overflow: visible;
         }
-
         .company-info-card {
             flex: 0 0 auto;
             min-height: 0;
         }
-
         #chart-card {
             flex: 0 0 auto;
             min-height: 380px;
             height: 420px;
             margin-bottom: 1.25rem;
         }
-
         @media (max-width: 768px) {
             main header.glass {
                 padding: 16px;
             }
-
             main header.glass .grid.grid-cols-5 {
                 gap: 6px;
                 font-size: 10px;
             }
-
             #chart-card {
                 min-height: 360px;
                 height: 400px;
             }
         }
-
         .company-info-card {
             transition: all 0.25s ease;
         }
@@ -207,13 +107,11 @@
             border-radius: 12px;
             padding: 10px 12px;
         }
-
     </style>
 </head>
 <body class="h-screen overflow-hidden flex">
-
     <div id="overlay" onclick="toggleSidebar()"></div>
-
+    
     <!-- 左側邊欄 -->
     <aside id="sidebar" class="w-72 glass flex flex-col shrink-0 border-r border-white/5 z-20">
         <div class="p-5 border-b border-white/5">
@@ -230,7 +128,6 @@
                     </svg>
                 </button>
             </div>
-
             <div class="flex gap-2">
                 <input 
                     id="stock-input" 
@@ -263,7 +160,6 @@
                 </select>
             </div>
         </div>
-
         <div class="flex-1 overflow-y-auto p-3 space-y-1" id="stock-list"></div>
     </aside>
 
@@ -271,7 +167,7 @@
     <main class="flex-1 min-w-0 flex flex-col relative overflow-hidden">
         <div class="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[140px] pointer-events-none"></div>
         <div class="absolute bottom-[-15%] left-[-5%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-
+        
         <div class="md:hidden flex items-center gap-3 p-4 border-b border-white/5">
             <button onclick="toggleSidebar()" class="p-2 rounded-lg glass text-gray-300">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -284,7 +180,6 @@
         <div class="flex-1 min-w-0 flex flex-col p-3 sm:p-4 md:p-6 overflow-y-auto relative z-10">
             <header class="glass rounded-2xl p-5 md:p-6 mb-5 relative overflow-visible shrink-0">
                 <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-blue-500 via-purple-500 to-transparent opacity-60"></div>
-                
                 <div class="flex flex-col md:flex-row md:items-end justify-between gap-5 min-w-0">
                     <div>
                         <div class="flex items-center gap-3">
@@ -296,7 +191,6 @@
                         <p id="stock-name" class="text-gray-400 text-sm mt-1">選擇或新增股票以查看詳情</p>
                         <p id="last-update" class="text-[11px] text-gray-600 mt-2">—</p>
                     </div>
-
                     <div class="text-left md:text-right min-w-0 w-full md:w-auto md:min-w-[330px]">
                         <p class="text-xs text-gray-500 mb-1 tracking-wide">現今報價</p>
                         <div class="flex items-baseline gap-3 md:justify-end">
@@ -304,26 +198,11 @@
                             <span id="price-change" class="text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5">—</span>
                         </div>
                         <div class="grid grid-cols-5 gap-2 mt-4 text-[11px] md:text-xs">
-                            <div>
-                                <div class="text-gray-600 mb-1">今開</div>
-                                <div id="open-price" class="text-gray-300 font-medium">—</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-600 mb-1">最高</div>
-                                <div id="high-price" class="text-gray-300 font-medium">—</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-600 mb-1">最低</div>
-                                <div id="low-price" class="text-gray-300 font-medium">—</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-600 mb-1">昨收</div>
-                                <div id="previous-close" class="text-gray-300 font-medium">—</div>
-                            </div>
-                            <div>
-                                <div class="text-gray-600 mb-1">成交量</div>
-                                <div id="volume" class="text-gray-300 font-medium">—</div>
-                            </div>
+                            <div><div class="text-gray-600 mb-1">今開</div><div id="open-price" class="text-gray-300 font-medium">—</div></div>
+                            <div><div class="text-gray-600 mb-1">最高</div><div id="high-price" class="text-gray-300 font-medium">—</div></div>
+                            <div><div class="text-gray-600 mb-1">最低</div><div id="low-price" class="text-gray-300 font-medium">—</div></div>
+                            <div><div class="text-gray-600 mb-1">昨收</div><div id="previous-close" class="text-gray-300 font-medium">—</div></div>
+                            <div><div class="text-gray-600 mb-1">成交量</div><div id="volume" class="text-gray-300 font-medium">—</div></div>
                         </div>
                     </div>
                 </div>
@@ -339,53 +218,26 @@
                             <p class="text-[10px] text-gray-600">Company Information · Finnhub</p>
                         </div>
                     </div>
-                    <button onclick="toggleCompanyInfo()"
-                        class="text-[11px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
+                    <button onclick="toggleCompanyInfo()" class="text-[11px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
                         收合
                     </button>
                 </div>
-
                 <div id="company-info-body" class="company-info-body mt-4">
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                        <div class="company-info-item">
-                            <div class="text-[10px] text-gray-600 mb-1">公司名稱</div>
-                            <div id="company-long-name" class="text-sm text-gray-200 font-medium truncate">—</div>
-                        </div>
-                        <div class="company-info-item">
-                            <div class="text-[10px] text-gray-600 mb-1">交易所</div>
-                            <div id="company-exchange" class="text-sm text-gray-200 font-medium truncate">—</div>
-                        </div>
-                        <div class="company-info-item">
-                            <div class="text-[10px] text-gray-600 mb-1">市場</div>
-                            <div id="company-market" class="text-sm text-gray-200 font-medium truncate">—</div>
-                        </div>
-                        <div class="company-info-item">
-                            <div class="text-[10px] text-gray-600 mb-1">幣別</div>
-                            <div id="company-currency" class="text-sm text-gray-200 font-medium">—</div>
-                        </div>
-                        <div class="company-info-item">
-                            <div class="text-[10px] text-gray-600 mb-1">股票類型</div>
-                            <div id="company-type" class="text-sm text-gray-200 font-medium truncate">—</div>
-                        </div>
-                        <div class="company-info-item">
-                            <div class="text-[10px] text-gray-600 mb-1">市場狀態</div>
-                            <div id="company-market-state" class="text-sm text-gray-200 font-medium">—</div>
-                        </div>
-                        <div class="company-info-item">
-                            <div class="text-[10px] text-gray-600 mb-1">Yahoo 代碼</div>
-                            <div id="company-symbol" class="text-sm text-gray-200 font-medium">—</div>
-                        </div>
-                        <div class="company-info-item">
-                            <div class="text-[10px] text-gray-600 mb-1">目前價格</div>
-                            <div id="company-price" class="text-sm text-gray-200 font-medium">—</div>
-                        </div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">公司名稱</div><div id="company-long-name" class="text-sm text-gray-200 font-medium truncate">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">交易所</div><div id="company-exchange" class="text-sm text-gray-200 font-medium truncate">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">市場</div><div id="company-market" class="text-sm text-gray-200 font-medium truncate">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">幣別</div><div id="company-currency" class="text-sm text-gray-200 font-medium">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">股票類型</div><div id="company-type" class="text-sm text-gray-200 font-medium truncate">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">市場狀態</div><div id="company-market-state" class="text-sm text-gray-200 font-medium">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">Yahoo 代碼</div><div id="company-symbol" class="text-sm text-gray-200 font-medium">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">目前價格</div><div id="company-price" class="text-sm text-gray-200 font-medium">—</div></div>
                     </div>
-                    <div id="company-info-note" class="text-[10px] text-gray-600 mt-3">
-                        選擇股票後會自動載入公司基本資訊。
-                    </div>
+                    <div id="company-info-note" class="text-[10px] text-gray-600 mt-3">選擇股票後會自動載入公司基本資訊。</div>
                 </div>
             </section>
-<div id="chart-card" class="min-h-[380px] min-w-0 glass rounded-2xl p-3 md:p-4 relative mb-5">
+
+            <div id="chart-card" class="min-h-[380px] min-w-0 glass rounded-2xl p-3 md:p-4 relative mb-5">
                 <div class="flex items-center justify-between gap-2 px-1 pb-3">
                     <div class="flex items-center gap-1 flex-wrap">
                         <span class="text-[11px] text-gray-500 mr-1">K線</span>
@@ -399,7 +251,6 @@
                     <span id="chart-status" class="text-[10px] text-gray-600">—</span>
                 </div>
                 <div id="chart-container" class="w-full h-full min-h-[330px]"></div>
-                
                 <div id="empty-state" class="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div class="text-center text-gray-500">
                         <div class="text-4xl mb-3 opacity-30">📈</div>
@@ -408,7 +259,7 @@
                 </div>
             </div>
 
-<!-- 基本面 -->
+            <!-- 基本面 -->
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
@@ -434,7 +285,7 @@
                 <div id="fundamentals-note" class="text-[10px] text-gray-600 mt-3">—</div>
             </section>
 
-<!-- 估值與風險 -->
+            <!-- 估值與風險 -->
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="mb-4">
                     <div class="section-title">🎯 估值與風險</div>
@@ -448,7 +299,7 @@
                 </div>
             </section>
 
-<!-- 公司詳細資訊 -->
+            <!-- 公司詳細資訊 -->
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
@@ -476,66 +327,31 @@
         // =========================================================
         // 股票資料設定
         // =========================================================
-        // 不再依賴 Finnhub 作為台股報價來源。
-        // 台股會自動轉成 Yahoo Finance：
-        //   2330 -> 2330.TW
-        //   6488.TWO -> 6488.TWO
-        // 美股維持原代碼，例如 NVDA、AAPL
         const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
-
-        // =========================================================
-        // Finnhub 免費版
-        // =========================================================
         const FINNHUB_API_KEY = 'da3fmchr01qual4pud1gda3fmchr01qual4pud20'; // ← 直接在這裡填入 Finnhub API Key
 
         function finnhubSymbol(symbol) {
-            // Finnhub 對台股使用 2330.TW；美股直接使用原代碼。
             return displaySymbol(symbol) + (isTaiwanSymbol(symbol) ? '.TW' : '');
         }
 
         async function fetchFinnhub(endpoint, params = {}) {
             if (!FINNHUB_API_KEY) throw new Error('FINNHUB_NO_KEY');
-
-            const query = new URLSearchParams({
-                ...params,
-                token: FINNHUB_API_KEY
-            });
-
-            const res = await fetch(
-                `https://finnhub.io/api/v1/${endpoint}?${query.toString()}`,
-                { cache: 'no-store' }
-            );
-
+            const query = new URLSearchParams({ ...params, token: FINNHUB_API_KEY });
+            const res = await fetch(`https://finnhub.io/api/v1/${endpoint}?${query.toString()}`, { cache: 'no-store' });
             if (!res.ok) throw new Error('FINNHUB_HTTP_' + res.status);
-
             const json = await res.json();
-
-            if (json.error) {
-                throw new Error('FINNHUB_' + json.error);
-            }
-
+            if (json.error) throw new Error('FINNHUB_' + json.error);
             return json;
         }
 
         async function fetchFinnhubQuote(symbol) {
-            const data = await fetchFinnhub('quote', {
-                symbol: finnhubSymbol(symbol)
-            });
-
-            if (data.c == null || Number(data.c) <= 0) {
-                throw new Error('FINNHUB_NO_QUOTE');
-            }
-
+            const data = await fetchFinnhub('quote', { symbol: finnhubSymbol(symbol) });
+            if (data.c == null || Number(data.c) <= 0) throw new Error('FINNHUB_NO_QUOTE');
             const current = Number(data.c);
             const previous = Number(data.pc);
-
-            if (!Number.isFinite(previous) || previous <= 0) {
-                throw new Error('FINNHUB_NO_PREVIOUS_CLOSE');
-            }
-
+            if (!Number.isFinite(previous) || previous <= 0) throw new Error('FINNHUB_NO_PREVIOUS_CLOSE');
             const change = current - previous;
             const changePercent = (change / previous) * 100;
-
             return {
                 latestPrice: formatPrice(current),
                 change: change.toFixed(2),
@@ -550,18 +366,8 @@
             };
         }
 
-        async function fetchFinnhubCompanyProfile(symbol) {
-            return await fetchFinnhub('stock/profile2', {
-                symbol: finnhubSymbol(symbol)
-            });
-        }
-
-        async function fetchFinnhubMetrics(symbol) {
-            return await fetchFinnhub('stock/metric', {
-                symbol: finnhubSymbol(symbol),
-                metric: 'all'
-            });
-        }
+        async function fetchFinnhubCompanyProfile(symbol) { return await fetchFinnhub('stock/profile2', { symbol: finnhubSymbol(symbol) }); }
+        async function fetchFinnhubMetrics(symbol) { return await fetchFinnhub('stock/metric', { symbol: finnhubSymbol(symbol), metric: 'all' }); }
 
         function firstFinite(obj, keys) {
             for (const key of keys) {
@@ -610,23 +416,15 @@
             setMetric('fundamentals-status', '—');
             setMetric('fundamentals-note', '—');
             setMetric('profile-note', '—');
-
             const desc = document.getElementById('profile-description');
-            if (desc) {
-                desc.textContent = '';
-                desc.classList.add('hidden');
-            }
+            if (desc) { desc.textContent = ''; desc.classList.add('hidden'); }
             const link = document.getElementById('company-web-link');
-            if (link) {
-                link.href = '#';
-                link.classList.add('hidden');
-            }
+            if (link) { link.href = '#'; link.classList.add('hidden'); }
         }
 
         function renderFinnhubMetrics(result, profile, symbol) {
             const m = result?.metric || {};
             const p = profile || {};
-
             setMetric('metric-pe', formatMetric(firstFinite(m, ['peNormalizedAnnual','peTTM','peBasicExclExtraTTM','peExclExtraTTM'])));
             setMetric('metric-eps', formatMetric(firstFinite(m, ['epsNormalizedAnnual','epsTTM','epsBasicExclExtraItemsTTM'])));
             setMetric('metric-marketcap', formatCompactNumber(firstFinite(m, ['marketCapitalization'])));
@@ -643,34 +441,25 @@
             setMetric('metric-peg', formatMetric(firstFinite(m, ['pegRatio'])));
             setMetric('metric-ev-ebitda', formatMetric(firstFinite(m, ['enterpriseValueEbitdaTTM','evToEbitda'])));
             setMetric('metric-shares', formatCompactNumber(firstFinite(m, ['shareOutstanding'])));
-
             setMetric('fundamentals-status', 'Finnhub 已載入');
-            setMetric('fundamentals-note',
-                `資料來源：Finnhub · ${displaySymbol(symbol)} · 沒有提供的指標顯示「—」`
-            );
-
+            setMetric('fundamentals-note', `資料來源：Finnhub · ${displaySymbol(symbol)} · 沒有提供的指標顯示「—」`);
             setMetric('profile-country', p.country || '—');
             setMetric('profile-industry', p.finnhubIndustry || '—');
             setMetric('profile-ipo', p.ipo || '—');
             setMetric('profile-currency', p.currency || '—');
-
+            
             const desc = document.getElementById('profile-description');
             if (desc && p.name) {
                 desc.textContent = `${p.name}${p.finnhubIndustry ? ` · ${p.finnhubIndustry}` : ''}`;
                 desc.classList.remove('hidden');
             }
-
             const link = document.getElementById('company-web-link');
             if (link && p.weburl) {
                 link.href = p.weburl;
                 link.classList.remove('hidden');
             }
-
-            setMetric('profile-note',
-                `公司：${p.name || displaySymbol(symbol)} · 交易所：${p.exchange || '—'}${p.country ? ` · 國家：${p.country}` : ''}`
-            );
+            setMetric('profile-note', `公司：${p.name || displaySymbol(symbol)} · 交易所：${p.exchange || '—'}${p.country ? ` · 國家：${p.country}` : ''}`);
         }
-
 
         const DEFAULT_STOCKS = [
             { symbol: 'AMD', name: '超微', color: 'orange' },
@@ -691,43 +480,23 @@
             indigo: 'bg-indigo-500/20 text-indigo-400',
             teal: 'bg-teal-500/20 text-teal-400'
         };
-        const COLOR_KEYS = Object.keys(COLOR_MAP);
 
+        const COLOR_KEYS = Object.keys(COLOR_MAP);
         let watchlist = JSON.parse(localStorage.getItem('stockWatchlist')) || [...DEFAULT_STOCKS];
         let quoteCache = JSON.parse(localStorage.getItem('stockQuoteCache') || '{}');
         let sortMode = localStorage.getItem('stockSortMode') || 'manual';
 
-        // =========================================================
-        // K線週期
-        // =========================================================
-        let currentPeriod = {
-            interval: '5m',
-            range: '5d',
-            label: '5分K'
-        };
+        let currentPeriod = { interval: '5m', range: '5d', label: '5分K' };
 
         function normalizeSymbol(input) {
             let s = input.trim().toUpperCase();
-
-            // 已經是 Yahoo 台股格式
             if (/^\d{4,6}\.(TW|TWO)$/.test(s)) return s;
-
-            // 純數字：
-            // 4 位一般台股上市 -> .TW
-            // 其他情況仍先以 .TW 嘗試；若 Worker/Yahoo 回傳無資料，
-            // 使用者可以直接輸入例如 6488.TWO。
             if (/^\d{4,6}$/.test(s)) return `${s}.TW`;
-
             return s;
         }
 
-        function displaySymbol(symbol) {
-            return symbol.replace(/\.(TW|TWO)$/i, '');
-        }
-
-        function isTaiwanSymbol(symbol) {
-            return /^\d{4,6}\.(TW|TWO)$/i.test(symbol);
-        }
+        function displaySymbol(symbol) { return symbol.replace(/\.(TW|TWO)$/i, ''); }
+        function isTaiwanSymbol(symbol) { return /^\d{4,6}\.(TW|TWO)$/i.test(symbol); }
 
         function saveWatchlist() {
             localStorage.setItem('stockWatchlist', JSON.stringify(watchlist));
@@ -743,24 +512,16 @@
 
         function sortedWatchlist() {
             const arr = [...watchlist];
-
             if (sortMode === 'manual') return arr;
-
             const getNumber = stock => Number(quoteCache[stock.symbol]?.latestPrice ?? NaN);
             const getChange = stock => Number(quoteCache[stock.symbol]?.changePercent ?? NaN);
-
             arr.sort((a, b) => {
                 let av, bv;
-
                 switch (sortMode) {
-                    case 'symbol-asc':
-                        return a.symbol.localeCompare(b.symbol, undefined, { numeric: true });
-                    case 'symbol-desc':
-                        return b.symbol.localeCompare(a.symbol, undefined, { numeric: true });
-                    case 'name-asc':
-                        return (a.name || a.symbol).localeCompare(b.name || b.symbol, 'zh-Hant');
-                    case 'name-desc':
-                        return (b.name || b.symbol).localeCompare(a.name || a.symbol, 'zh-Hant');
+                    case 'symbol-asc': return a.symbol.localeCompare(b.symbol, undefined, { numeric: true });
+                    case 'symbol-desc': return b.symbol.localeCompare(a.symbol, undefined, { numeric: true });
+                    case 'name-asc': return (a.name || a.symbol).localeCompare(b.name || b.symbol, 'zh-Hant');
+                    case 'name-desc': return (b.name || b.symbol).localeCompare(a.name || a.symbol, 'zh-Hant');
                     case 'price-asc':
                         av = getNumber(a); bv = getNumber(b);
                         return (Number.isNaN(av) ? Infinity : av) - (Number.isNaN(bv) ? Infinity : bv);
@@ -773,56 +534,28 @@
                     case 'change-desc':
                         av = getChange(a); bv = getChange(b);
                         return (Number.isNaN(bv) ? -Infinity : bv) - (Number.isNaN(av) ? -Infinity : av);
-                    default:
-                        return 0;
+                    default: return 0;
                 }
             });
-
             return arr;
         }
 
-        // =========================================================
-        // 初始化圖表
-        // =========================================================
+        // K線圖表初始化
         const chartContainer = document.getElementById('chart-container');
         const chart = LightweightCharts.createChart(chartContainer, {
-            layout: {
-                textColor: '#9ca3af',
-                background: { type: 'solid', color: 'transparent' },
-                fontSize: 12
-            },
-            grid: {
-                vertLines: { color: 'rgba(255,255,255,0.04)' },
-                horzLines: { color: 'rgba(255,255,255,0.04)' }
-            },
-            crosshair: {
-                mode: LightweightCharts.CrosshairMode.Normal,
-                vertLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 },
-                horzLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 }
-            },
-            timeScale: {
-                borderColor: 'rgba(255,255,255,0.08)',
-                timeVisible: true,
-                secondsVisible: false
-            },
-            rightPriceScale: {
-                borderColor: 'rgba(255,255,255,0.08)'
-            }
+            layout: { textColor: '#9ca3af', background: { type: 'solid', color: 'transparent' }, fontSize: 12 },
+            grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 }, horzLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 } },
+            timeScale: { borderColor: 'rgba(255,255,255,0.08)', timeVisible: true, secondsVisible: false },
+            rightPriceScale: { borderColor: 'rgba(255,255,255,0.08)' }
         });
 
         const candlestickSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
-            upColor: '#ef4444',
-            downColor: '#10b981',
-            borderVisible: false,
-            wickUpColor: '#ef4444',
-            wickDownColor: '#10b981'
+            upColor: '#ef4444', downColor: '#10b981', borderVisible: false, wickUpColor: '#ef4444', wickDownColor: '#10b981'
         });
 
         const resizeObserver = new ResizeObserver(() => {
-            chart.applyOptions({
-                width: chartContainer.clientWidth,
-                height: chartContainer.clientHeight
-            });
+            chart.applyOptions({ width: chartContainer.clientWidth, height: chartContainer.clientHeight });
         });
         resizeObserver.observe(chartContainer);
 
@@ -834,82 +567,54 @@
         function renderWatchlist() {
             const listEl = document.getElementById('stock-list');
             listEl.innerHTML = '';
-
             const sorted = sortedWatchlist();
-
             if (sorted.length === 0) {
                 listEl.innerHTML = `<p class="text-center text-gray-600 text-sm py-8">尚未新增任何股票</p>`;
                 return;
             }
-
             sorted.forEach((stock) => {
-                const originalIndex = watchlist.findIndex(s => s.symbol === stock.symbol);
                 const colorClass = COLOR_MAP[stock.color] || COLOR_MAP.blue;
                 const quote = quoteCache[stock.symbol];
-
                 const btn = document.createElement('button');
                 btn.className = `stock-btn w-full text-left px-3 py-2.5 rounded-xl text-gray-400 flex items-center gap-2 group`;
                 btn.dataset.symbol = stock.symbol;
                 btn.draggable = sortMode === 'manual';
-
                 btn.onclick = () => loadStock(stock.symbol);
-
-                const priceText = quote?.latestPrice
-                    ? `<span class="text-[10px] text-gray-400">${quote.latestPrice}</span>`
-                    : '';
-
-                const changeText = quote?.changePercent
-                    ? `<span class="text-[10px] ${Number(quote.changePercent) >= 0 ? 'price-up' : 'price-down'}">${Number(quote.changePercent) >= 0 ? '+' : ''}${Number(quote.changePercent).toFixed(2)}%</span>`
-                    : '';
-
+                
+                const priceText = quote?.latestPrice ? `<span class="text-[10px] text-gray-400">${quote.latestPrice}</span>` : '';
+                const changeText = quote?.changePercent ? `<span class="text-[10px] ${Number(quote.changePercent) >= 0 ? 'price-up' : 'price-down'}">${Number(quote.changePercent) >= 0 ? '+' : ''}${Number(quote.changePercent).toFixed(2)}%</span>` : '';
+                
                 btn.innerHTML = `
                     <span class="drag-handle text-xs ${sortMode === 'manual' ? '' : 'opacity-30'}" title="${sortMode === 'manual' ? '拖曳排序' : '切換到自訂順序後可拖曳'}">⋮⋮</span>
-                    <span class="w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center text-[10px] font-bold shrink-0">
-                        ${displaySymbol(stock.symbol).slice(0, 4)}
-                    </span>
+                    <span class="w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center text-[10px] font-bold shrink-0">${displaySymbol(stock.symbol).slice(0, 4)}</span>
                     <div class="flex-1 min-w-0">
                         <div class="font-medium text-sm truncate">${stock.name || displaySymbol(stock.symbol)}</div>
-                        <div class="text-[11px] text-gray-500 flex items-center gap-2">
-                            <span>${displaySymbol(stock.symbol)}</span>
-                            ${priceText}${changeText}
-                        </div>
+                        <div class="text-[11px] text-gray-500 flex items-center gap-2"><span>${displaySymbol(stock.symbol)}</span>${priceText}${changeText}</div>
                     </div>
-                    <button
-                        class="delete-btn text-gray-600 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10"
-                        onclick="event.stopPropagation(); removeStockBySymbol('${stock.symbol}')"
-                        title="移除">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
+                    <button class="delete-btn text-gray-600 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10" onclick="event.stopPropagation(); removeStockBySymbol('${stock.symbol}')" title="移除">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 `;
 
                 if (sortMode === 'manual') {
-                    btn.addEventListener('dragstart', () => {
-                        btn.classList.add('dragging');
-                        btn.dataset.dragSymbol = stock.symbol;
-                    });
+                    btn.addEventListener('dragstart', () => { btn.classList.add('dragging'); btn.dataset.dragSymbol = stock.symbol; });
                     btn.addEventListener('dragend', () => btn.classList.remove('dragging'));
                     btn.addEventListener('dragover', e => e.preventDefault());
                     btn.addEventListener('drop', e => {
                         e.preventDefault();
                         const dragged = document.querySelector('.stock-btn.dragging');
                         if (!dragged || dragged === btn) return;
-
                         const fromSymbol = dragged.dataset.symbol;
                         const toSymbol = btn.dataset.symbol;
                         const fromIndex = watchlist.findIndex(s => s.symbol === fromSymbol);
                         const toIndex = watchlist.findIndex(s => s.symbol === toSymbol);
-
                         if (fromIndex < 0 || toIndex < 0) return;
-
                         const [item] = watchlist.splice(fromIndex, 1);
                         watchlist.splice(toIndex, 0, item);
                         saveWatchlist();
                         renderWatchlist();
                     });
                 }
-
                 listEl.appendChild(btn);
             });
         }
@@ -917,28 +622,12 @@
         function addStock() {
             const input = document.getElementById('stock-input');
             const raw = input.value.trim().toUpperCase();
-
-            if (!raw) {
-                input.focus();
-                return;
-            }
-
-            if (!/^[A-Z0-9.\-]+$/.test(raw)) {
-                alert('請輸入有效的股票代碼，例如 2330、6488.TWO、AAPL');
-                return;
-            }
-
+            if (!raw) { input.focus(); return; }
+            if (!/^[A-Z0-9.\-]+$/.test(raw)) { alert('請輸入有效的股票代碼，例如 2330、6488.TWO、AAPL'); return; }
             const symbol = normalizeSymbol(raw);
-
-            if (watchlist.some(s => s.symbol === symbol)) {
-                alert(`${displaySymbol(symbol)} 已經在清單中了`);
-                input.value = '';
-                return;
-            }
-
+            if (watchlist.some(s => s.symbol === symbol)) { alert(`${displaySymbol(symbol)} 已經在清單中了`); input.value = ''; return; }
             const color = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
             const name = isTaiwanSymbol(symbol) ? displaySymbol(symbol) : symbol;
-
             watchlist.push({ symbol, name, color });
             saveWatchlist();
             renderWatchlist();
@@ -956,53 +645,29 @@
             const removed = watchlist[index];
             if (!removed) return;
             if (!confirm(`確定要移除 ${displaySymbol(removed.symbol)} 嗎？`)) return;
-
             watchlist.splice(index, 1);
             delete quoteCache[removed.symbol];
             saveWatchlist();
             renderWatchlist();
-
             if (currentSymbol === removed.symbol) {
                 currentSymbol = null;
                 document.getElementById('stock-symbol-title').textContent = '—';
                 document.getElementById('stock-name').textContent = '選擇或新增股票以查看詳情';
-                document.getElementById('current-price').textContent = '—';
-                document.getElementById('price-change').textContent = '—';
-                document.getElementById('open-price').textContent = '—';
-                document.getElementById('high-price').textContent = '—';
-                document.getElementById('low-price').textContent = '—';
-                document.getElementById('previous-close').textContent = '—';
-                document.getElementById('volume').textContent = '—';
-                document.getElementById('last-update').textContent = '—';
+                ['current-price','price-change','open-price','high-price','low-price','previous-close','volume','last-update'].forEach(id => document.getElementById(id).textContent = '—');
                 document.getElementById('empty-state').style.display = 'flex';
                 candlestickSeries.setData([]);
                 clearCompanyInfo();
             }
         }
 
-        // =========================================================
-        // 資料來源：全部改走 Yahoo Finance Worker
-        // 這樣台股不再經過 Finnhub 的美股代碼限制。
-        // Worker 需把 symbol / interval / range 轉發到 Yahoo Chart API。
-        // =========================================================
         async function fetchYahooData(symbol, interval = currentPeriod.interval, range = currentPeriod.range) {
             const yahooSymbol = normalizeSymbol(symbol);
-            const url =
-                `${WORKER_URL}/?symbol=${encodeURIComponent(yahooSymbol)}` +
-                `&interval=${encodeURIComponent(interval)}` +
-                `&range=${encodeURIComponent(range)}`;
-
+            const url = `${WORKER_URL}/?symbol=${encodeURIComponent(yahooSymbol)}&interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}`;
             const res = await fetch(url, { cache: 'no-store' });
             if (!res.ok) throw new Error('YAHOO_FAILED');
-
             const json = await res.json();
             const result = json.chart?.result?.[0];
-
-            if (!result) {
-                const message = json.chart?.error?.description || 'NO_YAHOO_DATA';
-                throw new Error(message);
-            }
-
+            if (!result) throw new Error(json.chart?.error?.description || 'NO_YAHOO_DATA');
             return result;
         }
 
@@ -1019,13 +684,32 @@
             return Number(value).toFixed(2);
         }
 
+        // ==========================================
+        // 修正後的報價解析函數 (解決台股 null 和現價錯誤)
+        // ==========================================
         function parseQuote(result) {
             const meta = result.meta || {};
             const quote = result.indicators?.quote?.[0] || {};
 
-            // 優先使用 Yahoo 的正式昨收。
-            // chartPreviousClose 在某些盤中資料情境可能不是使用者理解的「昨收」，
-            // 因此報價區的漲跌一律以 previousClose 為基準。
+            let lastClose = null;
+            let lastOpen = null;
+            let lastHigh = null;
+            let lastLow = null;
+            let lastVol = null;
+
+            if (quote.close && quote.close.length > 0) {
+                for (let i = quote.close.length - 1; i >= 0; i--) {
+                    if (quote.close[i] != null) {
+                        lastClose = quote.close[i];
+                        lastOpen = quote.open?.[i];
+                        lastHigh = quote.high?.[i];
+                        lastLow = quote.low?.[i];
+                        lastVol = quote.volume?.[i];
+                        break;
+                    }
+                }
+            }
+
             const previousCloseValue =
                 meta.previousClose ??
                 meta.regularMarketPreviousClose ??
@@ -1033,6 +717,7 @@
 
             const price =
                 meta.regularMarketPrice ??
+                lastClose ??
                 meta.postMarketPrice ??
                 meta.preMarketPrice ??
                 previousCloseValue;
@@ -1040,37 +725,19 @@
             if (price == null) throw new Error('NO_QUOTE_DATA');
 
             const previousClose = Number(previousCloseValue);
-
             if (!Number.isFinite(previousClose) || previousClose <= 0) {
                 throw new Error('NO_PREVIOUS_CLOSE');
             }
 
             const currentPrice = Number(price);
-
-            // 漲跌 = 現價 - 昨收
-            // 漲幅 = (現價 - 昨收) / 昨收 × 100
+            
             const change = currentPrice - previousClose;
             const changePercent = (change / previousClose) * 100;
 
-            // 今開 / 最高 / 最低優先使用 Yahoo 即時欄位。
-            // 若沒有，再退回當日 quote 陣列最後一筆。
-            const last = quote.close?.length ? quote.close.length - 1 : -1;
-
-            const open =
-                meta.regularMarketOpen ??
-                (last >= 0 ? quote.open?.[last] : null);
-
-            const high =
-                meta.regularMarketDayHigh ??
-                (last >= 0 ? quote.high?.[last] : null);
-
-            const low =
-                meta.regularMarketDayLow ??
-                (last >= 0 ? quote.low?.[last] : null);
-
-            const volumeValue =
-                meta.regularMarketVolume ??
-                (last >= 0 ? quote.volume?.[last] : null);
+            const open = meta.regularMarketOpen ?? lastOpen;
+            const high = meta.regularMarketDayHigh ?? lastHigh;
+            const low = meta.regularMarketDayLow ?? lastLow;
+            const volumeValue = meta.regularMarketVolume ?? lastVol;
 
             return {
                 latestPrice: formatPrice(currentPrice),
@@ -1085,74 +752,39 @@
                 volume: formatVolume(volumeValue)
             };
         }
+        // ==========================================
 
         function parseCandles(result) {
             const timestamps = result.timestamp || [];
             const quote = result.indicators?.quote?.[0];
-
             if (!timestamps.length || !quote) throw new Error('NO_CANDLE_DATA');
-
             const chartData = [];
-
             for (let i = 0; i < timestamps.length; i++) {
                 const open = quote.open?.[i];
                 const high = quote.high?.[i];
                 const low = quote.low?.[i];
                 const close = quote.close?.[i];
-
                 if ([open, high, low, close].some(v => v == null)) continue;
-
                 let time;
-
                 if (currentPeriod.interval === '1d') {
-                    // 日K使用 YYYY-MM-DD
-                    time = new Date(timestamps[i] * 1000)
-                        .toISOString()
-                        .split('T')[0];
+                    time = new Date(timestamps[i] * 1000).toISOString().split('T')[0];
                 } else {
-                    // 分K使用 Unix 秒，避免時區轉換後同一天時間重複
                     time = timestamps[i];
                 }
-
-                chartData.push({
-                    time,
-                    open: Number(open),
-                    high: Number(high),
-                    low: Number(low),
-                    close: Number(close)
-                });
+                chartData.push({ time, open: Number(open), high: Number(high), low: Number(low), close: Number(close) });
             }
-
             return chartData;
         }
 
         let currentSymbol = null;
 
-        // =========================================================
-        // 公司資訊
-        // =========================================================
         function marketStateText(state) {
-            const map = {
-                REGULAR: '正常交易',
-                PRE: '盤前交易',
-                POST: '盤後交易',
-                PREPRE: '盤前',
-                POSTPOST: '盤後',
-                CLOSED: '休市'
-            };
+            const map = { REGULAR: '正常交易', PRE: '盤前交易', POST: '盤後交易', PREPRE: '盤前', POSTPOST: '盤後', CLOSED: '休市' };
             return map[state] || state || '—';
         }
 
         function quoteTypeText(type) {
-            const map = {
-                EQUITY: '股票',
-                ETF: 'ETF',
-                MUTUALFUND: '共同基金',
-                INDEX: '指數',
-                CURRENCY: '外匯',
-                FUTURE: '期貨',
-                CRYPTOCURRENCY: '加密貨幣'
-            };
+            const map = { EQUITY: '股票', ETF: 'ETF', MUTUALFUND: '共同基金', INDEX: '指數', CURRENCY: '外匯', FUTURE: '期貨', CRYPTOCURRENCY: '加密貨幣' };
             return map[type] || type || '—';
         }
 
@@ -1163,13 +795,7 @@
 
         function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
             const meta = result?.meta || {};
-
-            setCompanyField(
-                'company-long-name',
-                meta.longName || meta.shortName ||
-                watchlist.find(s => s.symbol === symbol)?.name ||
-                displaySymbol(symbol)
-            );
+            setCompanyField('company-long-name', meta.longName || meta.shortName || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol));
             setCompanyField('company-exchange', meta.fullExchangeName || meta.exchangeName || '—');
             setCompanyField('company-market', meta.market || meta.exchangeName || '—');
             setCompanyField('company-currency', meta.currency || meta.currencyCode || '—');
@@ -1177,22 +803,13 @@
             setCompanyField('company-market-state', marketStateText(meta.marketState));
             setCompanyField('company-symbol', displaySymbol(symbol));
             setCompanyField('company-price', quote?.latestPrice || '—');
-
             const note = document.getElementById('company-info-note');
-            if (note) {
-                note.textContent =
-                    `資料來源：${source} · ${meta.fullExchangeName || meta.exchangeName || '交易市場'} · ` +
-                    `代碼 ${displaySymbol(symbol)}`;
-            }
+            if (note) note.textContent = `資料來源：${source} · ${meta.fullExchangeName || meta.exchangeName || '交易市場'} · 代碼 ${displaySymbol(symbol)}`;
         }
 
         function renderFinnhubCompanyInfo(profile, symbol, quote) {
             const p = profile || {};
-
-            setCompanyField(
-                'company-long-name',
-                p.name || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol)
-            );
+            setCompanyField('company-long-name', p.name || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol));
             setCompanyField('company-exchange', p.exchange || '—');
             setCompanyField('company-market', p.finnhubIndustry || '—');
             setCompanyField('company-currency', p.currency || '—');
@@ -1200,33 +817,15 @@
             setCompanyField('company-market-state', 'Finnhub 即時資料');
             setCompanyField('company-symbol', displaySymbol(symbol));
             setCompanyField('company-price', quote?.latestPrice || '—');
-
             const note = document.getElementById('company-info-note');
             if (note) {
-                const extra = [
-                    p.country ? `國家 ${p.country}` : '',
-                    p.marketCapitalization ? `市值 ${Number(p.marketCapitalization).toLocaleString('zh-TW')} 百萬` : '',
-                    p.ipo ? `IPO ${p.ipo}` : ''
-                ].filter(Boolean).join(' · ');
-
-                note.textContent =
-                    `資料來源：Finnhub · ${p.exchange || '交易市場'} · ${displaySymbol(symbol)}` +
-                    (extra ? ` · ${extra}` : '');
+                const extra = [p.country ? `國家 ${p.country}` : '', p.marketCapitalization ? `市值 ${Number(p.marketCapitalization).toLocaleString('zh-TW')} 百萬` : '', p.ipo ? `IPO ${p.ipo}` : ''].filter(Boolean).join(' · ');
+                note.textContent = `資料來源：Finnhub · ${p.exchange || '交易市場'} · ${displaySymbol(symbol)}` + (extra ? ` · ${extra}` : '');
             }
         }
 
         function clearCompanyInfo() {
-            [
-                'company-long-name',
-                'company-exchange',
-                'company-market',
-                'company-currency',
-                'company-type',
-                'company-market-state',
-                'company-symbol',
-                'company-price'
-            ].forEach(id => setCompanyField(id, '—'));
-
+            ['company-long-name','company-exchange','company-market','company-currency','company-type','company-market-state','company-symbol','company-price'].forEach(id => setCompanyField(id, '—'));
             const note = document.getElementById('company-info-note');
             if (note) note.textContent = '選擇股票後會自動載入公司基本資訊。';
         }
@@ -1240,34 +839,18 @@
 
         async function loadStock(symbol) {
             currentSymbol = symbol;
-
-            document.querySelectorAll('.stock-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.symbol === symbol);
-            });
-
+            document.querySelectorAll('.stock-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.symbol === symbol));
             document.getElementById('stock-symbol-title').textContent = displaySymbol(symbol);
             document.getElementById('stock-name').textContent = '載入中...';
             document.getElementById('loading-badge').classList.remove('hidden');
             document.getElementById('empty-state').style.display = 'none';
-            document.getElementById('current-price').textContent = '—';
-            document.getElementById('price-change').textContent = '—';
-            document.getElementById('open-price').textContent = '—';
-            document.getElementById('high-price').textContent = '—';
-            document.getElementById('low-price').textContent = '—';
-            document.getElementById('previous-close').textContent = '—';
-            document.getElementById('volume').textContent = '—';
-            document.getElementById('price-change').className =
-                'text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5';
-            document.getElementById('current-price').className =
-                'text-4xl md:text-5xl font-extrabold text-white tracking-tight';
-            document.getElementById('chart-status').textContent =
-                `${currentPeriod.label} · 載入中`;
-
+            ['current-price','price-change','open-price','high-price','low-price','previous-close','volume'].forEach(id => document.getElementById(id).textContent = '—');
+            document.getElementById('price-change').className = 'text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5';
+            document.getElementById('current-price').className = 'text-4xl md:text-5xl font-extrabold text-white tracking-tight';
+            document.getElementById('chart-status').textContent = `${currentPeriod.label} · 載入中`;
             resetFundamentals();
 
             try {
-                // K線與報價分開處理：
-                // Yahoo Worker 失敗時，不讓它把已成功取得的 Finnhub 報價一起拖垮。
                 let yahooResult = null;
                 let yahooError = null;
                 let quote = null;
@@ -1279,77 +862,34 @@
                     try {
                         quote = await fetchFinnhubQuote(symbol);
                         quoteSource = 'Finnhub';
-
-                        try {
-                            companyProfile = await fetchFinnhubCompanyProfile(symbol);
-                        } catch (profileError) {
-                            console.warn('Finnhub 公司資訊失敗，改用 Yahoo:', profileError);
-                        }
-
-                        try {
-                            metricResult = await fetchFinnhubMetrics(symbol);
-                        } catch (metricError) {
-                            console.warn('Finnhub 基本面失敗:', metricError);
-                        }
-                    } catch (finnhubError) {
-                        console.warn('Finnhub 報價失敗，改用 Yahoo:', finnhubError);
-                    }
+                        try { companyProfile = await fetchFinnhubCompanyProfile(symbol); } catch (e) { console.warn('Finnhub 公司資訊失敗', e); }
+                        try { metricResult = await fetchFinnhubMetrics(symbol); } catch (e) { console.warn('Finnhub 基本面失敗', e); }
+                    } catch (e) { console.warn('Finnhub 報價失敗', e); }
                 }
 
-                // 報價用較短區間取得即時 meta（避免長週期 chartPreviousClose 造成漲跌錯誤）
-                // K線仍使用使用者選擇的 period
                 let quoteResult = null;
-                try {
-                    quoteResult = await fetchYahooData(symbol, '5m', '1d');
-                } catch (error) {
-                    console.warn('Yahoo 短區間報價失敗，改用圖表區間:', error);
-                }
-
-                try {
-                    yahooResult = await fetchYahooData(symbol);
-                } catch (error) {
-                    yahooError = error;
-                    console.warn('Yahoo Worker 失敗:', error);
-                }
+                try { quoteResult = await fetchYahooData(symbol, '5m', '1d'); } catch (e) { console.warn('Yahoo 短區間報價失敗', e); }
+                try { yahooResult = await fetchYahooData(symbol); } catch (error) { yahooError = error; console.warn('Yahoo Worker 失敗', error); }
 
                 let result = yahooResult;
                 let yahooQuote = null;
                 let chartData = [];
 
                 if (quoteResult) {
-                    try {
-                        yahooQuote = parseQuote(quoteResult);
-                    } catch (e) {
-                        console.warn('短區間報價解析失敗:', e);
-                    }
+                    try { yahooQuote = parseQuote(quoteResult); } catch (e) { console.warn('短區間報價解析失敗', e); }
                 }
 
                 if (result) {
                     if (!yahooQuote) {
-                        try {
-                            yahooQuote = parseQuote(result);
-                        } catch (e) {
-                            console.warn('圖表區間報價解析失敗:', e);
-                        }
+                        try { yahooQuote = parseQuote(result); } catch (e) { console.warn('圖表區間報價解析失敗', e); }
                     }
-                    try {
-                        chartData = parseCandles(result);
-                    } catch (e) {
-                        console.warn('K線解析失敗:', e);
-                    }
-
-                    if (!quote && yahooQuote) {
-                        quote = yahooQuote;
-                        quoteSource = 'Yahoo Finance';
-                    }
+                    try { chartData = parseCandles(result); } catch (e) { console.warn('K線解析失敗', e); }
+                    if (!quote && yahooQuote) { quote = yahooQuote; quoteSource = 'Yahoo Finance'; }
                 } else if (yahooQuote && !quote) {
-                    quote = yahooQuote;
-                    quoteSource = 'Yahoo Finance';
+                    quote = yahooQuote; quoteSource = 'Yahoo Finance';
                 }
 
-                if (!quote) {
-                    throw (yahooError || new Error('NO_QUOTE_DATA'));
-                }
+                if (!quote) throw (yahooError || new Error('NO_QUOTE_DATA'));
 
                 if (companyProfile && (companyProfile.name || companyProfile.exchange || companyProfile.finnhubIndustry)) {
                     renderFinnhubCompanyInfo(companyProfile, symbol, quote);
@@ -1361,15 +901,12 @@
                     renderFinnhubMetrics(metricResult, companyProfile, symbol);
                 } else {
                     resetFundamentals();
-                    setMetric('fundamentals-status',
-                        '基本面暫無資料'
-                    );
+                    setMetric('fundamentals-status', '基本面暫無資料');
                 }
 
                 quoteCache[symbol] = quote;
                 saveWatchlist();
 
-                // 更新價格
                 document.getElementById('current-price').textContent = quote.latestPrice;
                 document.getElementById('open-price').textContent = quote.open;
                 document.getElementById('high-price').textContent = quote.high;
@@ -1379,8 +916,7 @@
 
                 const changeEl = document.getElementById('price-change');
                 const sign = quote.isUp ? '+' : '';
-                changeEl.textContent =
-                    `${sign}${quote.change} (${sign}${quote.changePercent}%)`;
+                changeEl.textContent = `${sign}${quote.change} (${sign}${quote.changePercent}%)`;
 
                 if (quote.isFlat) {
                     changeEl.classList.add('text-gray-400');
@@ -1394,56 +930,38 @@
                 }
 
                 const stockItem = watchlist.find(s => s.symbol === symbol);
-                document.getElementById('stock-name').textContent =
-                    stockItem?.name || displaySymbol(symbol);
+                document.getElementById('stock-name').textContent = stockItem?.name || displaySymbol(symbol);
 
-                // 更新 K 線；K線失敗不影響已成功取得的報價。
                 if (chartData.length > 0) {
                     candlestickSeries.setData(chartData);
                     chart.timeScale().fitContent();
-                    document.getElementById('chart-status').textContent =
-                        `${currentPeriod.label} · ${chartData.length} 根`;
+                    document.getElementById('chart-status').textContent = `${currentPeriod.label} · ${chartData.length} 根`;
                 } else {
                     candlestickSeries.setData([]);
-                    document.getElementById('chart-status').textContent =
-                        yahooError ? 'K線資料取得失敗，但報價可正常顯示' : '目前週期沒有 K 線資料';
+                    document.getElementById('chart-status').textContent = yahooError ? 'K線資料取得失敗，但報價可正常顯示' : '目前週期沒有 K 線資料';
                 }
 
                 const now = new Date();
-                document.getElementById('last-update').textContent =
-                    `最後更新：${now.toLocaleString('zh-TW', { hour12: false })}`;
-
-                // 排序若依價格/漲幅，載入資料後即時更新位置
+                document.getElementById('last-update').textContent = `最後更新：${now.toLocaleString('zh-TW', { hour12: false })}`;
                 renderWatchlist();
 
             } catch (error) {
                 console.error(error);
-                console.error('目前股票：', symbol, '週期：', currentPeriod);
-
                 document.getElementById('chart-status').textContent = '資料取得失敗';
-
                 if (error.message === 'NO_QUOTE_DATA') {
-                    document.getElementById('stock-name').textContent =
-                        '找不到報價資料，請確認股票代碼';
+                    document.getElementById('stock-name').textContent = '找不到報價資料，請確認股票代碼';
                     document.getElementById('price-change').textContent = '報價失敗';
                 } else if (error.message === 'NO_PREVIOUS_CLOSE') {
-                    document.getElementById('stock-name').textContent =
-                        '找不到昨收資料，無法正確計算漲幅';
+                    document.getElementById('stock-name').textContent = '找不到昨收資料，無法正確計算漲幅';
                     document.getElementById('price-change').textContent = '漲幅無法計算';
                 } else if (error.message === 'NO_CANDLE_DATA') {
-                    document.getElementById('stock-name').textContent =
-                        '目前週期沒有 K 線資料';
+                    document.getElementById('stock-name').textContent = '目前週期沒有 K 線資料';
                     document.getElementById('price-change').textContent = 'K線失敗';
                 } else if (error.message === 'YAHOO_FAILED') {
-                    document.getElementById('stock-name').textContent =
-                        FINNHUB_API_KEY
-                            ? 'Yahoo K線代理連線失敗；Finnhub 報價可獨立使用'
-                            : 'Yahoo 資料代理 Worker 連線失敗';
-                    document.getElementById('price-change').textContent =
-                        FINNHUB_API_KEY ? 'K線失敗' : 'Worker 失敗';
+                    document.getElementById('stock-name').textContent = FINNHUB_API_KEY ? 'Yahoo K線代理連線失敗；Finnhub 報價可獨立使用' : 'Yahoo 資料代理 Worker 連線失敗';
+                    document.getElementById('price-change').textContent = FINNHUB_API_KEY ? 'K線失敗' : 'Worker 失敗';
                 } else {
-                    document.getElementById('stock-name').textContent =
-                        `找不到 ${displaySymbol(symbol)} 的資料`;
+                    document.getElementById('stock-name').textContent = `找不到 ${displaySymbol(symbol)} 的資料`;
                     document.getElementById('price-change').textContent = '載入失敗';
                 }
             } finally {
@@ -1459,29 +977,15 @@
         async function changePeriod(button) {
             document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-
-            currentPeriod = {
-                interval: button.dataset.interval,
-                range: button.dataset.range,
-                label: button.textContent.trim()
-            };
-
-            if (currentSymbol) {
-                await loadStock(currentSymbol);
-            }
+            currentPeriod = { interval: button.dataset.interval, range: button.dataset.range, label: button.textContent.trim() };
+            if (currentSymbol) await loadStock(currentSymbol);
         }
 
-        // =========================================================
-        // 初始化
-        // =========================================================
         document.getElementById('sort-select').value = sortMode;
-
         window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('sort-select').value = sortMode;
             renderWatchlist();
-            if (watchlist.length > 0) {
-                loadStock(watchlist[0].symbol);
-            }
+            if (watchlist.length > 0) loadStock(watchlist[0].symbol);
         });
     </script>
 </body>
