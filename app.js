@@ -346,7 +346,7 @@ function renderChipData(data) {
 
     const institutional = data.institutional;
     const margin = data.margin;
-    const history = data.institutionalHistory || data.history || [];
+    const history = data.history || data.institutionalHistory || [];
 
     const formatSheets = (shares) => {
         if (shares === undefined || shares === null || isNaN(shares)) return '<span class="text-gray-500">—</span>';
@@ -369,13 +369,14 @@ function renderChipData(data) {
     const tableRows = document.getElementById('chip-table-rows');
     if (tableRows) {
         if (history.length > 0) {
-            tableRows.innerHTML = history.slice(0, 15).map(row => {
-                const f = row.foreignNet || row.foreign || 0;
-                const t = row.investmentTrustNet || row.trust || 0;
-                const d = row.dealerNet || row.dealer || 0;
-                const total = row.totalNet || (f + t + d);
+            tableRows.innerHTML = history.map(row => {
+                const inst = row.institutional || {};
+                const f = inst.foreignNet != null ? inst.foreignNet : (row.foreignNet || 0);
+                const t = inst.investmentTrustNet != null ? inst.investmentTrustNet : (row.investmentTrustNet || 0);
+                const d = inst.dealerNet != null ? inst.dealerNet : (row.dealerNet || 0);
+                const total = inst.totalNet != null ? inst.totalNet : (row.totalNet || (f + t + d));
                 return `
-                    <div class="grid grid-cols-5 text-center py-2 px-1 hover:bg-white/[0.04] transition-colors items-center">
+                    <div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center">
                         <div class="text-gray-300 font-medium">${formatDate(row.date)}</div>
                         <div>${formatSheets(f)}</div>
                         <div>${formatSheets(t)}</div>
@@ -386,7 +387,7 @@ function renderChipData(data) {
             }).join('');
         } else if (institutional) {
             tableRows.innerHTML = `
-                <div class="grid grid-cols-5 text-center py-2 px-1 hover:bg-white/[0.04] transition-colors items-center">
+                <div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center">
                     <div class="text-gray-300 font-medium">${formatDate(data.date)}</div>
                     <div>${formatSheets(institutional.foreignNet)}</div>
                     <div>${formatSheets(institutional.investmentTrustNet)}</div>
@@ -1053,7 +1054,7 @@ async function loadStock(symbol, isSilent = false) {
         const emptyState = document.getElementById('empty-state'); if (emptyState) emptyState.style.display = 'none';
         ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—')); updateMarketState('', symbol);
         const priceChange = document.getElementById('price-change'); if (priceChange) priceChange.className = 'text-sm sm:text-base font-bold px-2.5 py-1 rounded-lg bg-white/5 border border-white/5';
-        const currentPrice = document.getElementById('current-price'); if (currentPrice) currentPrice.className = 'text-4xl sm:text-5xl font-black text-white tracking-tight leading-none transition-colors duration-300';
+        const currentPrice = document.getElementById('current-price'); if (currentPrice) currentPrice.className = 'text-3xl sm:text-4xl font-black text-white tracking-tight leading-none transition-colors duration-300';
         setText('chart-status', `${currentPeriod.label} · 載入中`); resetFundamentals(); resetChipData();
     }
 
@@ -1070,6 +1071,11 @@ async function loadStock(symbol, isSilent = false) {
         } catch (error) { yahooError = error; }
 
         if (isForexSymbol(symbol)) {
+            // 隱藏籌碼導覽列與卡片
+            if (!isSilent) {
+                document.getElementById('chip-card')?.classList.add('hidden');
+                document.querySelector('button[onclick*="chip-card"]')?.classList.add('hidden');
+            }
             try {
                 const forex = await fetchForexData();
                 if (forex?.rate) {
@@ -1080,6 +1086,11 @@ async function loadStock(symbol, isSilent = false) {
             } catch {}
             if (!quote && quoteCache[symbol]) quote = quoteCache[symbol];
         } else if (isCryptoSymbol(symbol)) {
+            // 隱藏籌碼導覽列與卡片
+            if (!isSilent) {
+                document.getElementById('chip-card')?.classList.add('hidden');
+                document.querySelector('button[onclick*="chip-card"]')?.classList.add('hidden');
+            }
             try {
                 const cryptoJson = await fetchCryptoData(), cryptoSymbol = displaySymbol(symbol).toUpperCase(), crypto = cryptoJson?.[cryptoSymbol];
                 if (crypto) {
@@ -1091,6 +1102,10 @@ async function loadStock(symbol, isSilent = false) {
             } catch {}
             if (!quote && quoteCache[symbol]) quote = quoteCache[symbol];
         } else if (isTaiwanSymbol(symbol)) {
+            // 顯示上方「籌碼」導覽按鈕
+            if (!isSilent) {
+                document.querySelector('button[onclick*="chip-card"]')?.classList.remove('hidden');
+            }
             let twseMetricsData = null;
             try { twseMetricsData = await fetchTwseMetrics(symbol); } catch {}
             if (twseMetricsData && !isSilent) {
@@ -1110,13 +1125,18 @@ async function loadStock(symbol, isSilent = false) {
                     fetchTwseChipData(symbol),
                     fetchTwseChipHistory(symbol)
                 ]);
-                renderChipData(chipData);
+                const mergedChipData = {
+                    ...(chipData || {}),
+                    history: chipHistory?.history || []
+                };
+                renderChipData(mergedChipData);
                 renderChipHistory(chipHistory);
             }
         } else {
+            // 美股 / ETF：完全隱藏籌碼導覽按鈕與籌碼卡片
             if (!isSilent) {
-                const chipCard = document.getElementById('chip-card');
-                if (chipCard) chipCard.classList.add('hidden');
+                document.getElementById('chip-card')?.classList.add('hidden');
+                document.querySelector('button[onclick*="chip-card"]')?.classList.add('hidden');
             }
             if (!quote && !isIndexSymbol(symbol)) { try { quote = await fetchFinnhubQuote(symbol); } catch {} }
             if (!isSilent) {
