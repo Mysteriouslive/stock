@@ -102,9 +102,7 @@ body {
 .chip-block-title:first-of-type { margin-top: 0; }
 .chip-grid { gap: 8px; }
 
-/* ============================================================
-   導覽切換按鈕列 (徹底防壓扁修復)
-   ============================================================ */
+/* 導覽切換按鈕列 (通用防壓扁修正) */
 .section-nav {
     display: flex !important;
     gap: 8px !important;
@@ -139,11 +137,6 @@ body {
     border-color: rgba(96, 165, 250, 0.55) !important;
     background: rgba(59, 130, 246, 0.2) !important;
 }
-
-.chip-history-head { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); color: #a1a1aa; font-size: 11px; font-weight: 700; }
-.chip-history-head span:last-child { color: #71717a; font-size: 10px; font-weight: 500; }
-.chip-history-chart { display: block; width: 100%; height: 190px; margin-top: 8px; }
-.chip-history-empty { padding: 54px 12px; text-align: center; color: #71717a; font-size: 11px; }
 
 .period-btn {
     font-size: 11px;
@@ -303,13 +296,6 @@ body {
 .tooltip-grid b { color: #f4f4f5; font-weight: 700; }
 .tooltip-volume { grid-column: 1 / -1; color: #fbbf24; }
 
-body.light-mode .chart-crosshair-tooltip { color: #30413d; background: rgba(255,255,255,0.94); border-color: #b9d5ca; box-shadow: 0 8px 20px rgba(33,68,59,0.15); }
-body.light-mode .tooltip-time { color: #087f62; }
-body.light-mode .tooltip-grid { color: #687873; }
-body.light-mode .tooltip-grid b { color: #30413d; }
-body.light-mode .tooltip-volume { color: #b45309; }
-body.light-mode .chart-volume-readout { color: #526760; background: rgba(241,247,244,0.82); border-color: #c7d8d2; }
-
 .market-state-badge {
     display: inline-flex;
     align-items: center;
@@ -361,12 +347,10 @@ body.light-mode .chart-volume-readout { color: #526760; background: rgba(241,247
     .assessment-grid { grid-template-columns: 1fr 1fr !important; }
     .assessment-score { grid-column: 1 / -1; }
 
-    /* 頂部看板手機直向堆疊 */
     .dashboard-header {
         padding: 14px 12px !important;
     }
     
-    /* 五格行情在手機上自適應 */
     .dashboard-header .grid.grid-cols-5 {
         gap: 2px !important;
         width: 100% !important;
@@ -386,7 +370,6 @@ body.light-mode .chart-volume-readout { color: #526760; background: rgba(241,247
     .index-card-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .index-card > div:not(.index-card-head):not(.index-card-change) { margin-top: 3px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    /* 導覽列高度與間距防壓扁 */
     .section-nav {
         gap: 6px !important;
         padding: 2px 2px 10px !important;
@@ -462,9 +445,6 @@ body.light-mode .assessment-reasons { border-color: #dbe7e2; color: #687873; }
 body.light-mode .chip-block-title { color: #087f62; }
 body.light-mode .section-nav-btn { background: rgba(255,255,255,0.9) !important; border-color: #d1e0da !important; color: #687873 !important; }
 body.light-mode .section-nav-btn:hover, body.light-mode .section-nav-btn.active { color: #087f62 !important; background: #e2f0ea !important; border-color: #159a78 !important; }
-body.light-mode .chip-history-head { border-color: #dbe7e2; color: #687873; }
-body.light-mode .dashboard-header { background: rgba(251, 253, 252, 0.98) !important; }
-body.light-mode .index-strip { background: rgba(251, 253, 252, 0.98) !important; box-shadow: 0 8px 20px rgba(33, 68, 59, 0.12); }
 body.light-mode .index-card { background: #f1f7f4; border-color: #d6e5df; }
 body.light-mode .index-card > div:not(.index-card-head):not(.index-card-change) { color: #30413d; }
 body.light-mode .stock-btn { color: #526760 !important; }
