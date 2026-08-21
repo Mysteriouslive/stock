@@ -155,15 +155,15 @@
         </div>
 
         <div class="flex-1 min-w-0 flex flex-col p-3 sm:p-4 md:p-6 overflow-y-auto relative z-10">
-            <!-- 頂部資訊看板 (美化升級版) -->
-            <header class="glass rounded-2xl p-5 md:p-6 mb-5 relative overflow-visible shrink-0 border border-white/10 shadow-2xl">
+            <!-- 頂部資訊看板 (手機/電腦響應優化版) -->
+            <header class="glass rounded-2xl p-4 sm:p-6 mb-5 relative overflow-visible shrink-0 border border-white/10 shadow-2xl">
                 <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-blue-500 via-purple-500 to-transparent opacity-80"></div>
                 
-                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 min-w-0">
+                <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-6 min-w-0">
                     <!-- 左側：標的資訊 -->
-                    <div class="shrink-0 flex flex-col justify-center min-w-[220px] max-w-[340px]">
-                        <div class="flex items-center gap-3">
-                            <h2 id="stock-symbol-title" class="text-2xl sm:text-3xl lg:text-[32px] font-black tracking-tight text-white leading-tight break-words">—</h2>
+                    <div class="flex flex-col justify-center min-w-0">
+                        <div class="flex items-center flex-wrap gap-2 sm:gap-3">
+                            <h2 id="stock-symbol-title" class="text-xl sm:text-2xl lg:text-[32px] font-black tracking-tight text-white leading-tight break-words">—</h2>
                             <span id="loading-badge" class="hidden text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 loading-pulse shrink-0">
                                 載入中
                             </span>
@@ -171,68 +171,68 @@
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> 即時
                             </span>
                         </div>
-                        <div class="flex items-center gap-2 mt-1.5">
+                        <div class="flex items-center gap-2 mt-1.5 flex-wrap">
                             <span id="stock-name" class="text-xs font-semibold px-2 py-0.5 rounded-md bg-white/5 text-gray-400 tracking-wider">代碼</span>
                             <span id="last-update" class="text-[11px] text-gray-500">—</span>
                         </div>
                     </div>
 
-                    <!-- 中間：核心大盤指數行情小卡 -->
-                    <div class="flex-1 min-w-0 hidden sm:grid grid-cols-2 xl:grid-cols-4 gap-3 px-1">
+                    <!-- 中間：核心大盤指數行情小卡 (手機版改為自適應兩欄或自動收納，避免擠壓) -->
+                    <div class="w-full xl:flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                         <!-- 加權指數 -->
-                        <div onclick="loadStock('^TWII')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
+                        <div onclick="loadStock('^TWII')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-2.5 sm:p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs text-gray-400 font-semibold tracking-wide">加權指數</span>
-                                <span class="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">TWSE</span>
+                                <span class="text-[11px] sm:text-xs text-gray-400 font-semibold tracking-wide">加權指數</span>
+                                <span class="text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">TWSE</span>
                             </div>
-                            <div id="idx-twii-price" class="text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
-                            <div id="idx-twii-change" class="text-[11px] mt-0.5 font-medium">—</div>
+                            <div id="idx-twii-price" class="text-[13px] sm:text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
+                            <div id="idx-twii-change" class="text-[10px] sm:text-[11px] mt-0.5 font-medium">—</div>
                         </div>
 
                         <!-- 費城半導體 SOXX -->
-                        <div onclick="loadStock('SOXX')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
+                        <div onclick="loadStock('SOXX')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-2.5 sm:p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs text-gray-400 font-semibold tracking-wide">費城半導體</span>
-                                <span class="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">SOXX</span>
+                                <span class="text-[11px] sm:text-xs text-gray-400 font-semibold tracking-wide">費城半導體</span>
+                                <span class="text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">SOXX</span>
                             </div>
-                            <div id="idx-soxx-price" class="text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
-                            <div id="idx-soxx-change" class="text-[11px] mt-0.5 font-medium">—</div>
+                            <div id="idx-soxx-price" class="text-[13px] sm:text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
+                            <div id="idx-soxx-change" class="text-[10px] sm:text-[11px] mt-0.5 font-medium">—</div>
                         </div>
 
                         <!-- NASDAQ -->
-                        <div onclick="loadStock('^IXIC')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
+                        <div onclick="loadStock('^IXIC')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-2.5 sm:p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs text-gray-400 font-semibold tracking-wide">NASDAQ</span>
-                                <span class="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">科技</span>
+                                <span class="text-[11px] sm:text-xs text-gray-400 font-semibold tracking-wide">NASDAQ</span>
+                                <span class="text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">科技</span>
                             </div>
-                            <div id="idx-ixic-price" class="text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
-                            <div id="idx-ixic-change" class="text-[11px] mt-0.5 font-medium">—</div>
+                            <div id="idx-ixic-price" class="text-[13px] sm:text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
+                            <div id="idx-ixic-change" class="text-[10px] sm:text-[11px] mt-0.5 font-medium">—</div>
                         </div>
 
                         <!-- S&P 500 -->
-                        <div onclick="loadStock('^GSPC')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
+                        <div onclick="loadStock('^GSPC')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-2.5 sm:p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs text-gray-400 font-semibold tracking-wide">S&P 500</span>
-                                <span class="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">大盤</span>
+                                <span class="text-[11px] sm:text-xs text-gray-400 font-semibold tracking-wide">S&P 500</span>
+                                <span class="text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">大盤</span>
                             </div>
-                            <div id="idx-gspc-price" class="text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
-                            <div id="idx-gspc-change" class="text-[11px] mt-0.5 font-medium">—</div>
+                            <div id="idx-gspc-price" class="text-[13px] sm:text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
+                            <div id="idx-gspc-change" class="text-[10px] sm:text-[11px] mt-0.5 font-medium">—</div>
                         </div>
                     </div>
 
                     <!-- 右側：現今報價與即時五項行情 -->
-                    <div class="text-left lg:text-right min-w-0 shrink-0 lg:min-w-[310px]">
+                    <div class="text-left xl:text-right min-w-0 shrink-0 xl:min-w-[280px] pt-3 xl:pt-0 border-t xl:border-t-0 border-white/10">
                         <div class="text-[11px] font-semibold text-gray-500 mb-1 tracking-wider uppercase">即時行情</div>
-                        <div class="flex items-baseline gap-3 lg:justify-end">
-                            <span id="current-price" class="text-4xl sm:text-5xl font-black text-white tracking-tight leading-none transition-colors duration-300">—</span>
-                            <span id="price-change" class="text-sm sm:text-base font-bold px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 transition-colors duration-300">—</span>
+                        <div class="flex items-baseline gap-3 xl:justify-end">
+                            <span id="current-price" class="text-3xl sm:text-4xl font-black text-white tracking-tight leading-none transition-colors duration-300">—</span>
+                            <span id="price-change" class="text-xs sm:text-sm font-bold px-2 py-0.5 rounded-lg bg-white/5 border border-white/5 transition-colors duration-300">—</span>
                         </div>
-                        <div class="grid grid-cols-5 gap-2 mt-3 pt-3 border-t border-white/5 text-[11px]">
-                            <div class="text-center lg:text-right"><div class="text-gray-500 text-[10px] mb-0.5">今開</div><div id="open-price" class="text-gray-200 font-semibold truncate">—</div></div>
-                            <div class="text-center lg:text-right"><div class="text-gray-500 text-[10px] mb-0.5">最高</div><div id="high-price" class="text-gray-200 font-semibold truncate">—</div></div>
-                            <div class="text-center lg:text-right"><div class="text-gray-500 text-[10px] mb-0.5">最低</div><div id="low-price" class="text-gray-200 font-semibold truncate">—</div></div>
-                            <div class="text-center lg:text-right"><div class="text-gray-500 text-[10px] mb-0.5">昨收</div><div id="previous-close" class="text-gray-200 font-semibold truncate">—</div></div>
-                            <div class="text-center lg:text-right"><div class="text-gray-500 text-[10px] mb-0.5">成交量</div><div id="volume" class="text-gray-200 font-semibold truncate">—</div></div>
+                        <div class="grid grid-cols-5 gap-1.5 sm:gap-2 mt-3 pt-3 border-t border-white/5 text-[11px]">
+                            <div class="text-center xl:text-right"><div class="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">今開</div><div id="open-price" class="text-gray-200 font-semibold truncate">—</div></div>
+                            <div class="text-center xl:text-right"><div class="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">最高</div><div id="high-price" class="text-gray-200 font-semibold truncate">—</div></div>
+                            <div class="text-center xl:text-right"><div class="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">最低</div><div id="low-price" class="text-gray-200 font-semibold truncate">—</div></div>
+                            <div class="text-center xl:text-right"><div class="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">昨收</div><div id="previous-close" class="text-gray-200 font-semibold truncate">—</div></div>
+                            <div class="text-center xl:text-right"><div class="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">成交量</div><div id="volume" class="text-gray-200 font-semibold truncate">—</div></div>
                         </div>
                     </div>
                 </div>
