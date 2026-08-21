@@ -62,6 +62,22 @@ async function fetchTwseMetrics(symbol) {
     } catch { return null; }
 }
 
+async function fetchTwseChipData(symbol) {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=twse_chip&symbol=${encodeURIComponent(displaySymbol(symbol))}`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch { return null; }
+}
+
+async function fetchTwseChipHistory(symbol) {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=twse_chip_history&symbol=${encodeURIComponent(displaySymbol(symbol))}&days=20`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch { return null; }
+}
+
 async function fetchFinnhubWorker(symbol, endpoint, params = {}) {
     const query = new URLSearchParams({ source: 'finnhub', symbol: finnhubSymbol(symbol), endpoint, ...params });
     const res = await fetch(`${WORKER_URL}/?${query.toString()}`, { cache: 'no-store' });
@@ -307,6 +323,60 @@ function applyCurrentPriceToQuote(quote, currentPrice, previousClose, symbol, fa
 function setText(id, value) { const el = document.getElementById(id); if (el) el.textContent = value; }
 function setMetric(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
 function escapeHtmlAttribute(value) { return String(value).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function resetChipData() {
+    ['chip-date', 'chip-foreign', 'chip-trust', 'chip-dealer', 'chip-total', 'margin-financing', 'margin-financing-change', 'margin-short', 'margin-short-change', 'chip-revenue', 'chip-gross-profit', 'chip-operating-income', 'chip-net-income'].forEach(id => setMetric(id, '—'));
+    setMetric('chip-source-note', '選擇台股後載入 TWSE 官方籌碼與財報資料');
+    document.getElementById('chip-history-chart')?.classList.add('hidden');
+    document.getElementById('chip-history-empty')?.classList.remove('hidden');
+    setMetric('chip-history-label', '—');
+}
+
+function renderChipData(data) {
+    if (!data || data.source !== 'TWSE Open Data') {
+        setMetric('chip-source-note', '籌碼資料尚未連線：請先部署最新 worker.js');
+        return;
+    }
+    const institutional = data.institutional, margin = data.margin, financial = data.financial;
+    setMetric('chip-date', data.date || '—');
+    setMetric('chip-foreign', institutional?.foreignNet == null ? '—' : institutional.foreignNet.toLocaleString('zh-TW'));
+    setMetric('chip-trust', institutional?.investmentTrustNet == null ? '—' : institutional.investmentTrustNet.toLocaleString('zh-TW'));
+    setMetric('chip-dealer', institutional?.dealerNet == null ? '—' : institutional.dealerNet.toLocaleString('zh-TW'));
+    setMetric('chip-total', institutional?.totalNet == null ? '—' : institutional.totalNet.toLocaleString('zh-TW'));
+    setMetric('margin-financing', margin?.financingBalance == null ? '—' : margin.financingBalance.toLocaleString('zh-TW'));
+    setMetric('margin-financing-change', margin?.financingChange == null ? '—' : `${margin.financingChange >= 0 ? '+' : ''}${margin.financingChange.toLocaleString('zh-TW')}`);
+    setMetric('margin-short', margin?.shortBalance == null ? '—' : margin.shortBalance.toLocaleString('zh-TW'));
+    setMetric('margin-short-change', margin?.shortChange == null ? '—' : `${margin.shortChange >= 0 ? '+' : ''}${margin.shortChange.toLocaleString('zh-TW')}`);
+    setMetric('chip-revenue', financial?.revenue == null ? '—' : `${(financial.revenue / 1000).toFixed(1)} 億`);
+    setMetric('chip-gross-profit', financial?.grossProfit == null ? '—' : `${(financial.grossProfit / 1000).toFixed(1)} 億`);
+    setMetric('chip-operating-income', financial?.operatingIncome == null ? '—' : `${(financial.operatingIncome / 1000).toFixed(1)} 億`);
+    setMetric('chip-net-income', financial?.netIncome == null ? '—' : `${(financial.netIncome / 1000).toFixed(1)} 億`);
+    setMetric('chip-source-note', `${data.source || 'TWSE'} · 交易日 ${data.date || '—'} · 分點與籌碼分布：官方資料未提供`);
+}
+
+function renderChipHistory(data) {
+    const canvas = document.getElementById('chip-history-chart'), empty = document.getElementById('chip-history-empty');
+    if (!canvas || !empty) return;
+    const rows = data?.history || [];
+    if (!rows.length) { canvas.classList.add('hidden'); empty.classList.remove('hidden'); return; }
+    canvas.classList.remove('hidden'); empty.classList.add('hidden');
+    const width = canvas.clientWidth || 600, height = 190, ratio = window.devicePixelRatio || 1;
+    canvas.width = width * ratio; canvas.height = height * ratio; canvas.style.height = `${height}px`;
+    const context = canvas.getContext('2d'); context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, width, height);
+    const values = rows.map(row => Number(row.institutional?.totalNet || 0)), max = Math.max(...values.map(Math.abs), 1), zero = height / 2, step = width / Math.max(values.length - 1, 1);
+    context.strokeStyle = 'rgba(148,163,184,0.2)'; context.beginPath(); context.moveTo(0, zero); context.lineTo(width, zero); context.stroke();
+    context.lineWidth = 2; context.beginPath();
+    values.forEach((value, index) => { const x = index * step, y = zero - (value / max) * (height * 0.42); index ? context.lineTo(x, y) : context.moveTo(x, y); });
+    context.strokeStyle = '#60a5fa'; context.stroke();
+    values.forEach((value, index) => { const x = index * step, y = zero - (value / max) * (height * 0.42); context.fillStyle = value >= 0 ? '#ef4444' : '#10b981'; context.beginPath(); context.arc(x, y, 3, 0, Math.PI * 2); context.fill(); });
+    setMetric('chip-history-label', `${rows.length} 個交易日 · 三大法人合計買賣超`);
+}
+
+function jumpToSection(id, button) {
+    document.querySelectorAll('.section-nav-btn').forEach(item => item.classList.remove('active'));
+    button?.classList.add('active');
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 function resetFundamentals() {
     ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth', 'metric-forward-pe', 'metric-peg', 'metric-ev-ebitda', 'metric-shares', 'profile-country', 'profile-industry', 'profile-ipo', 'profile-currency'].forEach(id => setMetric(id, '—'));
@@ -891,7 +961,7 @@ async function loadStock(symbol, isSilent = false) {
         ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—')); updateMarketState('', symbol);
         const priceChange = document.getElementById('price-change'); if (priceChange) priceChange.className = 'text-sm sm:text-base font-bold px-2.5 py-1 rounded-lg bg-white/5 border border-white/5';
         const currentPrice = document.getElementById('current-price'); if (currentPrice) currentPrice.className = 'text-4xl sm:text-5xl font-black text-white tracking-tight leading-none transition-colors duration-300';
-        setText('chart-status', `${currentPeriod.label} · 載入中`); resetFundamentals();
+        setText('chart-status', `${currentPeriod.label} · 載入中`); resetFundamentals(); resetChipData();
     }
 
     isLoadingStock = true;
@@ -942,7 +1012,12 @@ async function loadStock(symbol, isSilent = false) {
                     if (longName) { stockItem.name = longName; saveWatchlist(); renderWatchlist(); setText('stock-symbol-title', longName); }
                 }
             }
+            if (!isSilent) {
+                renderChipData(await fetchTwseChipData(symbol));
+                renderChipHistory(await fetchTwseChipHistory(symbol));
+            }
         } else {
+            if (!isSilent) setMetric('chip-source-note', '籌碼與財報功能目前支援台股代碼');
             if (!quote && !isIndexSymbol(symbol)) { try { quote = await fetchFinnhubQuote(symbol); } catch {} }
             if (!isSilent) {
                 if (isIndexSymbol(symbol)) renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
@@ -1296,6 +1371,7 @@ window.toggleCompanyInfo = toggleCompanyInfo;
 window.changeThemeColor = changeThemeColor;
 window.applySettings = applySettings;
 window.toggleDarkMode = toggleDarkMode;
+window.jumpToSection = jumpToSection;
 window.toggleChartIndicator = toggleChartIndicator;
 window.resetChartView = resetChartView;
 window.toggleChartFullscreen = toggleChartFullscreen;

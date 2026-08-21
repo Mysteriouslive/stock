@@ -85,6 +85,17 @@ body {
 .assessment-score-value { font-size: 26px; line-height: 1.1; font-weight: 800; color: #60a5fa; }
 .assessment-caption { margin-top: 3px; font-size: 10px; color: #71717a; }
 .assessment-reasons { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); color: #a1a1aa; font-size: 11px; line-height: 1.6; }
+.chip-block-title { margin: 12px 0 8px; color: #93c5fd; font-size: 11px; font-weight: 700; }
+.chip-block-title:first-of-type { margin-top: 0; }
+.chip-grid { gap: 8px; }
+.section-nav { display: flex; gap: 6px; padding: 0 2px 12px; position: sticky; top: 86px; z-index: 10; }
+.section-nav-btn { padding: 6px 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 7px; color: #71717a; background: rgba(18,18,22,0.88); font-size: 11px; font-weight: 700; transition: all 0.18s ease; }
+.section-nav-btn:hover, .section-nav-btn.active { color: #bfdbfe; border-color: rgba(96,165,250,0.55); background: rgba(59,130,246,0.15); }
+.chip-history-head { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.06); color: #a1a1aa; font-size: 11px; font-weight: 700; }
+.chip-history-head span:last-child { color: #71717a; font-size: 10px; font-weight: 500; }
+.chip-history-chart { display: block; width: 100%; height: 190px; margin-top: 8px; }
+.chip-history-empty { padding: 54px 12px; text-align: center; color: #71717a; font-size: 11px; }
+@media (max-width: 520px) { .section-nav { top: 76px; overflow-x: auto; } .section-nav-btn { flex: 0 0 auto; } }
 @media (max-width: 520px) { .assessment-grid { grid-template-columns: 1fr 1fr; } .assessment-score { grid-column: 1 / -1; } }
 
 .period-btn {
@@ -474,6 +485,10 @@ body.light-mode .fundamental-card:hover {
 body.light-mode .assessment-score { background: #edf6f2; border-color: #b9d5ca; }
 body.light-mode .assessment-score-value { color: #087f62; }
 body.light-mode .assessment-reasons { border-color: #dbe7e2; color: #687873; }
+body.light-mode .chip-block-title { color: #087f62; }
+body.light-mode .section-nav-btn { background: rgba(255,255,255,0.9); border-color: #d1e0da; color: #687873; }
+body.light-mode .section-nav-btn:hover, body.light-mode .section-nav-btn.active { color: #087f62; background: #e2f0ea; border-color: #159a78; }
+body.light-mode .chip-history-head { border-color: #dbe7e2; color: #687873; }
 body.light-mode .dashboard-header { background: rgba(251, 253, 252, 0.98) !important; }
 body.light-mode .index-strip { background: rgba(251, 253, 252, 0.98) !important; box-shadow: 0 8px 20px rgba(33, 68, 59, 0.12); }
 body.light-mode .index-strip.is-scrolling { background: rgba(251, 253, 252, 0.62) !important; box-shadow: 0 5px 14px rgba(33, 68, 59, 0.08); }

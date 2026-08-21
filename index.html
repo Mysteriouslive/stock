@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <link rel="stylesheet" href="./styles.css?v=26">
+    <link rel="stylesheet" href="./styles.css?v=27">
 </head>
 <body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
@@ -264,7 +264,14 @@
                 </div>
             </header>
 
-            <section id="company-info-card" class="company-info-card collapsed glass rounded-2xl p-4 md:p-5 mb-5">
+            <nav class="section-nav" aria-label="資料分類">
+                <button class="section-nav-btn active" onclick="jumpToSection('overview-card', this)">總覽</button>
+                <button class="section-nav-btn" onclick="jumpToSection('chart-card', this)">圖表</button>
+                <button class="section-nav-btn" onclick="jumpToSection('chip-card', this)">籌碼</button>
+                <button class="section-nav-btn" onclick="jumpToSection('fundamentals-card', this)">財報</button>
+            </nav>
+
+            <section id="overview-card" class="company-info-card collapsed glass rounded-2xl p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3">
                     <div class="flex items-center gap-3">
                         <div class="w-9 h-9 rounded-xl bg-purple-500/15 text-purple-300 flex items-center justify-center text-lg">🏢</div>
@@ -344,7 +351,40 @@
                 <div id="assessment-reasons" class="assessment-reasons">—</div>
             </section>
 
-            <section class="section-card p-4 md:p-5 mb-5">
+            <section id="chip-card" class="section-card p-4 md:p-5 mb-5">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <div>
+                        <div class="section-title theme-text-primary">🧩 籌碼與財報</div>
+                        <div class="section-subtitle">三大法人、信用交易與最新財報</div>
+                    </div>
+                    <span id="chip-date" class="text-[10px] text-gray-500">—</span>
+                </div>
+                <div class="chip-block-title">三大法人買賣超（股）</div>
+                <div class="fundamentals-grid chip-grid">
+                    <div class="fundamental-card"><div class="fundamental-label">外資</div><div id="chip-foreign" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">投信</div><div id="chip-trust" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">自營商</div><div id="chip-dealer" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">三大法人合計</div><div id="chip-total" class="fundamental-value">—</div></div>
+                </div>
+                <div class="chip-block-title">融資融券餘額</div>
+                <div class="fundamentals-grid chip-grid">
+                    <div class="fundamental-card"><div class="fundamental-label">融資餘額</div><div id="margin-financing" class="fundamental-value">—</div><div id="margin-financing-change" class="assessment-caption">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">融券餘額</div><div id="margin-short" class="fundamental-value">—</div><div id="margin-short-change" class="assessment-caption">—</div></div>
+                </div>
+                <div class="chip-block-title">最新財報摘要</div>
+                <div class="fundamentals-grid chip-grid">
+                    <div class="fundamental-card"><div class="fundamental-label">營業收入</div><div id="chip-revenue" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">營業毛利</div><div id="chip-gross-profit" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">營業利益</div><div id="chip-operating-income" class="fundamental-value">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">本期淨利</div><div id="chip-net-income" class="fundamental-value">—</div></div>
+                </div>
+                <div class="chip-history-head"><span>法人買賣超歷史</span><span id="chip-history-label">—</span></div>
+                <canvas id="chip-history-chart" class="chip-history-chart"></canvas>
+                <div id="chip-history-empty" class="chip-history-empty hidden">台股選取後載入歷史籌碼資料</div>
+                <div id="chip-source-note" class="text-[10px] text-gray-500 mt-3">選擇台股後載入 TWSE 官方籌碼與財報資料</div>
+            </section>
+
+            <section id="fundamentals-card" class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
                         <div class="section-title theme-text-primary">📊 基本面</div>
@@ -465,6 +505,6 @@
         </div>
     </div>
 
-    <script src="./app.js?v=26"></script>
+    <script src="./app.js?v=27"></script>
 </body>
 </html>
