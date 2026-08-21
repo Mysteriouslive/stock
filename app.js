@@ -517,19 +517,30 @@ function initSortable() {
 }
 
 // ============================================================
-// 大盤核心指數看板 (加權、櫃買、NASDAQ、S&P 500)
+// 大盤核心指數看板配置
 // ============================================================
 const INDICES_CONFIG = [
     { id: 'twii', symbol: '^TWII', name: '加權指數' },
-    { id: 'twoii', symbol: '^TWOII', name: '櫃買指數' },
-    { id: 'ixic', symbol: '^IXIC', name: 'NASDAQ' },
-    { id: 'gspc', symbol: '^GSPC', name: 'S&P 500' }
+    { id: 'soxx', symbol: 'SOXX', name: '費城半導體 (SOXX)' },
+    { id: 'ixic', symbol: '^IXIC', name: '那斯達克 (NASDAQ)' },
+    { id: 'gspc', symbol: '^GSPC', name: '標普 500 (S&P 500)' }
 ];
+
+// 全球大盤與指數中文名稱映射表
+const SPECIAL_NAME_MAP = {
+    '^TWII': '加權指數',
+    '^TWOII': '櫃買指數',
+    'SOXX': '費城半導體 ETF',
+    '^IXIC': '那斯達克綜合指數',
+    '^GSPC': '標普 500 指數',
+    '^DJI': '道瓊工業指數',
+    '^SOX': '費城半導體指數'
+};
 
 async function fetchMarketIndices() {
     for (const idx of INDICES_CONFIG) {
         try {
-            const data = await fetchYahooData(idx.symbol, '5m', '1d');
+            const data = await fetchYahooData(idx.symbol, '1d', '5d');
             if (data) {
                 const quote = parseQuote(data, idx.symbol);
                 const priceEl = document.getElementById(`idx-${idx.id}-price`);
@@ -560,7 +571,7 @@ async function addStock() {
     if (!raw) { input.focus(); return; }
 
     if (!/^[A-Z0-9.\-=\/^]+$/.test(raw)) {
-        alert('請輸入有效的代碼，例如 2330、3293、USDTWD、BTC、^TWII');
+        alert('請輸入有效的代碼，例如 2330、SOXX、USDTWD、BTC、^TWII');
         return;
     }
 
@@ -593,7 +604,7 @@ async function addStock() {
     }
 
     const color = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
-    let name = displaySymbol(symbol);
+    let name = SPECIAL_NAME_MAP[symbol] || displaySymbol(symbol);
 
     if (isForexSymbol(symbol)) {
         name = '美元/台幣匯率';
@@ -603,8 +614,6 @@ async function addStock() {
     } else if (isTaiwanSymbol(symbol)) {
         const code = displaySymbol(symbol);
         name = (await fetchTwseName(code)) || code;
-    } else {
-        name = symbol;
     }
 
     watchlist.push({ symbol, name, color });
@@ -867,7 +876,8 @@ function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
         setCompanyField('company-market-state', '24 小時市場');
         setCompanyField('company-symbol', displaySymbol(symbol));
     } else {
-        setCompanyField('company-long-name', meta.longName || meta.shortName || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol));
+        const companyName = SPECIAL_NAME_MAP[symbol] || meta.longName || meta.shortName || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol);
+        setCompanyField('company-long-name', companyName);
         setCompanyField('company-exchange', meta.fullExchangeName || meta.exchangeName || (isOtc ? '櫃買中心 (TPEx)' : '證交所 (TWSE)'));
         setCompanyField('company-market', meta.market || meta.exchangeName || '—');
         setCompanyField('company-currency', meta.currency || meta.currencyCode || '—');
@@ -1065,7 +1075,8 @@ async function loadStock(symbol, isSilent = false) {
         });
 
         const stockItem = watchlist.find(s => s.symbol === symbol);
-        setText('stock-symbol-title', stockItem?.name || displaySymbol(symbol));
+        const displayName = SPECIAL_NAME_MAP[symbol] || stockItem?.name || displaySymbol(symbol);
+        setText('stock-symbol-title', displayName);
         setText('stock-name', displaySymbol(symbol));
 
         const loadingBadge = document.getElementById('loading-badge');
@@ -1094,7 +1105,7 @@ async function loadStock(symbol, isSilent = false) {
         let yahooResult = null;
         let yahooError = null;
 
-        // 1. Yahoo Finance 查詢 (內含 .TW 與 .TWO 自動切換)
+        // 1. Yahoo Finance 查詢
         try {
             yahooResult = await fetchYahooData(symbol);
             if (yahooResult) {
@@ -1224,7 +1235,8 @@ async function loadStock(symbol, isSilent = false) {
         }
 
         const stockItem = watchlist.find(s => s.symbol === symbol);
-        setText('stock-symbol-title', stockItem?.name || displaySymbol(symbol));
+        const finalDisplayName = SPECIAL_NAME_MAP[symbol] || stockItem?.name || yahooResult?.meta?.longName || displaySymbol(symbol);
+        setText('stock-symbol-title', finalDisplayName);
         setText('stock-name', displaySymbol(symbol));
 
         // 渲染 K 線
@@ -1278,7 +1290,7 @@ function startAutoRefresh() {
     autoRefreshTimer = setInterval(() => {
         if (!document.hidden) {
             if (currentSymbol) loadStock(currentSymbol, true);
-            fetchMarketIndices(); // 同步自動刷新核心指數
+            fetchMarketIndices();
         }
     }, Math.max(AUTO_REFRESH_INTERVAL, 3000));
 }
@@ -1567,7 +1579,7 @@ function updateChartColors(mode) {
     }
 
     renderWatchlist();
-    fetchMarketIndices(); // 重新整理指數標籤顏色
+    fetchMarketIndices();
 }
 
 window.addEventListener('resize', () => {
