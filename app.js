@@ -568,6 +568,15 @@ function removeStock(index) {
 let chart = null, candlestickSeries = null, currentChartData = [], chartResizeObserver = null, chartResizeHandler = null, autoRefreshTimer = null, isLoadingStock = false;
 let chartAtRightEdge = true; // 是否停留在「最新」畫面：只有停在最新時，背景自動刷新才會把畫面滾回最新，避免使用者往回看歷史 K 線時被強制拉回而感覺「時間跑掉」
 
+function getChartDate(time) {
+    if (typeof time === 'number') return new Date(time * 1000);
+    if (typeof time === 'string') return new Date(`${time}T00:00:00`);
+    if (time && typeof time === 'object' && Number.isFinite(time.year) && Number.isFinite(time.month) && Number.isFinite(time.day)) {
+        return new Date(time.year, time.month - 1, time.day);
+    }
+    return new Date(NaN);
+}
+
 function initChart() {
     const container = document.getElementById('chart-container');
     if (!container || typeof LightweightCharts === 'undefined' || chart) return false;
@@ -585,7 +594,7 @@ function initChart() {
         localization: {
             // 十字線上顯示的時間標籤同樣要帶日期，跟下方座標軸的邏輯一致，避免盤前/盤後跨日資料只顯示「幾點幾分」造成混淆
             timeFormatter: (time) => {
-                const date = new Date(time * 1000), hours = String(date.getHours()).padStart(2, '0'), minutes = String(date.getMinutes()).padStart(2, '0'), month = date.getMonth() + 1, day = date.getDate();
+                const date = getChartDate(time), hours = String(date.getHours()).padStart(2, '0'), minutes = String(date.getMinutes()).padStart(2, '0'), month = date.getMonth() + 1, day = date.getDate();
                 if (['1d', '1wk', '1mo'].includes(currentPeriod.interval)) return `${month}月${day}日`;
                 return `${month}/${day} ${hours}:${minutes}`;
             }
@@ -593,11 +602,12 @@ function initChart() {
         timeScale: {
             borderColor: scaleBorderColor, timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true,
             tickMarkFormatter: (time, tickMarkType) => {
-                const date = new Date(time * 1000), hours = String(date.getHours()).padStart(2, '0'), minutes = String(date.getMinutes()).padStart(2, '0'), month = date.getMonth() + 1, day = date.getDate();
+                const date = getChartDate(time), hours = String(date.getHours()).padStart(2, '0'), minutes = String(date.getMinutes()).padStart(2, '0'), month = date.getMonth() + 1, day = date.getDate();
                 if (['1d', '1wk', '1mo'].includes(currentPeriod.interval)) return `${month}月${day}日`;
                 // 盤前/盤後與跨日資料會把非交易時段的資料點省略掉，導致畫面上的時間刻度不是等距的。
                 // 當刻度跨到新的一天時（tickMarkType 為 Year/Month/DayOfMonth），改顯示日期而非時間，
-                // 避免同樣的「幾點幾分」在不同天重複出現，讓人誤以為時間跑掉或往回跳。
+                // 避免同樣的「幾點幾分」在不同天重複出現，讓人誤以為時間跑掉或
+                // 往回跳。
                 const TickMarkType = LightweightCharts.TickMarkType;
                 if (TickMarkType && (tickMarkType === TickMarkType.Year || tickMarkType === TickMarkType.Month || tickMarkType === TickMarkType.DayOfMonth)) {
                     return `${month}/${day}`;
