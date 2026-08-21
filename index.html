@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <link rel="stylesheet" href="./styles.css?v=29">
+    <link rel="stylesheet" href="./styles.css?v=30">
 </head>
 <body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
@@ -127,7 +127,6 @@
 
     <!-- 右側主內容 -->
     <main class="flex-1 min-w-0 flex flex-col relative overflow-hidden">
-        <!-- 背景發光球體 -->
         <div id="glow-1" class="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[140px] pointer-events-none transition-colors duration-1000" style="background-color: var(--theme-color-1, rgba(59, 130, 246, 0.1));"></div>
         <div id="glow-2" class="absolute bottom-[-15%] left-[-5%] w-[40%] h-[40%] rounded-full blur-[120px] pointer-events-none transition-colors duration-1000" style="background-color: var(--theme-color-2, rgba(139, 92, 246, 0.1));"></div>
         
@@ -192,11 +191,11 @@
                 </div>
             </header>
 
-            <!-- 頁籤切換導航 -->
+            <!-- 頁籤切換導航 (美股時隱藏籌碼) -->
             <nav class="section-nav mb-4" aria-label="資料分類">
                 <button class="section-nav-btn active" onclick="jumpToSection('overview-card', this)">總覽</button>
                 <button class="section-nav-btn" onclick="jumpToSection('chart-card', this)">圖表</button>
-                <button class="section-nav-btn" onclick="jumpToSection('chip-card', this)">籌碼</button>
+                <button id="nav-chip-btn" class="section-nav-btn hidden" onclick="jumpToSection('chip-card', this)">籌碼</button>
                 <button class="section-nav-btn" onclick="jumpToSection('fundamentals-card', this)">財報</button>
             </nav>
 
@@ -471,6 +470,6 @@
         </div>
     </div>
 
-    <script src="./app.js?v=29"></script>
+    <script src="./app.js?v=30"></script>
 </body>
 </html>

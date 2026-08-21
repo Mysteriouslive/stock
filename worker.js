@@ -1,6 +1,5 @@
 export default {
   async fetch(request, env, ctx) {
-    // 處理 CORS 預檢請求
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         status: 204,
@@ -91,13 +90,12 @@ export default {
     }
 
     // ============================================================
-    // 3. TWSE / TPEx 基本面 (上市與上櫃)
+    // 3. TWSE / TPEx 基本面
     // ============================================================
     if (source === 'twse_metrics') {
       if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
       const code = symbolParam.replace(/\.(TW|TWO)$/i, '').replace(/^\^/, '').trim();
 
-      // 先查證交所 (上市)
       try {
         const twseRes = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL', {
           headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
@@ -113,7 +111,6 @@ export default {
         }
       } catch {}
 
-      // 再查櫃買中心 (上櫃)
       try {
         const tpexRes = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis', {
           headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
@@ -133,7 +130,7 @@ export default {
     }
 
     // ============================================================
-    // 4. 台股籌碼與財報 (三大法人、融資券 - 上市與上櫃支援)
+    // 4. 台股籌碼與財報 (三大法人、融資融券)
     // ============================================================
     if (source === 'twse_chip') {
       if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
@@ -145,7 +142,6 @@ export default {
       let institutional = null, margin = null, date = null;
 
       for (const candidate of dates) {
-        // 1. 先抓上市 (TWSE)
         const [twseInst, twseMargin] = await Promise.all([
           fetchJson(`https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=${candidate}&selectType=ALL`, 600),
           fetchJson(`https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&date=${candidate}&selectType=ALL`, 600)
@@ -158,7 +154,6 @@ export default {
         let marginRow = marginTable?.data?.find(row => String(row?.[0] || '').trim() === code);
         let marginFields = marginTable?.fields || [];
 
-        // 2. 若 TWSE 無資料，嘗試抓櫃買 (TPEx 上櫃)
         if (!instRow) {
           const rocDate = toRocDate(candidate);
           const tpexInst = await fetchJson(`https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&d=${rocDate}&se=EW&t=D`, 600);
@@ -205,7 +200,6 @@ export default {
         let instRow = institutionalJson?.data?.find(row => String(row?.[0] || '').trim() === code);
         let instFields = institutionalJson?.fields || [];
 
-        // TPEx 備援
         if (!instRow) {
           const rocDate = toRocDate(candidate);
           const tpexInst = await fetchJson(`https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&d=${rocDate}&se=EW&t=D`, 600);
@@ -377,16 +371,30 @@ function parseNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+// 修正：完善自營商（避險+自行買賣）與外資、投信解析
 function parseInstitutionalRow(fields, row) {
   const get = patterns => {
     const index = fields.findIndex(field => patterns.some(pattern => String(field).includes(pattern)));
     return index >= 0 ? parseNumber(row[index]) : null;
   };
+
+  const foreign = get(['外陸資買賣超股數(不含外資自營商)', '外陸資買賣超', '外資及陸資買賣超股數', '外資買賣超']);
+  const trust = get(['投信買賣超股數', '投信買賣超']);
+  
+  let dealer = get(['自營商買賣超股數合計', '自營商買賣超股數', '自營商買賣超']);
+  if (dealer === null) {
+    const dealerProp = get(['自營商買賣超股數(自行買賣)', '自行買賣']) || 0;
+    const dealerHedge = get(['自營商買賣超股數(避險)', '避險']) || 0;
+    dealer = (dealerProp || dealerHedge) ? (dealerProp + dealerHedge) : 0;
+  }
+
+  const total = get(['三大法人買賣超股數', '三大法人買賣超股數合計', '三大法人買賣超']) ?? ((foreign || 0) + (trust || 0) + (dealer || 0));
+
   return {
-    foreignNet: get(['外陸資買賣超股數(不含外資自營商)', '外陸資買賣超', '外資及陸資買賣超股數']),
-    investmentTrustNet: get(['投信買賣超股數']),
-    dealerNet: get(['自營商買賣超股數']),
-    totalNet: get(['三大法人買賣超股數', '三大法人買賣超股數合計'])
+    foreignNet: foreign,
+    investmentTrustNet: trust,
+    dealerNet: dealer,
+    totalNet: total
   };
 }
 

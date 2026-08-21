@@ -335,7 +335,7 @@ function resetChipData() {
 // ============================================================
 // 三大法人：進出 / 持股 Tab 切換與渲染
 // ============================================================
-let currentChipTab = 'flow'; // 'flow' (進出) 或 'holding' (持股)
+let currentChipTab = 'flow';
 let cachedChipHistory = [];
 let cachedChipLatest = null;
 
@@ -416,7 +416,6 @@ function renderChipContent() {
     };
 
     if (currentChipTab === 'flow') {
-        // 1. 進出模式 (買賣超張數)
         if (cachedChipHistory.length > 0) {
             tableRows.innerHTML = cachedChipHistory.map(row => {
                 const inst = row.institutional || {};
@@ -437,7 +436,6 @@ function renderChipContent() {
         }
         renderChipHistory({ history: cachedChipHistory });
     } else {
-        // 2. 持股模式 (累計持股走勢)
         let runningF = 0, runningT = 0, runningD = 0;
         const holdingList = [...cachedChipHistory].reverse().map(row => {
             const inst = row.institutional || {};
@@ -467,7 +465,6 @@ function renderChipContent() {
     }
 }
 
-// 三竹風格三大法人長條圖 (進出)
 function renderChipHistory(data) {
     const canvas = document.getElementById('chip-history-chart');
     if (!canvas) return;
@@ -526,7 +523,6 @@ function renderChipHistory(data) {
     });
 }
 
-// 三竹風格三大法人折線圖 (持股)
 function renderHoldingChart(holdingList) {
     const canvas = document.getElementById('chip-history-chart');
     if (!canvas || !holdingList.length) return;
@@ -1171,39 +1167,11 @@ async function loadStock(symbol, isSilent = false) {
             }
         } catch (error) { yahooError = error; }
 
-        if (isForexSymbol(symbol)) {
-            if (!isSilent) {
-                document.getElementById('chip-card')?.classList.add('hidden');
-                document.querySelector('button[onclick*="chip-card"]')?.classList.add('hidden');
-            }
-            try {
-                const forex = await fetchForexData();
-                if (forex?.rate) {
-                    const prevClose = yahooResult?.meta?.regularMarketPreviousClose ?? yahooResult?.meta?.previousClose ?? yahooResult?.meta?.chartPreviousClose;
-                    quote = applyCurrentPriceToQuote(quote, forex.rate, prevClose, symbol, forex.changePercent);
-                    if (!isSilent) renderCompanyInfo(yahooResult, symbol, quote, yahooResult ? 'Frankfurter 現價 + Yahoo Finance K線' : 'Frankfurter');
-                }
-            } catch {}
-            if (!quote && quoteCache[symbol]) quote = quoteCache[symbol];
-        } else if (isCryptoSymbol(symbol)) {
-            if (!isSilent) {
-                document.getElementById('chip-card')?.classList.add('hidden');
-                document.querySelector('button[onclick*="chip-card"]')?.classList.add('hidden');
-            }
-            try {
-                const cryptoJson = await fetchCryptoData(), cryptoSymbol = displaySymbol(symbol).toUpperCase(), crypto = cryptoJson?.[cryptoSymbol];
-                if (crypto) {
-                    const currentPrice = Number(crypto.usd ?? crypto.price), cryptoChange = Number(crypto.usd_24h_change ?? crypto.changePercent ?? crypto.change_24h ?? NaN);
-                    const previous = yahooResult?.meta?.regularMarketPreviousClose ?? yahooResult?.meta?.previousClose ?? yahooResult?.meta?.chartPreviousClose;
-                    quote = applyCurrentPriceToQuote(quote, currentPrice, previous, symbol, cryptoChange);
-                    if (!isSilent) renderCompanyInfo(yahooResult, symbol, quote, yahooResult ? 'CoinGecko 現價 + Yahoo Finance K線' : 'CoinGecko');
-                }
-            } catch {}
-            if (!quote && quoteCache[symbol]) quote = quoteCache[symbol];
-        } else if (isTaiwanSymbol(symbol)) {
-            if (!isSilent) {
-                document.querySelector('button[onclick*="chip-card"]')?.classList.remove('hidden');
-            }
+        if (isTaiwanSymbol(symbol)) {
+            // 台股：顯示「籌碼」導覽按鈕
+            const chipNavBtn = document.getElementById('nav-chip-btn');
+            if (chipNavBtn) chipNavBtn.classList.remove('hidden');
+
             let twseMetricsData = null;
             try { twseMetricsData = await fetchTwseMetrics(symbol); } catch {}
             if (twseMetricsData && !isSilent) {
@@ -1226,18 +1194,47 @@ async function loadStock(symbol, isSilent = false) {
                 renderChipData(chipData, chipHistory);
             }
         } else {
-            if (!isSilent) {
-                document.getElementById('chip-card')?.classList.add('hidden');
-                document.querySelector('button[onclick*="chip-card"]')?.classList.add('hidden');
+            // 美股 / ETF / 外匯 / 加密貨幣：完全隱藏「籌碼」按鈕與籌碼區塊
+            const chipNavBtn = document.getElementById('nav-chip-btn');
+            if (chipNavBtn) {
+                chipNavBtn.classList.add('hidden');
+                if (chipNavBtn.classList.contains('active')) {
+                    const overviewBtn = document.querySelector('.section-nav-btn');
+                    if (overviewBtn) jumpToSection('overview-card', overviewBtn);
+                }
             }
-            if (!quote && !isIndexSymbol(symbol)) { try { quote = await fetchFinnhubQuote(symbol); } catch {} }
-            if (!isSilent) {
-                if (isIndexSymbol(symbol)) renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
-                else {
-                    const companyProfile = await fetchFinnhubCompanyProfile(symbol).catch(() => null), metricResult = await fetchFinnhubMetrics(symbol).catch(() => null);
-                    if (companyProfile) renderFinnhubCompanyInfo(companyProfile, symbol, quote);
-                    else if (yahooResult) renderCompanyInfo(yahooResult, symbol, quote);
-                    if (metricResult) renderFinnhubMetrics(metricResult, companyProfile, symbol);
+            const chipCard = document.getElementById('chip-card');
+            if (chipCard) chipCard.classList.add('hidden');
+
+            if (isForexSymbol(symbol)) {
+                try {
+                    const forex = await fetchForexData();
+                    if (forex?.rate) {
+                        const prevClose = yahooResult?.meta?.regularMarketPreviousClose ?? yahooResult?.meta?.previousClose ?? yahooResult?.meta?.chartPreviousClose;
+                        quote = applyCurrentPriceToQuote(quote, forex.rate, prevClose, symbol, forex.changePercent);
+                        if (!isSilent) renderCompanyInfo(yahooResult, symbol, quote, yahooResult ? 'Frankfurter 現價 + Yahoo Finance K線' : 'Frankfurter');
+                    }
+                } catch {}
+            } else if (isCryptoSymbol(symbol)) {
+                try {
+                    const cryptoJson = await fetchCryptoData(), cryptoSymbol = displaySymbol(symbol).toUpperCase(), crypto = cryptoJson?.[cryptoSymbol];
+                    if (crypto) {
+                        const currentPrice = Number(crypto.usd ?? crypto.price), cryptoChange = Number(crypto.usd_24h_change ?? crypto.changePercent ?? crypto.change_24h ?? NaN);
+                        const previous = yahooResult?.meta?.regularMarketPreviousClose ?? yahooResult?.meta?.previousClose ?? yahooResult?.meta?.chartPreviousClose;
+                        quote = applyCurrentPriceToQuote(quote, currentPrice, previous, symbol, cryptoChange);
+                        if (!isSilent) renderCompanyInfo(yahooResult, symbol, quote, yahooResult ? 'CoinGecko 現價 + Yahoo Finance K線' : 'CoinGecko');
+                    }
+                } catch {}
+            } else {
+                if (!quote && !isIndexSymbol(symbol)) { try { quote = await fetchFinnhubQuote(symbol); } catch {} }
+                if (!isSilent) {
+                    if (isIndexSymbol(symbol)) renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
+                    else {
+                        const companyProfile = await fetchFinnhubCompanyProfile(symbol).catch(() => null), metricResult = await fetchFinnhubMetrics(symbol).catch(() => null);
+                        if (companyProfile) renderFinnhubCompanyInfo(companyProfile, symbol, quote);
+                        else if (yahooResult) renderCompanyInfo(yahooResult, symbol, quote);
+                        if (metricResult) renderFinnhubMetrics(metricResult, companyProfile, symbol);
+                    }
                 }
             }
         }
