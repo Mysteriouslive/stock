@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <link rel="stylesheet" href="./styles.css?v=28">
+    <link rel="stylesheet" href="./styles.css?v=29">
 </head>
 <body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
@@ -154,7 +154,7 @@
                 </div>
             </div>
 
-            <!-- 個股即時資訊看板 (已移除重複指數，排版絕不擠壓) -->
+            <!-- 個股即時資訊看板 -->
             <header class="dashboard-header glass rounded-2xl p-4 sm:p-5 mb-4 relative overflow-visible shrink-0 border border-white/10 shadow-2xl">
                 <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-blue-500 via-purple-500 to-transparent opacity-80"></div>
                 
@@ -291,8 +291,8 @@
                         <div class="section-title theme-text-primary text-base font-bold text-white">三大法人</div>
                         <!-- 三竹切換標籤：進出 / 持股 -->
                         <div class="flex bg-black/40 p-0.5 rounded-lg border border-white/10 text-xs">
-                            <button class="px-3 py-1 bg-white/15 text-white rounded-md font-medium">進出</button>
-                            <button class="px-3 py-1 text-gray-400 hover:text-white rounded-md font-medium">持股</button>
+                            <button id="chip-tab-flow" onclick="switchChipTab('flow')" class="px-3 py-1 bg-white/15 text-white rounded-md font-medium transition-colors">進出</button>
+                            <button id="chip-tab-holding" onclick="switchChipTab('holding')" class="px-3 py-1 text-gray-400 hover:text-white rounded-md font-medium transition-colors">持股</button>
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
@@ -471,6 +471,6 @@
         </div>
     </div>
 
-    <script src="./app.js?v=28"></script>
+    <script src="./app.js?v=29"></script>
 </body>
 </html>

@@ -332,74 +332,57 @@ function resetChipData() {
     setMetric('margin-short-change', '—');
 }
 
-// 三竹風格籌碼資料渲染 (單位：張，買超紅、賣超綠)
-function renderChipData(data) {
+// ============================================================
+// 三大法人：進出 / 持股 Tab 切換與渲染
+// ============================================================
+let currentChipTab = 'flow'; // 'flow' (進出) 或 'holding' (持股)
+let cachedChipHistory = [];
+let cachedChipLatest = null;
+
+function switchChipTab(tab) {
+    currentChipTab = tab;
+    
+    const flowBtn = document.getElementById('chip-tab-flow');
+    const holdingBtn = document.getElementById('chip-tab-holding');
+    
+    if (tab === 'flow') {
+        flowBtn?.classList.add('bg-white/15', 'text-white');
+        flowBtn?.classList.remove('text-gray-400');
+        holdingBtn?.classList.remove('bg-white/15', 'text-white');
+        holdingBtn?.classList.add('text-gray-400');
+    } else {
+        holdingBtn?.classList.add('bg-white/15', 'text-white');
+        holdingBtn?.classList.remove('text-gray-400');
+        flowBtn?.classList.remove('bg-white/15', 'text-white');
+        flowBtn?.classList.add('text-gray-400');
+    }
+
+    renderChipContent();
+}
+
+function renderChipData(data, historyData) {
     const chipCard = document.getElementById('chip-card');
     if (!chipCard) return;
 
-    if (!data || data.source !== 'TWSE Open Data') {
+    if (!data && !historyData) {
         chipCard.classList.add('hidden');
         return;
     }
 
     chipCard.classList.remove('hidden');
 
-    const institutional = data.institutional;
-    const margin = data.margin;
-    const history = data.history || data.institutionalHistory || [];
+    cachedChipLatest = data;
+    cachedChipHistory = (historyData?.history && historyData.history.length > 0)
+        ? historyData.history
+        : (data?.history || []);
 
-    const formatSheets = (shares) => {
-        if (shares === undefined || shares === null || isNaN(shares)) return '<span class="text-gray-500">—</span>';
-        const sheets = Math.round(shares / 1000);
-        const formatted = Math.abs(sheets).toLocaleString('zh-TW');
-        if (sheets > 0) return `<span class="text-[#ef4444] font-semibold">+${formatted}</span>`;
-        if (sheets < 0) return `<span class="text-[#22c55e] font-semibold">-${formatted}</span>`;
-        return `<span class="text-gray-400">0</span>`;
-    };
+    const displayDate = data?.date || cachedChipHistory[0]?.date || '—';
+    setMetric('chip-date', displayDate);
+    setMetric('chip-source-note', `資料來源：TWSE 臺灣證券交易所 · 交易日 ${displayDate}`);
 
-    const formatDate = (d) => {
-        if (!d) return '—';
-        const s = String(d).replace(/[-\/]/g, '');
-        return s.length === 8 ? `${s.substring(4, 6)}/${s.substring(6, 8)}` : d;
-    };
+    renderChipContent();
 
-    setMetric('chip-date', data.date || '—');
-    setMetric('chip-source-note', `資料來源：${data.source || 'TWSE 臺灣證券交易所'} · 交易日 ${data.date || '—'}`);
-
-    const tableRows = document.getElementById('chip-table-rows');
-    if (tableRows) {
-        if (history.length > 0) {
-            tableRows.innerHTML = history.map(row => {
-                const inst = row.institutional || {};
-                const f = inst.foreignNet != null ? inst.foreignNet : (row.foreignNet || 0);
-                const t = inst.investmentTrustNet != null ? inst.investmentTrustNet : (row.investmentTrustNet || 0);
-                const d = inst.dealerNet != null ? inst.dealerNet : (row.dealerNet || 0);
-                const total = inst.totalNet != null ? inst.totalNet : (row.totalNet || (f + t + d));
-                return `
-                    <div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center">
-                        <div class="text-gray-300 font-medium">${formatDate(row.date)}</div>
-                        <div>${formatSheets(f)}</div>
-                        <div>${formatSheets(t)}</div>
-                        <div>${formatSheets(d)}</div>
-                        <div>${formatSheets(total)}</div>
-                    </div>
-                `;
-            }).join('');
-        } else if (institutional) {
-            tableRows.innerHTML = `
-                <div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center">
-                    <div class="text-gray-300 font-medium">${formatDate(data.date)}</div>
-                    <div>${formatSheets(institutional.foreignNet)}</div>
-                    <div>${formatSheets(institutional.investmentTrustNet)}</div>
-                    <div>${formatSheets(institutional.dealerNet)}</div>
-                    <div>${formatSheets(institutional.totalNet)}</div>
-                </div>
-            `;
-        } else {
-            tableRows.innerHTML = `<div class="text-center py-4 text-gray-500 text-xs">暫無法人進出資料</div>`;
-        }
-    }
-
+    const margin = data?.margin;
     if (margin) {
         const finBal = margin.financingBalance != null ? Math.round(margin.financingBalance / 1000).toLocaleString('zh-TW') + ' 張' : '—';
         const finChg = margin.financingChange != null ? `${margin.financingChange >= 0 ? '+' : ''}${Math.round(margin.financingChange / 1000).toLocaleString('zh-TW')} 張` : '—';
@@ -413,7 +396,78 @@ function renderChipData(data) {
     }
 }
 
-// 三竹風格三大法人長條走勢圖
+function renderChipContent() {
+    const tableRows = document.getElementById('chip-table-rows');
+    if (!tableRows) return;
+
+    const formatDate = (d) => {
+        if (!d) return '—';
+        const s = String(d).replace(/[-\/]/g, '');
+        return s.length === 8 ? `${s.substring(4, 6)}/${s.substring(6, 8)}` : d;
+    };
+
+    const formatSheets = (shares) => {
+        if (shares === undefined || shares === null || isNaN(shares)) return '<span class="text-gray-500">—</span>';
+        const sheets = Math.round(shares / 1000);
+        const formatted = Math.abs(sheets).toLocaleString('zh-TW');
+        if (sheets > 0) return `<span class="text-[#ef4444] font-semibold">+${formatted}</span>`;
+        if (sheets < 0) return `<span class="text-[#22c55e] font-semibold">-${formatted}</span>`;
+        return `<span class="text-gray-400">0</span>`;
+    };
+
+    if (currentChipTab === 'flow') {
+        // 1. 進出模式 (買賣超張數)
+        if (cachedChipHistory.length > 0) {
+            tableRows.innerHTML = cachedChipHistory.map(row => {
+                const inst = row.institutional || {};
+                const f = inst.foreignNet != null ? inst.foreignNet : (row.foreignNet || 0);
+                const t = inst.investmentTrustNet != null ? inst.investmentTrustNet : (row.investmentTrustNet || 0);
+                const d = inst.dealerNet != null ? inst.dealerNet : (row.dealerNet || 0);
+                const total = inst.totalNet != null ? inst.totalNet : (row.totalNet || (f + t + d));
+                return `
+                    <div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center border-b border-white/5">
+                        <div class="text-gray-300 font-medium">${formatDate(row.date)}</div>
+                        <div>${formatSheets(f)}</div>
+                        <div>${formatSheets(t)}</div>
+                        <div>${formatSheets(d)}</div>
+                        <div>${formatSheets(total)}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+        renderChipHistory({ history: cachedChipHistory });
+    } else {
+        // 2. 持股模式 (累計持股走勢)
+        let runningF = 0, runningT = 0, runningD = 0;
+        const holdingList = [...cachedChipHistory].reverse().map(row => {
+            const inst = row.institutional || {};
+            runningF += (inst.foreignNet || 0) / 1000;
+            runningT += (inst.investmentTrustNet || 0) / 1000;
+            runningD += (inst.dealerNet || 0) / 1000;
+            return {
+                date: row.date,
+                foreignHolding: Math.round(runningF),
+                trustHolding: Math.round(runningT),
+                dealerHolding: Math.round(runningD),
+                totalHolding: Math.round(runningF + runningT + runningD)
+            };
+        }).reverse();
+
+        tableRows.innerHTML = holdingList.map(row => `
+            <div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center border-b border-white/5">
+                <div class="text-gray-300 font-medium">${formatDate(row.date)}</div>
+                <div class="text-[#38bdf8] font-semibold">${row.foreignHolding > 0 ? '+' : ''}${row.foreignHolding.toLocaleString()}</div>
+                <div class="text-[#f87171] font-semibold">${row.trustHolding > 0 ? '+' : ''}${row.trustHolding.toLocaleString()}</div>
+                <div class="text-[#c084fc] font-semibold">${row.dealerHolding > 0 ? '+' : ''}${row.dealerHolding.toLocaleString()}</div>
+                <div class="text-white font-bold">${row.totalHolding > 0 ? '+' : ''}${row.totalHolding.toLocaleString()}</div>
+            </div>
+        `).join('');
+
+        renderHoldingChart(holdingList);
+    }
+}
+
+// 三竹風格三大法人長條圖 (進出)
 function renderChipHistory(data) {
     const canvas = document.getElementById('chip-history-chart');
     if (!canvas) return;
@@ -466,10 +520,57 @@ function renderChipHistory(data) {
             ctx.fillRect(centerX + offsetX, zeroY, barWidth, -barH);
         };
 
-        drawBar(f, '#38bdf8', -barWidth * 1.6); // 外資藍
-        drawBar(t, '#f87171', -barWidth * 0.5); // 投信紅
-        drawBar(d, '#c084fc', barWidth * 0.6);  // 自營商紫
+        drawBar(f, '#38bdf8', -barWidth * 1.6);
+        drawBar(t, '#f87171', -barWidth * 0.5);
+        drawBar(d, '#c084fc', barWidth * 0.6);
     });
+}
+
+// 三竹風格三大法人折線圖 (持股)
+function renderHoldingChart(holdingList) {
+    const canvas = document.getElementById('chip-history-chart');
+    if (!canvas || !holdingList.length) return;
+
+    const rows = [...holdingList].reverse();
+    const width = canvas.clientWidth || 600;
+    const height = 180;
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    canvas.style.height = `${height}px`;
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    const values = rows.map(r => r.totalHolding);
+    const maxVal = Math.max(...values.map(Math.abs), 100);
+    const zeroY = height / 2;
+    const step = width / Math.max(rows.length - 1, 1);
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, zeroY);
+    ctx.lineTo(width, zeroY);
+    ctx.stroke();
+
+    const drawLine = (prop, color) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        rows.forEach((r, i) => {
+            const x = i * step;
+            const y = zeroY - (r[prop] / maxVal) * (height * 0.4);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+    };
+
+    drawLine('foreignHolding', '#38bdf8');
+    drawLine('trustHolding', '#f87171');
+    drawLine('totalHolding', '#ffffff');
 }
 
 function jumpToSection(id, button) {
@@ -1071,7 +1172,6 @@ async function loadStock(symbol, isSilent = false) {
         } catch (error) { yahooError = error; }
 
         if (isForexSymbol(symbol)) {
-            // 隱藏籌碼導覽列與卡片
             if (!isSilent) {
                 document.getElementById('chip-card')?.classList.add('hidden');
                 document.querySelector('button[onclick*="chip-card"]')?.classList.add('hidden');
@@ -1086,7 +1186,6 @@ async function loadStock(symbol, isSilent = false) {
             } catch {}
             if (!quote && quoteCache[symbol]) quote = quoteCache[symbol];
         } else if (isCryptoSymbol(symbol)) {
-            // 隱藏籌碼導覽列與卡片
             if (!isSilent) {
                 document.getElementById('chip-card')?.classList.add('hidden');
                 document.querySelector('button[onclick*="chip-card"]')?.classList.add('hidden');
@@ -1102,7 +1201,6 @@ async function loadStock(symbol, isSilent = false) {
             } catch {}
             if (!quote && quoteCache[symbol]) quote = quoteCache[symbol];
         } else if (isTaiwanSymbol(symbol)) {
-            // 顯示上方「籌碼」導覽按鈕
             if (!isSilent) {
                 document.querySelector('button[onclick*="chip-card"]')?.classList.remove('hidden');
             }
@@ -1125,15 +1223,9 @@ async function loadStock(symbol, isSilent = false) {
                     fetchTwseChipData(symbol),
                     fetchTwseChipHistory(symbol)
                 ]);
-                const mergedChipData = {
-                    ...(chipData || {}),
-                    history: chipHistory?.history || []
-                };
-                renderChipData(mergedChipData);
-                renderChipHistory(chipHistory);
+                renderChipData(chipData, chipHistory);
             }
         } else {
-            // 美股 / ETF：完全隱藏籌碼導覽按鈕與籌碼卡片
             if (!isSilent) {
                 document.getElementById('chip-card')?.classList.add('hidden');
                 document.querySelector('button[onclick*="chip-card"]')?.classList.add('hidden');
@@ -1493,3 +1585,4 @@ window.jumpToSection = jumpToSection;
 window.toggleChartIndicator = toggleChartIndicator;
 window.resetChartView = resetChartView;
 window.toggleChartFullscreen = toggleChartFullscreen;
+window.switchChipTab = switchChipTab;
