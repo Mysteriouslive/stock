@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <link rel="stylesheet" href="./styles.css?v=5">
+    <link rel="stylesheet" href="./styles.css?v=11">
 </head>
 <body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
@@ -65,17 +65,32 @@
                     onkeydown="if(event.key==='Enter') addStock()"
                     maxlength="12"
                 >
-                <button onclick="addStock()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-sm font-medium transition-colors shrink-0">新增</button>
             </div>
             <div class="flex items-center justify-between mt-2 gap-2">
                 <p class="text-[10px] text-gray-600">支援上市/上櫃、美股、外匯、加密貨幣</p>
-                <select id="sort-select" name="sortSelect" onchange="changeSort(this.value)" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-gray-400 focus:outline-none">
-                    <option value="manual">自訂順序</option>
-                    <option value="symbol-asc">代碼 ↑</option><option value="symbol-desc">代碼 ↓</option>
-                    <option value="name-asc">名稱 ↑</option><option value="name-desc">名稱 ↓</option>
-                    <option value="price-desc">價格 ↓</option><option value="price-asc">價格 ↑</option>
-                    <option value="change-desc">漲幅 ↓</option><option value="change-asc">漲幅 ↑</option>
-                </select>
+                <div id="sort-picker" class="sort-picker">
+                    <select id="sort-select" name="sortSelect" onchange="changeSort(this.value)" aria-hidden="true" tabindex="-1">
+                        <option value="manual">自訂順序</option>
+                        <option value="symbol-asc">代碼 ↑</option><option value="symbol-desc">代碼 ↓</option>
+                        <option value="name-asc">名稱 ↑</option><option value="name-desc">名稱 ↓</option>
+                        <option value="price-desc">價格 ↓</option><option value="price-asc">價格 ↑</option>
+                        <option value="change-desc">漲幅 ↓</option><option value="change-asc">漲幅 ↑</option>
+                    </select>
+                    <button id="sort-trigger" type="button" class="sort-trigger" aria-haspopup="listbox" aria-expanded="false" onclick="toggleSortMenu()">
+                        <span id="sort-label">自訂順序</span><span class="sort-chevron">⌄</span>
+                    </button>
+                    <div id="sort-menu" class="sort-menu" role="listbox" aria-label="排序方式">
+                        <button type="button" role="option" data-sort-value="manual" onclick="selectSortOption('manual')">自訂順序<span>⋮</span></button>
+                        <button type="button" role="option" data-sort-value="symbol-asc" onclick="selectSortOption('symbol-asc')">代碼 ↑</button>
+                        <button type="button" role="option" data-sort-value="symbol-desc" onclick="selectSortOption('symbol-desc')">代碼 ↓</button>
+                        <button type="button" role="option" data-sort-value="name-asc" onclick="selectSortOption('name-asc')">名稱 ↑</button>
+                        <button type="button" role="option" data-sort-value="name-desc" onclick="selectSortOption('name-desc')">名稱 ↓</button>
+                        <button type="button" role="option" data-sort-value="price-desc" onclick="selectSortOption('price-desc')">價格 ↓</button>
+                        <button type="button" role="option" data-sort-value="price-asc" onclick="selectSortOption('price-asc')">價格 ↑</button>
+                        <button type="button" role="option" data-sort-value="change-desc" onclick="selectSortOption('change-desc')">漲幅 ↓</button>
+                        <button type="button" role="option" data-sort-value="change-asc" onclick="selectSortOption('change-asc')">漲幅 ↑</button>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="flex-1 overflow-y-auto p-3 space-y-1" id="stock-list"></div>
@@ -222,7 +237,10 @@
 
                     <!-- 右側：現今報價與即時五項行情 -->
                     <div class="text-left xl:text-right min-w-0 shrink-0 xl:min-w-[280px] pt-3 xl:pt-0 border-t xl:border-t-0 border-white/10">
-                        <div class="text-[11px] font-semibold text-gray-500 mb-1 tracking-wider uppercase">即時行情</div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <div class="text-[11px] font-semibold text-gray-500 tracking-wider uppercase">即時行情</div>
+                            <span id="market-state-badge" class="market-state-badge state-unknown">—</span>
+                        </div>
                         <div class="flex items-baseline gap-3 xl:justify-end">
                             <span id="current-price" class="text-3xl sm:text-4xl font-black text-white tracking-tight leading-none transition-colors duration-300">—</span>
                             <span id="price-change" class="text-xs sm:text-sm font-bold px-2 py-0.5 rounded-lg bg-white/5 border border-white/5 transition-colors duration-300">—</span>
@@ -361,15 +379,6 @@
             </button>
         </div>
         <div class="space-y-5">
-            <div class="setting-item">
-                <div class="block text-sm text-gray-500 mb-3">主題色系偏好</div>
-                <div class="flex gap-4">
-                    <button id="theme-btn-blue" class="theme-btn w-8 h-8 rounded-full bg-blue-500 hover:scale-110 transition-transform" onclick="changeThemeColor('blue')"></button>
-                    <button id="theme-btn-emerald" class="theme-btn w-8 h-8 rounded-full bg-emerald-500 hover:scale-110 transition-transform" onclick="changeThemeColor('emerald')"></button>
-                    <button id="theme-btn-purple" class="theme-btn w-8 h-8 rounded-full bg-purple-500 hover:scale-110 transition-transform" onclick="changeThemeColor('purple')"></button>
-                    <button id="theme-btn-orange" class="theme-btn w-8 h-8 rounded-full bg-orange-500 hover:scale-110 transition-transform" onclick="changeThemeColor('orange')"></button>
-                </div>
-            </div>
             <div class="setting-item pt-4 border-t border-white/5">
                 <label for="kline-color" class="block text-sm text-gray-500 mb-2">K 線顏色習慣</label>
                 <select id="kline-color" name="klineColor" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
@@ -418,6 +427,6 @@
         </div>
     </div>
 
-    <script src="./app.js?v=5"></script>
+    <script src="./app.js?v=11"></script>
 </body>
 </html>

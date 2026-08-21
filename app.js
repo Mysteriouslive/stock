@@ -183,6 +183,29 @@ function formatPrice(value, symbol = '') {
     return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
+function updateMarketState(state, symbol = '') {
+    const badge = document.getElementById('market-state-badge');
+    if (!badge) return;
+    const normalizedState = String(state || '').toUpperCase();
+    const stateMap = { PRE: ['盤前', 'state-pre'], PREPRE: ['盤前', 'state-pre'], REGULAR: ['盤中', 'state-regular'], POST: ['盤後', 'state-post'], POSTPOST: ['盤後', 'state-post'], CLOSED: ['休市', 'state-closed'] };
+    let fallback = ['—', 'state-unknown'];
+    if (isCryptoSymbol(symbol) || isForexSymbol(symbol)) {
+        fallback = ['盤中', 'state-regular'];
+    } else {
+        const timeZone = isTaiwanSymbol(symbol) ? 'Asia/Taipei' : 'America/New_York';
+        const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()).map(part => [part.type, part.value]));
+        const weekday = ['Sat', 'Sun'].includes(parts.weekday), minutes = Number(parts.hour) * 60 + Number(parts.minute);
+        if (!weekday) {
+            const sessions = isTaiwanSymbol(symbol) ? [[510, 540, 'pre'], [540, 810, 'regular'], [810, 870, 'post']] : [[240, 570, 'pre'], [570, 960, 'regular'], [960, 1200, 'post']];
+            const session = sessions.find(([start, end]) => minutes >= start && minutes < end)?.[2];
+            fallback = session ? { pre: ['盤前', 'state-pre'], regular: ['盤中', 'state-regular'], post: ['盤後', 'state-post'] }[session] : ['休市', 'state-closed'];
+        } else fallback = ['休市', 'state-closed'];
+    }
+    const [label, className] = stateMap[normalizedState] || fallback;
+    badge.textContent = label;
+    badge.className = `market-state-badge ${className}`;
+}
+
 // 修正：嚴格取得當日昨收價，防止多日K線昨收抓錯
 function parseQuote(result, symbol = '') {
     const meta = result?.meta || {}, quote = result?.indicators?.quote?.[0] || {};
@@ -449,7 +472,24 @@ function saveWatchlist() {
     if (currentSymbol) localStorage.setItem('stockCurrentSymbol', currentSymbol);
 }
 
-function changeSort(value) { sortMode = value; saveWatchlist(); renderWatchlist(); }
+const SORT_LABELS = { manual: '自訂順序', 'symbol-asc': '代碼 ↑', 'symbol-desc': '代碼 ↓', 'name-asc': '名稱 ↑', 'name-desc': '名稱 ↓', 'price-desc': '價格 ↓', 'price-asc': '價格 ↑', 'change-desc': '漲幅 ↓', 'change-asc': '漲幅 ↑' };
+function changeSort(value) {
+    sortMode = value; saveWatchlist(); renderWatchlist();
+    const select = document.getElementById('sort-select'), label = document.getElementById('sort-label');
+    if (select) select.value = value;
+    if (label) label.textContent = SORT_LABELS[value] || SORT_LABELS.manual;
+    document.querySelectorAll('#sort-menu [role="option"]').forEach(option => option.setAttribute('aria-selected', option.dataset.sortValue === value ? 'true' : 'false'));
+}
+function toggleSortMenu() {
+    const picker = document.getElementById('sort-picker'), trigger = document.getElementById('sort-trigger');
+    if (!picker || !trigger) return;
+    const open = picker.classList.toggle('open'); trigger.setAttribute('aria-expanded', String(open));
+}
+function selectSortOption(value) { changeSort(value); toggleSortMenu(); }
+document.addEventListener('click', event => {
+    const picker = document.getElementById('sort-picker');
+    if (picker && !picker.contains(event.target)) { picker.classList.remove('open'); document.getElementById('sort-trigger')?.setAttribute('aria-expanded', 'false'); }
+});
 
 function sortedWatchlist() {
     const arr = [...watchlist];
@@ -506,10 +546,11 @@ function renderWatchlist() {
         sortableInstance = new Sortable(listEl, {
             animation: 150, handle: '.drag-handle', disabled: sortMode !== 'manual',
             onEnd(evt) {
-                if (evt.oldIndex == null || evt.newIndex == null) return;
-                const item = watchlist.splice(evt.oldIndex, 1)[0];
-                if (!item) return;
-                watchlist.splice(evt.newIndex, 0, item);
+                if (sortMode !== 'manual' || evt.oldIndex == null || evt.newIndex == null) return;
+                const order = [...listEl.children].map(item => item.dataset.symbol).filter(Boolean);
+                const reordered = order.map(symbol => watchlist.find(stock => stock.symbol === symbol)).filter(Boolean);
+                if (reordered.length !== watchlist.length) return;
+                watchlist = reordered;
                 saveWatchlist();
             }
         });
@@ -729,7 +770,7 @@ async function loadStock(symbol, isSilent = false) {
         setText('stock-symbol-title', finalDisplayName); setText('stock-name', displaySymbol(symbol));
         const loadingBadge = document.getElementById('loading-badge'); if (loadingBadge) loadingBadge.classList.remove('hidden');
         const emptyState = document.getElementById('empty-state'); if (emptyState) emptyState.style.display = 'none';
-        ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—'));
+        ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—')); updateMarketState('', symbol);
         const priceChange = document.getElementById('price-change'); if (priceChange) priceChange.className = 'text-sm sm:text-base font-bold px-2.5 py-1 rounded-lg bg-white/5 border border-white/5';
         const currentPrice = document.getElementById('current-price'); if (currentPrice) currentPrice.className = 'text-4xl sm:text-5xl font-black text-white tracking-tight leading-none transition-colors duration-300';
         setText('chart-status', `${currentPeriod.label} · 載入中`); resetFundamentals();
@@ -801,7 +842,7 @@ async function loadStock(symbol, isSilent = false) {
 
         quoteCache[symbol] = quote; saveWatchlist();
 
-        setText('current-price', quote.latestPrice); setText('open-price', quote.open); setText('high-price', quote.high); setText('low-price', quote.low); setText('previous-close', quote.previousClose); setText('volume', quote.volume);
+        setText('current-price', quote.latestPrice); setText('open-price', quote.open); setText('high-price', quote.high); setText('low-price', quote.low); setText('previous-close', quote.previousClose); setText('volume', quote.volume); updateMarketState(yahooResult?.meta?.marketState, symbol);
 
         const changeEl = document.getElementById('price-change'), changeNumber = Number(quote.change), changePercent = Number(quote.changePercent);
         const isUp = Number.isFinite(changeNumber) && changeNumber > 0, isDown = Number.isFinite(changeNumber) && changeNumber < 0, isFlat = !isUp && !isDown, sign = isUp ? '+' : '';
@@ -950,8 +991,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     initChart();
     setupChartKeyboard();
     
-    const sortSelect = document.getElementById('sort-select'); 
-    if (sortSelect) sortSelect.value = sortMode;
+    changeSort(sortMode);
     
     loadUserPreferences(); 
     renderWatchlist(); 
@@ -981,10 +1021,12 @@ function toggleModal(modalId, show) {
     const overlay = document.getElementById('modal-overlay'), modal = document.getElementById(modalId);
     if (!overlay || !modal) return;
     if (show) {
+        overlay.classList.remove('modal-closing');
         if (window.innerWidth < 768) { const sidebar = document.getElementById('sidebar'); if (sidebar) sidebar.classList.remove('open'); }
         overlay.classList.remove('hidden'); modal.classList.remove('hidden');
         setTimeout(() => { overlay.classList.remove('opacity-0'); modal.classList.remove('opacity-0', 'scale-95'); }, 10);
     } else {
+        overlay.classList.add('modal-closing');
         overlay.classList.add('opacity-0'); modal.classList.add('opacity-0', 'scale-95');
         setTimeout(() => { overlay.classList.add('hidden'); modal.classList.add('hidden'); }, 300);
     }
