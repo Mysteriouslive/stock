@@ -148,7 +148,7 @@ async function fetchYahooData(symbol, interval = currentPeriod.interval, range =
 }
 
 // ============================================================
-// 資料解析
+// 資料格式化
 // ============================================================
 function firstFinite(obj, keys) {
     for (const key of keys) {
@@ -183,6 +183,7 @@ function formatPrice(value, symbol = '') {
     return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
+// 修正：嚴格取得當日昨收價，防止多日K線昨收抓錯
 function parseQuote(result, symbol = '') {
     const meta = result?.meta || {}, quote = result?.indicators?.quote?.[0] || {};
     let lastClose = null, lastOpen = null, lastHigh = null, lastLow = null, lastVol = null;
@@ -190,15 +191,34 @@ function parseQuote(result, symbol = '') {
     if (Array.isArray(quote.close) && quote.close.length > 0) {
         for (let i = quote.close.length - 1; i >= 0; i--) {
             if (quote.close[i] != null) {
-                lastClose = quote.close[i]; lastOpen = quote.open?.[i];
-                lastHigh = quote.high?.[i]; lastLow = quote.low?.[i]; lastVol = quote.volume?.[i];
+                lastClose = quote.close[i];
+                lastOpen = quote.open?.[i];
+                lastHigh = quote.high?.[i];
+                lastLow = quote.low?.[i];
+                lastVol = quote.volume?.[i];
                 break;
             }
         }
     }
 
-    const previousClose = Number(meta.regularMarketPreviousClose ?? meta.previousClose ?? meta.chartPreviousClose);
-    const currentPrice = Number(meta.regularMarketPrice ?? lastClose ?? previousClose);
+    // 優先使用正規市場昨收價，避免被 chartPreviousClose (5天前) 污染
+    let previousClose = Number(meta.regularMarketPreviousClose ?? meta.previousClose);
+    const currentPrice = Number(meta.regularMarketPrice ?? lastClose);
+
+    if (!Number.isFinite(previousClose) || previousClose <= 0) {
+        // 如果沒有昨收，嘗試用倒數第二根非空的 close 作為基準
+        if (Array.isArray(quote.close)) {
+            const validCloses = quote.close.filter(v => v != null && Number.isFinite(Number(v)));
+            if (validCloses.length >= 2) {
+                previousClose = Number(validCloses[validCloses.length - 2]);
+            }
+        }
+    }
+
+    if (!Number.isFinite(previousClose)) {
+        previousClose = Number(meta.chartPreviousClose);
+    }
+
     if (!Number.isFinite(currentPrice)) throw new Error('NO_QUOTE_DATA');
 
     const change = Number.isFinite(previousClose) ? currentPrice - previousClose : 0;
@@ -207,8 +227,10 @@ function parseQuote(result, symbol = '') {
 
     return {
         latestPrice: formatPrice(currentPrice, symbol),
-        change: change.toFixed(decimals), changePercent: changePercent.toFixed(2),
-        isUp: change > 0, isFlat: change === 0,
+        change: change.toFixed(decimals),
+        changePercent: changePercent.toFixed(2),
+        isUp: change > 0,
+        isFlat: change === 0,
         open: formatPrice(meta.regularMarketOpen ?? lastOpen, symbol),
         high: formatPrice(meta.regularMarketDayHigh ?? lastHigh, symbol),
         low: formatPrice(meta.regularMarketDayLow ?? lastLow, symbol),
@@ -240,7 +262,8 @@ function applyCurrentPriceToQuote(quote, currentPrice, previousClose, symbol, fa
 
     let change = 0, percent = 0;
     if (Number.isFinite(previous) && previous > 0) {
-        change = current - previous; percent = (change / previous) * 100;
+        change = current - previous;
+        percent = (change / previous) * 100;
     } else if (Number.isFinite(Number(fallbackChangePercent))) {
         percent = Number(fallbackChangePercent);
         const estPrev = current / (1 + percent / 100);
@@ -258,6 +281,7 @@ function applyCurrentPriceToQuote(quote, currentPrice, previousClose, symbol, fa
 // ============================================================
 // UI Render Helpers
 // ============================================================
+function setText(id, value) { const el = document.getElementById(id); if (el) el.textContent = value; }
 function setMetric(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
 function escapeHtmlAttribute(value) { return String(value).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
@@ -350,6 +374,17 @@ function renderFinnhubCompanyInfo(profile, symbol, quote) {
         const extra = [p.country ? `國家 ${p.country}` : '', p.marketCapitalization ? `市值 ${Number(p.marketCapitalization).toLocaleString('zh-TW')} 百萬` : '', p.ipo ? `IPO ${p.ipo}` : ''].filter(Boolean).join(' · ');
         note.textContent = `資料來源：Finnhub · ${p.exchange || '交易市場'} · ${displaySymbol(symbol)}` + (extra ? ` · ${extra}` : '');
     }
+}
+
+function setCompanyField(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
+function clearCompanyInfo() {
+    ['company-long-name', 'company-exchange', 'company-market', 'company-currency', 'company-type', 'company-market-state', 'company-symbol', 'company-price'].forEach(id => setCompanyField(id, '—'));
+    const note = document.getElementById('company-info-note'); if (note) note.textContent = '選擇股票後會自動載入公司基本資訊。';
+}
+function toggleCompanyInfo() {
+    const card = document.getElementById('company-info-card'); if (!card) return;
+    const button = card.querySelector('button'); card.classList.toggle('collapsed');
+    if (button) button.textContent = card.classList.contains('collapsed') ? '展開' : '收合';
 }
 
 // ============================================================
@@ -538,7 +573,6 @@ function initChart() {
     if (container.clientHeight <= 0) container.style.minHeight = window.innerWidth < 768 ? '330px' : '400px';
 
     const isMobile = window.innerWidth < 768;
-    // 初次載入時根據 isDarkMode 決定網格與邊框顏色
     const gridColor = isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
     const scaleBorderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
     const textColor = isDarkMode ? '#9ca3af' : '#52525b';
@@ -780,20 +814,76 @@ function toggleSidebar() {
     if (sidebar) sidebar.classList.toggle('open'); if (overlay) overlay.classList.toggle('show');
 }
 
+// ============================================================
+// 日夜模式 (Dark / Light Mode) 修正版
+// ============================================================
+let isDarkMode = localStorage.getItem('stockThemeMode') !== 'light';
+
+function toggleDarkMode() {
+    isDarkMode = !isDarkMode;
+    localStorage.setItem('stockThemeMode', isDarkMode ? 'dark' : 'light');
+    applyDarkModeUI();
+}
+
+function applyDarkModeUI() {
+    const sunIcon = document.getElementById('theme-sun-icon');
+    const moonIcon = document.getElementById('theme-moon-icon');
+    
+    if (isDarkMode) {
+        document.body.classList.remove('light-mode');
+        if (sunIcon) sunIcon.classList.add('hidden');
+        if (moonIcon) moonIcon.classList.remove('hidden');
+    } else {
+        document.body.classList.add('light-mode');
+        if (sunIcon) sunIcon.classList.remove('hidden');
+        if (moonIcon) moonIcon.classList.add('hidden');
+    }
+
+    if (chart) {
+        chart.applyOptions({
+            layout: { 
+                textColor: isDarkMode ? '#9ca3af' : '#52525b', 
+                background: { type: 'solid', color: 'transparent' } 
+            },
+            grid: { 
+                vertLines: { color: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }, 
+                horzLines: { color: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' } 
+            },
+            timeScale: { 
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' 
+            },
+            rightPriceScale: { 
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' 
+            }
+        });
+    }
+}
+
+// ============================================================
+// 初始化與事件綁定
+// ============================================================
 window.addEventListener('DOMContentLoaded', async () => {
-    initChart(); setupChartKeyboard();
-    const sortSelect = document.getElementById('sort-select'); if (sortSelect) sortSelect.value = sortMode;
-    loadUserPreferences(); renderWatchlist(); fetchMarketIndices();
+    initChart();
+    setupChartKeyboard();
+    
+    const sortSelect = document.getElementById('sort-select'); 
+    if (sortSelect) sortSelect.value = sortMode;
+    
+    loadUserPreferences(); 
+    renderWatchlist(); 
+    fetchMarketIndices();
     
     for (const stock of watchlist) {
         if (isTaiwanSymbol(stock.symbol)) {
             const code = displaySymbol(stock.symbol);
             if (stock.name === code || !stock.name || /^\d+$/.test(stock.name)) {
-                const fetchedName = await fetchTwseName(code); if (fetchedName) stock.name = fetchedName;
+                const fetchedName = await fetchTwseName(code); 
+                if (fetchedName) stock.name = fetchedName;
             }
         }
     }
-    saveWatchlist(); renderWatchlist();
+    saveWatchlist(); 
+    renderWatchlist();
 
     if (currentSymbol && watchlist.some(stock => stock.symbol === currentSymbol)) await loadStock(currentSymbol);
     else if (watchlist.length > 0) { currentSymbol = watchlist[0].symbol; await loadStock(currentSymbol); }
@@ -821,7 +911,7 @@ function closeModals() { toggleModal('settings-modal', false); toggleModal('prof
 window.addEventListener('keydown', event => { if (event.key === 'Escape') closeModals(); });
 
 // ============================================================
-// Themes & User Preferences
+// 主題色與偏好設定
 // ============================================================
 const THEMES = {
     blue: { primary: '#3b82f6', secondary: '#8b5cf6', bg1: 'rgba(59, 130, 246, 0.1)', bg2: 'rgba(139, 92, 246, 0.1)' },
@@ -829,38 +919,6 @@ const THEMES = {
     purple: { primary: '#a855f7', secondary: '#ec4899', bg1: 'rgba(168, 85, 247, 0.1)', bg2: 'rgba(236, 72, 153, 0.1)' },
     orange: { primary: '#f97316', secondary: '#facc15', bg1: 'rgba(249, 115, 22, 0.1)', bg2: 'rgba(250, 204, 21, 0.1)' }
 };
-
-let isDarkMode = localStorage.getItem('stockThemeMode') !== 'light';
-
-function toggleDarkMode() {
-    isDarkMode = !isDarkMode;
-    localStorage.setItem('stockThemeMode', isDarkMode ? 'dark' : 'light');
-    applyDarkModeUI();
-}
-
-function applyDarkModeUI() {
-    const sunIcon = document.getElementById('theme-sun-icon');
-    const moonIcon = document.getElementById('theme-moon-icon');
-    
-    if (isDarkMode) {
-        document.body.classList.remove('light-mode');
-        if (sunIcon) sunIcon.classList.add('hidden');
-        if (moonIcon) moonIcon.classList.remove('hidden');
-    } else {
-        document.body.classList.add('light-mode');
-        if (sunIcon) sunIcon.classList.remove('hidden');
-        if (moonIcon) moonIcon.classList.add('hidden');
-    }
-
-    if (chart) {
-        chart.applyOptions({
-            layout: { textColor: isDarkMode ? '#9ca3af' : '#52525b', background: { type: 'solid', color: 'transparent' } },
-            grid: { vertLines: { color: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }, horzLines: { color: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' } },
-            timeScale: { borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' },
-            rightPriceScale: { borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }
-        });
-    }
-}
 
 function loadUserPreferences() {
     const savedColorMode = localStorage.getItem('stockKlineColor') || 'red-green';
@@ -966,7 +1024,7 @@ window.addEventListener('resize', () => {
 });
 
 // ============================================================
-// 全域安全 API
+// 全域導出 API
 // ============================================================
 window.loadStock = loadStock;
 window.addStock = addStock;
