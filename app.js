@@ -333,43 +333,156 @@ function resetChipData() {
 }
 
 function renderChipData(data) {
+    const chipCard = document.getElementById('chip-card');
+    if (!chipCard) return;
+
+    // 1. 如果沒有資料或不是台股 TWSE 資料，直接隱藏整個籌碼區塊（美股會乾淨隱藏）
     if (!data || data.source !== 'TWSE Open Data') {
-        setMetric('chip-source-note', '籌碼資料尚未連線：請先部署最新 worker.js');
+        chipCard.classList.add('hidden');
         return;
     }
-    const institutional = data.institutional, margin = data.margin, financial = data.financial;
+
+    // 台股有資料時顯示
+    chipCard.classList.remove('hidden');
+
+    const institutional = data.institutional;
+    const margin = data.margin;
+    const history = data.institutionalHistory || data.history || [];
+
+    // 2. 格式化張數（股轉張、大於0紅、小於0綠、等於0白）
+    const formatSheets = (shares) => {
+        if (shares === undefined || shares === null || isNaN(shares)) return '<span class="text-gray-500">—</span>';
+        const sheets = Math.round(shares / 1000); // 股數轉張數
+        const formatted = Math.abs(sheets).toLocaleString('zh-TW');
+        if (sheets > 0) return `<span class="text-[#ef4444] font-semibold">+${formatted}</span>`;
+        if (sheets < 0) return `<span class="text-[#22c55e] font-semibold">-${formatted}</span>`;
+        return `<span class="text-gray-400">0</span>`;
+    };
+
+    // 格式化日期 (如 20260821 -> 08/21)
+    const formatDate = (d) => {
+        if (!d) return '—';
+        const s = String(d).replace(/[-\/]/g, '');
+        return s.length === 8 ? `${s.substring(4, 6)}/${s.substring(6, 8)}` : d;
+    };
+
+    // 3. 更新頂部日期與來源說明
     setMetric('chip-date', data.date || '—');
-    setMetric('chip-foreign', institutional?.foreignNet == null ? '—' : institutional.foreignNet.toLocaleString('zh-TW'));
-    setMetric('chip-trust', institutional?.investmentTrustNet == null ? '—' : institutional.investmentTrustNet.toLocaleString('zh-TW'));
-    setMetric('chip-dealer', institutional?.dealerNet == null ? '—' : institutional.dealerNet.toLocaleString('zh-TW'));
-    setMetric('chip-total', institutional?.totalNet == null ? '—' : institutional.totalNet.toLocaleString('zh-TW'));
-    setMetric('margin-financing', margin?.financingBalance == null ? '—' : margin.financingBalance.toLocaleString('zh-TW'));
-    setMetric('margin-financing-change', margin?.financingChange == null ? '—' : `${margin.financingChange >= 0 ? '+' : ''}${margin.financingChange.toLocaleString('zh-TW')}`);
-    setMetric('margin-short', margin?.shortBalance == null ? '—' : margin.shortBalance.toLocaleString('zh-TW'));
-    setMetric('margin-short-change', margin?.shortChange == null ? '—' : `${margin.shortChange >= 0 ? '+' : ''}${margin.shortChange.toLocaleString('zh-TW')}`);
-    setMetric('chip-revenue', financial?.revenue == null ? '—' : `${(financial.revenue / 1000).toFixed(1)} 億`);
-    setMetric('chip-gross-profit', financial?.grossProfit == null ? '—' : `${(financial.grossProfit / 1000).toFixed(1)} 億`);
-    setMetric('chip-operating-income', financial?.operatingIncome == null ? '—' : `${(financial.operatingIncome / 1000).toFixed(1)} 億`);
-    setMetric('chip-net-income', financial?.netIncome == null ? '—' : `${(financial.netIncome / 1000).toFixed(1)} 億`);
-    setMetric('chip-source-note', `${data.source || 'TWSE'} · 交易日 ${data.date || '—'} · 分點與籌碼分布：官方資料未提供`);
+    setMetric('chip-source-note', `資料來源：${data.source || 'TWSE 臺灣證券交易所'} · 交易日 ${data.date || '—'}`);
+
+    // 4. 動態渲染三竹風格每日列表 (優先使用歷史陣列，若無歷史則顯示當日)
+    const tableRows = document.getElementById('chip-table-rows');
+    if (tableRows) {
+        if (history.length > 0) {
+            tableRows.innerHTML = history.slice(0, 15).map(row => {
+                const f = row.foreignNet || row.foreign || 0;
+                const t = row.investmentTrustNet || row.trust || 0;
+                const d = row.dealerNet || row.dealer || 0;
+                const total = row.totalNet || (f + t + d);
+                return `
+                    <div class="grid grid-cols-5 text-center py-2 px-1 hover:bg-white/[0.04] transition-colors items-center">
+                        <div class="text-gray-300 font-medium">${formatDate(row.date)}</div>
+                        <div>${formatSheets(f)}</div>
+                        <div>${formatSheets(t)}</div>
+                        <div>${formatSheets(d)}</div>
+                        <div>${formatSheets(total)}</div>
+                    </div>
+                `;
+            }).join('');
+        } else if (institutional) {
+            // 單日備用顯示
+            tableRows.innerHTML = `
+                <div class="grid grid-cols-5 text-center py-2 px-1 hover:bg-white/[0.04] transition-colors items-center">
+                    <div class="text-gray-300 font-medium">${formatDate(data.date)}</div>
+                    <div>${formatSheets(institutional.foreignNet)}</div>
+                    <div>${formatSheets(institutional.investmentTrustNet)}</div>
+                    <div>${formatSheets(institutional.dealerNet)}</div>
+                    <div>${formatSheets(institutional.totalNet)}</div>
+                </div>
+            `;
+        } else {
+            tableRows.innerHTML = `<div class="text-center py-4 text-gray-500 text-xs">暫無法人進出資料</div>`;
+        }
+    }
+
+    // 5. 融資融券精簡資訊更新（轉為張數顯示更直覺）
+    if (margin) {
+        const finBal = margin.financingBalance != null ? Math.round(margin.financingBalance / 1000).toLocaleString('zh-TW') + ' 張' : '—';
+        const finChg = margin.financingChange != null ? `${margin.financingChange >= 0 ? '+' : ''}${Math.round(margin.financingChange / 1000).toLocaleString('zh-TW')} 張` : '—';
+        const shortBal = margin.shortBalance != null ? Math.round(margin.shortBalance / 1000).toLocaleString('zh-TW') + ' 張' : '—';
+        const shortChg = margin.shortChange != null ? `${margin.shortChange >= 0 ? '+' : ''}${Math.round(margin.shortChange / 1000).toLocaleString('zh-TW')} 張` : '—';
+
+        setMetric('margin-financing', finBal);
+        setMetric('margin-financing-change', finChg);
+        setMetric('margin-short', shortBal);
+        setMetric('margin-short-change', shortChg);
+    }
 }
 
 function renderChipHistory(data) {
-    const canvas = document.getElementById('chip-history-chart'), empty = document.getElementById('chip-history-empty');
-    if (!canvas || !empty) return;
-    const rows = data?.history || [];
-    if (!rows.length) { canvas.classList.add('hidden'); empty.classList.remove('hidden'); return; }
-    canvas.classList.remove('hidden'); empty.classList.add('hidden');
-    const width = canvas.clientWidth || 600, height = 190, ratio = window.devicePixelRatio || 1;
-    canvas.width = width * ratio; canvas.height = height * ratio; canvas.style.height = `${height}px`;
-    const context = canvas.getContext('2d'); context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, width, height);
-    const values = rows.map(row => Number(row.institutional?.totalNet || 0)), max = Math.max(...values.map(Math.abs), 1), zero = height / 2, step = width / Math.max(values.length - 1, 1);
-    context.strokeStyle = 'rgba(148,163,184,0.2)'; context.beginPath(); context.moveTo(0, zero); context.lineTo(width, zero); context.stroke();
-    context.lineWidth = 2; context.beginPath();
-    values.forEach((value, index) => { const x = index * step, y = zero - (value / max) * (height * 0.42); index ? context.lineTo(x, y) : context.moveTo(x, y); });
-    context.strokeStyle = '#60a5fa'; context.stroke();
-    values.forEach((value, index) => { const x = index * step, y = zero - (value / max) * (height * 0.42); context.fillStyle = value >= 0 ? '#ef4444' : '#10b981'; context.beginPath(); context.arc(x, y, 3, 0, Math.PI * 2); context.fill(); });
-    setMetric('chip-history-label', `${rows.length} 個交易日 · 三大法人合計買賣超`);
+    const canvas = document.getElementById('chip-history-chart');
+    const empty = document.getElementById('chip-history-empty');
+    if (!canvas) return;
+
+    const rows = (data?.history || []).slice(-15); // 取最近 15 天
+    if (!rows.length) {
+        canvas.classList.add('hidden');
+        if (empty) empty.classList.remove('hidden');
+        return;
+    }
+
+    canvas.classList.remove('hidden');
+    if (empty) empty.classList.add('hidden');
+
+    const width = canvas.clientWidth || 600;
+    const height = 180;
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    canvas.style.height = `${height}px`;
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+
+    // 計算最大張數範圍
+    const foreignList = rows.map(r => Number(r.institutional?.foreignNet || 0) / 1000);
+    const trustList = rows.map(r => Number(r.institutional?.investmentTrustNet || 0) / 1000);
+    const dealerList = rows.map(r => Number(r.institutional?.dealerNet || 0) / 1000);
+    
+    const allValues = [...foreignList, ...trustList, ...dealerList];
+    const maxVal = Math.max(...allValues.map(Math.abs), 500);
+    const zeroY = height / 2;
+    const barWidth = Math.max(Math.floor((width / rows.length) * 0.22), 4);
+    const step = width / rows.length;
+
+    // 繪製 0 基準線
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, zeroY);
+    ctx.lineTo(width, zeroY);
+    ctx.stroke();
+
+    // 繪製三色法人長條柱 (外資藍、投信紅、自營紫)
+    rows.forEach((row, i) => {
+        const centerX = i * step + step / 2;
+        const f = Number(row.institutional?.foreignNet || 0) / 1000;
+        const t = Number(row.institutional?.investmentTrustNet || 0) / 1000;
+        const d = Number(row.institutional?.dealerNet || 0) / 1000;
+
+        const drawBar = (val, color, offsetX) => {
+            const barH = (val / maxVal) * (height * 0.4);
+            ctx.fillStyle = color;
+            ctx.fillRect(centerX + offsetX, zeroY, barWidth, -barH);
+        };
+
+        drawBar(f, '#38bdf8', -barWidth * 1.6); // 外資藍
+        drawBar(t, '#f87171', -barWidth * 0.5); // 投信紅
+        drawBar(d, '#c084fc', barWidth * 0.6);  // 自營商紫
+    });
+
+    setMetric('chip-history-label', `近 ${rows.length} 日三大法人進出走勢 (張)`);
 }
 
 function jumpToSection(id, button) {

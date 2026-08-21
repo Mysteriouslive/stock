@@ -351,37 +351,62 @@
                 <div id="assessment-reasons" class="assessment-reasons">—</div>
             </section>
 
-            <section id="chip-card" class="section-card p-4 md:p-5 mb-5">
-                <div class="flex items-center justify-between gap-3 mb-4">
-                    <div>
-                        <div class="section-title theme-text-primary">🧩 籌碼與財報</div>
-                        <div class="section-subtitle">三大法人、信用交易與最新財報</div>
+            <!-- 三竹風格三大法人籌碼分析 (僅台股顯示) -->
+            <section id="chip-card" class="section-card p-4 md:p-5 mb-5 hidden">
+                <!-- 頂部標題列 -->
+                <div class="flex items-center justify-between gap-3 mb-3 pb-3 border-b border-white/10">
+                    <div class="flex items-center gap-2">
+                        <span class="text-lg">📊</span>
+                        <div class="section-title theme-text-primary text-base font-bold text-white">三大法人買賣超</div>
+                        <span class="text-[10px] text-gray-400 bg-white/5 px-2 py-0.5 rounded">單位：張</span>
                     </div>
-                    <span id="chip-date" class="text-[10px] text-gray-500">—</span>
+                    <span id="chip-date" class="text-[11px] text-gray-400 font-mono">—</span>
                 </div>
-                <div class="chip-block-title">三大法人買賣超（股）</div>
-                <div class="fundamentals-grid chip-grid">
-                    <div class="fundamental-card"><div class="fundamental-label">外資</div><div id="chip-foreign" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">投信</div><div id="chip-trust" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">自營商</div><div id="chip-dealer" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">三大法人合計</div><div id="chip-total" class="fundamental-value">—</div></div>
+
+                <!-- 三竹風格長條圖與折線圖 (Chart.js) -->
+                <div class="relative w-full h-[180px] mb-3">
+                    <canvas id="chip-history-chart" class="w-full h-full"></canvas>
                 </div>
-                <div class="chip-block-title">融資融券餘額</div>
-                <div class="fundamentals-grid chip-grid">
-                    <div class="fundamental-card"><div class="fundamental-label">融資餘額</div><div id="margin-financing" class="fundamental-value">—</div><div id="margin-financing-change" class="assessment-caption">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">融券餘額</div><div id="margin-short" class="fundamental-value">—</div><div id="margin-short-change" class="assessment-caption">—</div></div>
+
+                <!-- 三竹風格表頭 -->
+                <div class="grid grid-cols-5 text-center text-xs font-semibold py-2 px-1 bg-white/[0.04] rounded-lg text-gray-400 mb-1 border border-white/5">
+                    <div>日期</div>
+                    <div class="text-[#38bdf8] flex items-center justify-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-[#38bdf8]"></span>外資
+                    </div>
+                    <div class="text-[#f87171] flex items-center justify-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-[#f87171]"></span>投信
+                    </div>
+                    <div class="text-[#c084fc] flex items-center justify-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-[#c084fc]"></span>自營商
+                    </div>
+                    <div class="text-gray-200">合計</div>
                 </div>
-                <div class="chip-block-title">最新財報摘要</div>
-                <div class="fundamentals-grid chip-grid">
-                    <div class="fundamental-card"><div class="fundamental-label">營業收入</div><div id="chip-revenue" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">營業毛利</div><div id="chip-gross-profit" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">營業利益</div><div id="chip-operating-income" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">本期淨利</div><div id="chip-net-income" class="fundamental-value">—</div></div>
+
+                <!-- 三竹風格法人每日進出清單 -->
+                <div id="chip-table-rows" class="divide-y divide-white/5 text-xs sm:text-sm font-mono max-h-[320px] overflow-y-auto">
+                    <div class="text-center py-6 text-gray-500 text-xs font-sans">載入中...</div>
                 </div>
-                <div class="chip-history-head"><span>法人買賣超歷史</span><span id="chip-history-label">—</span></div>
-                <canvas id="chip-history-chart" class="chip-history-chart"></canvas>
-                <div id="chip-history-empty" class="chip-history-empty hidden">台股選取後載入歷史籌碼資料</div>
-                <div id="chip-source-note" class="text-[10px] text-gray-500 mt-3">選擇台股後載入 TWSE 官方籌碼與財報資料</div>
+
+                <!-- 融資融券精簡小卡 (下方輔助) -->
+                <div class="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-white/10">
+                    <div class="bg-white/[0.02] border border-white/5 rounded-xl p-2.5 flex items-center justify-between">
+                        <span class="text-xs text-gray-400">融資餘額</span>
+                        <div class="text-right">
+                            <div id="margin-financing" class="text-xs font-bold text-white">—</div>
+                            <div id="margin-financing-change" class="text-[10px] text-gray-500">—</div>
+                        </div>
+                    </div>
+                    <div class="bg-white/[0.02] border border-white/5 rounded-xl p-2.5 flex items-center justify-between">
+                        <span class="text-xs text-gray-400">融券餘額</span>
+                        <div class="text-right">
+                            <div id="margin-short" class="text-xs font-bold text-white">—</div>
+                            <div id="margin-short-change" class="text-[10px] text-gray-500">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="chip-source-note" class="text-[10px] text-gray-500 mt-2 text-right">資料來源：TWSE 臺灣證券交易所</div>
             </section>
 
             <section id="fundamentals-card" class="section-card p-4 md:p-5 mb-5">
