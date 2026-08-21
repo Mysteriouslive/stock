@@ -179,10 +179,9 @@ export default {
       if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
       const code = symbolParam.replace(/\.(TW|TWO)$/i, '').trim();
       if (!/^\d{4,6}$/.test(code)) return jsonResponse({ error: 'Taiwan stock code required' }, 400);
-      const days = Math.min(Math.max(Number(url.searchParams.get('days')) || 15, 5), 30);
-      const history = [];
-      for (const candidate of recentTradingDates(days + 8)) {
-        if (history.length >= days) break;
+      const days = Math.min(Math.max(Number(url.searchParams.get('days')) || 15, 5), 15);
+      const candidates = recentTradingDates(days + 7);
+      const responses = await Promise.all(candidates.map(async candidate => {
         const [institutionalJson, marginJson] = await Promise.all([
           fetchJson(`https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=${candidate}&selectType=ALL`, 300),
           fetchJson(`https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&date=${candidate}&selectType=ALL`, 300)
@@ -192,8 +191,9 @@ export default {
         const marginTable = marginJson?.tables?.find(table => table?.fields?.includes('代號') && table?.data?.some(row => String(row?.[0] || '').trim() === code));
         const marginRow = marginTable?.data?.find(row => String(row?.[0] || '').trim() === code);
         const margin = marginRow ? parseMarginRow(marginTable.fields, marginRow) : null;
-        if (institutional || margin) history.push({ date: candidate, institutional, margin });
-      }
+        return institutional || margin ? { date: candidate, institutional, margin } : null;
+      }));
+      const history = responses.filter(Boolean).sort((a, b) => a.date.localeCompare(b.date)).slice(-days);
       return jsonResponse({ symbol: code, history: history.reverse(), source: 'TWSE Open Data' }, 200, { 'Cache-Control': 'public, max-age=600' });
     }
 

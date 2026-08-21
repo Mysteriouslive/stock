@@ -72,7 +72,7 @@ async function fetchTwseChipData(symbol) {
 
 async function fetchTwseChipHistory(symbol) {
     try {
-        const res = await fetch(`${WORKER_URL}/?source=twse_chip_history&symbol=${encodeURIComponent(displaySymbol(symbol))}&days=20`, { cache: 'no-store' });
+        const res = await fetch(`${WORKER_URL}/?source=twse_chip_history&symbol=${encodeURIComponent(displaySymbol(symbol))}&days=15`, { cache: 'no-store' });
         if (!res.ok) return null;
         return await res.json();
     } catch { return null; }
@@ -475,7 +475,7 @@ function clearCompanyInfo() {
     const note = document.getElementById('company-info-note'); if (note) note.textContent = '選擇股票後會自動載入公司基本資訊。';
 }
 function toggleCompanyInfo() {
-    const card = document.getElementById('company-info-card'); if (!card) return;
+    const card = document.getElementById('overview-card') || document.getElementById('company-info-card'); if (!card) return;
     const button = card.querySelector('button'); card.classList.toggle('collapsed');
     if (button) button.textContent = card.classList.contains('collapsed') ? '展開' : '收合';
 }
