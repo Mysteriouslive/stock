@@ -102,7 +102,7 @@ body {
 .chip-block-title:first-of-type { margin-top: 0; }
 .chip-grid { gap: 8px; }
 
-/* 導覽切換按鈕列 (通用防壓扁修正) */
+/* 導覽切換按鈕列 */
 .section-nav {
     display: flex !important;
     gap: 8px !important;
@@ -136,6 +136,12 @@ body {
     color: #bfdbfe !important;
     border-color: rgba(96, 165, 250, 0.55) !important;
     background: rgba(59, 130, 246, 0.2) !important;
+}
+
+/* 關鍵修復：確保 hidden 類別不被 display: inline-flex 覆蓋 */
+.section-nav-btn.hidden,
+.section-nav-btn.is-hidden {
+    display: none !important;
 }
 
 .period-btn {
@@ -314,7 +320,6 @@ body {
 @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
 .loading-pulse { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 
-/* K 線卡片高度 (電腦端) */
 #chart-card { 
     display: flex;
     flex-direction: column;
@@ -330,9 +335,7 @@ body {
     padding: 10px 14px;
 }
 
-/* ============================================================
-   📱 嚴格手機版響應式 (max-width: 768px)
-   ============================================================ */
+/* 響應式手機排版 */
 @media (max-width: 768px) {
     .glass, .section-card {
         backdrop-filter: none !important;
@@ -405,9 +408,7 @@ body {
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
 
-/* ============================================================
-   ☀️ 白天模式 (Light Mode) 現代金融儀表板質感
-   ============================================================ */
+/* 白天模式 (Light Mode) */
 body.light-mode {
     background-color: #f1f6f4 !important;
     color: #172a26 !important;

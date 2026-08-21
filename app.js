@@ -323,13 +323,36 @@ function escapeHtmlAttribute(value) { return String(value).replace(/&/g, '&amp;'
 
 function resetChipData() {
     setMetric('chip-date', '—');
-    setMetric('chip-source-note', '選擇台股後載入 TWSE 官方籌碼與財報資料');
-    document.getElementById('chip-history-chart')?.classList.add('hidden');
-    document.getElementById('chip-table-rows')?.replaceChildren();
+    setMetric('chip-source-note', '選擇台股後載入 TWSE / TPEx 官方籌碼與財報資料');
+    const chartCanvas = document.getElementById('chip-history-chart');
+    if (chartCanvas) {
+        chartCanvas.classList.add('hidden');
+        const ctx = chartCanvas.getContext?.('2d');
+        if (ctx) ctx.clearRect(0, 0, chartCanvas.width || 0, chartCanvas.height || 0);
+    }
+    const tableRows = document.getElementById('chip-table-rows');
+    if (tableRows) tableRows.replaceChildren();
     setMetric('margin-financing', '—');
     setMetric('margin-financing-change', '—');
     setMetric('margin-short', '—');
     setMetric('margin-short-change', '—');
+    cachedChipLatest = null;
+    cachedChipHistory = [];
+}
+
+function setChipVisibility(visible) {
+    const chipNavBtn = document.getElementById('nav-chip-btn');
+    const chipCard = document.getElementById('chip-card');
+
+    if (visible) {
+        chipNavBtn?.classList.remove('hidden');
+        chipCard?.classList.remove('hidden');
+    } else {
+        chipNavBtn?.classList.remove('active');
+        chipNavBtn?.classList.add('hidden');
+        chipCard?.classList.add('hidden');
+        resetChipData();
+    }
 }
 
 // ============================================================
@@ -365,11 +388,11 @@ function renderChipData(data, historyData) {
     if (!chipCard) return;
 
     if (!data && !historyData) {
-        chipCard.classList.add('hidden');
+        setChipVisibility(false);
         return;
     }
 
-    chipCard.classList.remove('hidden');
+    setChipVisibility(true);
 
     cachedChipLatest = data;
     cachedChipHistory = (historyData?.history && historyData.history.length > 0)
@@ -378,7 +401,7 @@ function renderChipData(data, historyData) {
 
     const displayDate = data?.date || cachedChipHistory[0]?.date || '—';
     setMetric('chip-date', displayDate);
-    setMetric('chip-source-note', `資料來源：TWSE 臺灣證券交易所 · 交易日 ${displayDate}`);
+    setMetric('chip-source-note', `資料來源：TWSE / TPEx 官方資料 · 交易日 ${displayDate}`);
 
     renderChipContent();
 
@@ -575,11 +598,9 @@ function jumpToSection(id, button) {
 }
 
 function resetFundamentals() {
-    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth', 'metric-forward-pe', 'metric-peg', 'metric-ev-ebitda', 'metric-shares', 'profile-country', 'profile-industry', 'profile-ipo', 'profile-currency'].forEach(id => setMetric(id, '—'));
-    setMetric('fundamentals-status', '—'); setMetric('fundamentals-note', '—'); setMetric('profile-note', '—');
+    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth', 'metric-forward-pe', 'metric-peg', 'metric-ev-ebitda', 'metric-shares'].forEach(id => setMetric(id, '—'));
+    setMetric('fundamentals-status', '—'); setMetric('fundamentals-note', '—');
     const subtitle = document.getElementById('fundamentals-subtitle'); if (subtitle) subtitle.textContent = 'Finnhub · Fundamental Metrics';
-    const desc = document.getElementById('profile-description'); if (desc) { desc.textContent = ''; desc.classList.add('hidden'); }
-    const link = document.getElementById('company-web-link'); if (link) { link.href = '#'; link.classList.add('hidden'); }
 }
 
 function renderFinnhubMetrics(result, profile, symbol) {
@@ -601,10 +622,6 @@ function renderFinnhubMetrics(result, profile, symbol) {
     setMetric('metric-ev-ebitda', formatMetric(firstFinite(m, ['enterpriseValueEbitdaTTM', 'evToEbitda', 'evEbitda'])));
     setMetric('metric-shares', formatCompactNumber(firstFinite(m, ['shareOutstanding'])));
     setMetric('fundamentals-status', 'Finnhub 已載入'); setMetric('fundamentals-note', `資料來源：Finnhub · ${displaySymbol(symbol)}`);
-    setMetric('profile-country', p.country || '—'); setMetric('profile-industry', p.finnhubIndustry || '—'); setMetric('profile-ipo', p.ipo || '—'); setMetric('profile-currency', p.currency || '—');
-    const desc = document.getElementById('profile-description'); if (desc && p.name) { desc.textContent = `${p.name}${p.finnhubIndustry ? ` · ${p.finnhubIndustry}` : ''}`; desc.classList.add('hidden'); }
-    const link = document.getElementById('company-web-link'); if (link && p.weburl) { link.href = p.weburl; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.classList.remove('hidden'); }
-    setMetric('profile-note', `公司：${p.name || displaySymbol(symbol)} · 交易所：${p.exchange || '—'}`);
 }
 
 function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
@@ -622,14 +639,11 @@ function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
     setMetric('metric-52high', formatPrice(high52, symbol)); setMetric('metric-52low', formatPrice(low52, symbol));
     if (meta.marketCap) setMetric('metric-marketcap', formatCompactNumber(meta.marketCap));
     setMetric('fundamentals-status', `${twseData?.source || marketName} 已載入`); setMetric('fundamentals-note', `資料來源：${twseData?.source || marketName} + Yahoo Finance · 代碼 ${displaySymbol(symbol)}`);
-    setMetric('profile-country', '台灣'); setMetric('profile-industry', meta.fullExchangeName || (isOtc ? '上櫃股票' : '上市股票')); setMetric('profile-currency', meta.currency || 'TWD');
-    const desc = document.getElementById('profile-description'); if (desc) { desc.textContent = `${meta.longName || displaySymbol(symbol)} - 台灣在地公開資訊（包含本益比、殖利率、股價淨值比，EPS 由股價與本益比推算）。`; desc.classList.add('hidden'); }
-    setMetric('profile-note', `市場別：${marketName} · 代碼：${displaySymbol(symbol)}`);
 }
 
 function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
     const meta = result?.meta || {}, isOtc = String(symbol).toUpperCase().includes('.TWO');
-    const mapMarketState = { REGULAR: '正常交易', PRE: '盤前交易', POST: '盤後交易', PREPRE: '盤前', POSTPOST: '盤後', CLOSED: '休市' };
+    const mapMarketState = { REGULAR: '正常交易', PRE: '盤前交易', POST: '盤後交易', CLOSED: '休市' };
     const mapType = { EQUITY: '股票', ETF: 'ETF', MUTUALFUND: '共同基金', INDEX: '指數', CURRENCY: '外匯', FUTURE: '期貨', CRYPTOCURRENCY: '加密貨幣' };
     
     if (isForexSymbol(symbol)) {
@@ -649,7 +663,6 @@ function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
         setCompanyField('company-symbol', displaySymbol(symbol));
     }
     setCompanyField('company-price', quote?.latestPrice || '—');
-    const note = document.getElementById('company-info-note'); if (note) note.textContent = `資料來源：${source} · ${meta.fullExchangeName || meta.exchangeName || '交易市場'} · 代碼 ${displaySymbol(symbol)}`;
 }
 
 function renderFinnhubCompanyInfo(profile, symbol, quote) {
@@ -658,32 +671,21 @@ function renderFinnhubCompanyInfo(profile, symbol, quote) {
     setCompanyField('company-exchange', p.exchange || '—'); setCompanyField('company-market', p.finnhubIndustry || '—'); setCompanyField('company-currency', p.currency || '—');
     setCompanyField('company-type', p.shareClassFIGI ? '股票' : '—'); setCompanyField('company-market-state', 'Finnhub 即時資料');
     setCompanyField('company-symbol', displaySymbol(symbol)); setCompanyField('company-price', quote?.latestPrice || '—');
-    const note = document.getElementById('company-info-note');
-    if (note) {
-        const extra = [p.country ? `國家 ${p.country}` : '', p.marketCapitalization ? `市值 ${Number(p.marketCapitalization).toLocaleString('zh-TW')} 百萬` : '', p.ipo ? `IPO ${p.ipo}` : ''].filter(Boolean).join(' · ');
-        note.textContent = `資料來源：Finnhub · ${p.exchange || '交易市場'} · ${displaySymbol(symbol)}` + (extra ? ` · ${extra}` : '');
-    }
 }
 
 function setCompanyField(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
-function clearCompanyInfo() {
-    ['company-long-name', 'company-exchange', 'company-market', 'company-currency', 'company-type', 'company-market-state', 'company-symbol', 'company-price'].forEach(id => setCompanyField(id, '—'));
-    const note = document.getElementById('company-info-note'); if (note) note.textContent = '選擇股票後會自動載入公司基本資訊。';
-}
 function toggleCompanyInfo() {
-    const card = document.getElementById('overview-card') || document.getElementById('company-info-card'); if (!card) return;
-    const button = card.querySelector('button'); card.classList.toggle('collapsed');
-    if (button) button.textContent = card.classList.contains('collapsed') ? '展開' : '收合';
+    document.getElementById('overview-card')?.classList.toggle('collapsed');
 }
 
 // ============================================================
 // 大盤核心指數看板配置
 // ============================================================
 const INDICES_CONFIG = [
-    { id: 'twii', symbol: '^TWII', name: '加權指數' },
-    { id: 'soxx', symbol: 'SOXX', name: '費城半導體 (SOXX)' },
-    { id: 'ixic', symbol: '^IXIC', name: 'NASDAQ' },
-    { id: 'gspc', symbol: '^GSPC', name: 'S&P 500' }
+    { id: 'twii', symbol: '^TWII' },
+    { id: 'soxx', symbol: 'SOXX' },
+    { id: 'ixic', symbol: '^IXIC' },
+    { id: 'gspc', symbol: '^GSPC' }
 ];
 
 const SPECIAL_NAME_MAP = {
@@ -728,8 +730,8 @@ let quoteCache = JSON.parse(localStorage.getItem('stockQuoteCache') || '{}');
 let sortMode = localStorage.getItem('stockSortMode') || 'manual';
 let currentSymbol = localStorage.getItem('stockCurrentSymbol') || (watchlist.length > 0 ? watchlist[0].symbol : null);
 let currentPeriod = { interval: '5m', range: '5d', label: '5分K' };
-const COLOR_KEYS = ['orange', 'blue', 'green', 'cyan', 'purple', 'pink', 'yellow', 'red', 'indigo', 'teal'];
-const COLOR_MAP = { orange: 'bg-orange-500/20 text-orange-400', blue: 'bg-blue-500/20 text-blue-400', green: 'bg-green-500/20 text-green-400', cyan: 'bg-cyan-500/20 text-cyan-400', purple: 'bg-purple-500/20 text-purple-400', pink: 'bg-pink-500/20 text-pink-400', yellow: 'bg-yellow-500/20 text-yellow-400', red: 'bg-red-500/20 text-red-400', indigo: 'bg-indigo-500/20 text-indigo-400', teal: 'bg-teal-500/20 text-teal-400' };
+const COLOR_KEYS = ['orange', 'blue', 'green', 'cyan', 'purple', 'pink', 'yellow', 'red'];
+const COLOR_MAP = { orange: 'bg-orange-500/20 text-orange-400', blue: 'bg-blue-500/20 text-blue-400', green: 'bg-green-500/20 text-green-400', cyan: 'bg-cyan-500/20 text-cyan-400', purple: 'bg-purple-500/20 text-purple-400', pink: 'bg-pink-500/20 text-pink-400', yellow: 'bg-yellow-500/20 text-yellow-400', red: 'bg-red-500/20 text-red-400' };
 
 function saveWatchlist() {
     localStorage.setItem('stockWatchlist', JSON.stringify(watchlist));
@@ -864,7 +866,9 @@ function removeStock(index) {
             setText('stock-symbol-title', '—'); setText('stock-name', '選擇或新增股票以查看詳情');
             ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume', 'last-update'].forEach(id => setText(id, '—'));
             const emptyState = document.getElementById('empty-state'); if (emptyState) emptyState.style.display = 'flex';
-            if (candlestickSeries) candlestickSeries.setData([]); clearCompanyInfo(); resetFundamentals();
+            if (candlestickSeries) candlestickSeries.setData([]);
+            setChipVisibility(false);
+            resetFundamentals();
         }
     }
 }
@@ -1135,11 +1139,13 @@ function setupChartKeyboard() {
 }
 
 // ============================================================
-// Load Stock 主流程
+// Load Stock 主流程 (狀態優先切換)
 // ============================================================
 async function loadStock(symbol, isSilent = false) {
     if (!symbol || (isLoadingStock && !isSilent)) return;
     currentSymbol = symbol; saveWatchlist();
+
+    const isTw = isTaiwanSymbol(symbol);
 
     if (!isSilent) {
         document.querySelectorAll('.stock-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.symbol === symbol));
@@ -1151,7 +1157,10 @@ async function loadStock(symbol, isSilent = false) {
         ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—')); updateMarketState('', symbol);
         const priceChange = document.getElementById('price-change'); if (priceChange) priceChange.className = 'text-sm sm:text-base font-bold px-2.5 py-1 rounded-lg bg-white/5 border border-white/5';
         const currentPrice = document.getElementById('current-price'); if (currentPrice) currentPrice.className = 'text-3xl sm:text-4xl font-black text-white tracking-tight leading-none transition-colors duration-300';
-        setText('chart-status', `${currentPeriod.label} · 載入中`); resetFundamentals(); resetChipData();
+        setText('chart-status', `${currentPeriod.label} · 載入中`); resetFundamentals();
+        
+        // 核心關鍵：不等 API，立刻決定籌碼卡片與按鈕的顯隱狀態
+        setChipVisibility(isTw);
     }
 
     isLoadingStock = true;
@@ -1166,11 +1175,7 @@ async function loadStock(symbol, isSilent = false) {
             }
         } catch (error) { yahooError = error; }
 
-        if (isTaiwanSymbol(symbol)) {
-            // 台股：顯示「籌碼」導覽按鈕
-            const chipNavBtn = document.getElementById('nav-chip-btn');
-            if (chipNavBtn) chipNavBtn.classList.remove('hidden');
-
+        if (isTw) {
             let twseMetricsData = null;
             try { twseMetricsData = await fetchTwseMetrics(symbol); } catch {}
             if (twseMetricsData && !isSilent) {
@@ -1193,18 +1198,6 @@ async function loadStock(symbol, isSilent = false) {
                 renderChipData(chipData, chipHistory);
             }
         } else {
-            // 美股 / ETF / 外匯 / 加密貨幣：完全隱藏「籌碼」按鈕與籌碼區塊
-            const chipNavBtn = document.getElementById('nav-chip-btn');
-            if (chipNavBtn) {
-                chipNavBtn.classList.add('hidden');
-                if (chipNavBtn.classList.contains('active')) {
-                    const overviewBtn = document.querySelector('.section-nav-btn');
-                    if (overviewBtn) jumpToSection('overview-card', overviewBtn);
-                }
-            }
-            const chipCard = document.getElementById('chip-card');
-            if (chipCard) chipCard.classList.add('hidden');
-
             if (isForexSymbol(symbol)) {
                 try {
                     const forex = await fetchForexData();
