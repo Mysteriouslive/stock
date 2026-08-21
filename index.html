@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <link rel="stylesheet" href="./styles.css?v=4">
+    <link rel="stylesheet" href="./styles.css?v=5">
 </head>
 <body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
@@ -80,7 +80,7 @@
         </div>
         <div class="flex-1 overflow-y-auto p-3 space-y-1" id="stock-list"></div>
         
-        <!-- 側邊欄底部 (頭像與設定鍵) -->
+        <!-- 側邊欄底部 (頭像、日夜切換、設定鍵) -->
         <div class="mt-auto border-t border-white/5 p-3 flex items-center justify-between bg-black/20 shrink-0">
             <button onclick="openProfileModal()" class="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-white/5 transition-colors text-left group">
                 <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md group-hover:shadow-purple-500/20 transition-all">
@@ -91,12 +91,17 @@
                     <div class="text-[10px] text-gray-500">@Mo-yun-sheng</div>
                 </div>
             </button>
-            <button onclick="openSettingsModal()" class="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors" title="系統設定">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-            </button>
+            <div class="flex items-center gap-1">
+                <button onclick="toggleDarkMode()" id="dark-mode-btn" class="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors" title="切換日夜模式">
+                    🌙
+                </button>
+                <button onclick="openSettingsModal()" class="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors" title="系統設定">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </button>
+            </div>
         </div>
     </aside>
 
@@ -354,6 +359,6 @@
     </div>
 
     <!-- 載入外部 JS -->
-    <script src="./app.js?v=4"></script>
+    <script src="./app.js?v=5"></script>
 </body>
 </html>
