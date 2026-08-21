@@ -1002,3 +1002,18 @@ main > .flex-1 {
         font-size: 12px;
     }
 }
+
+/* 頂部看板細部美化 */
+#stock-symbol-title {
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.price-up {
+    color: #ef4444 !important;
+    text-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+}
+
+.price-down {
+    color: #10b981 !important;
+    text-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+}
