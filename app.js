@@ -682,7 +682,25 @@ function updateChartIndicators(data) {
     } else {
         upperBandSeries?.setData([]); lowerBandSeries?.setData([]);
     }
-    volumeSeries?.setData(chartIndicators.volume ? data.map(item => ({ time: item.time, value: item.volume || 0, color: item.close >= item.open ? 'rgba(239,68,68,0.45)' : 'rgba(16,185,129,0.45)' })) : []);
+    volumeSeries?.setData(chartIndicators.volume ? data.filter(item => Number(item.volume) > 0).map(item => ({ time: item.time, value: Number(item.volume), color: item.close >= item.open ? 'rgba(239,68,68,0.45)' : 'rgba(16,185,129,0.45)' })) : []);
+    const latestVolume = [...data].reverse().find(item => Number(item.volume) > 0)?.volume;
+    setText('chart-volume-readout', chartIndicators.volume ? `交易量 ${latestVolume > 0 ? formatVolume(latestVolume) : '暫無資料'}` : '交易量已隱藏');
+}
+
+function formatChartTooltipTime(time) {
+    const date = getChartDate(time);
+    if (Number.isNaN(date.getTime())) return '—';
+    if (['1d', '1wk', '1mo'].includes(currentPeriod.interval)) return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+    return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function updateCrosshairTooltip(param) {
+    const tooltip = document.getElementById('chart-crosshair-tooltip');
+    if (!tooltip || !param?.time || !param.seriesData) { tooltip?.classList.remove('visible'); return; }
+    const candle = param.seriesData.get(candlestickSeries), volume = param.seriesData.get(volumeSeries);
+    if (!candle) { tooltip.classList.remove('visible'); return; }
+    tooltip.innerHTML = `<div class="tooltip-time">${formatChartTooltipTime(param.time)}</div><div class="tooltip-grid"><span>開 <b>${formatPrice(candle.open, currentSymbol)}</b></span><span>高 <b>${formatPrice(candle.high, currentSymbol)}</b></span><span>低 <b>${formatPrice(candle.low, currentSymbol)}</b></span><span>收 <b>${formatPrice(candle.close, currentSymbol)}</b></span><span class="tooltip-volume">量 <b>${volume?.value > 0 ? formatVolume(volume.value) : '—'}</b></span></div>`;
+    tooltip.classList.add('visible');
 }
 
 function calculateAssessment(data) {
@@ -796,7 +814,7 @@ function initChart() {
         borderUpColor: '#ef4444', borderDownColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
     });
     volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'volume', color: 'rgba(96,165,250,0.35)' });
-    chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.72, bottom: 0 }, visible: true, borderVisible: true });
     ma5Series = chart.addSeries(LightweightCharts.LineSeries, { color: '#fb7185', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
     ma10Series = chart.addSeries(LightweightCharts.LineSeries, { color: '#a78bfa', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
     ma20Series = chart.addSeries(LightweightCharts.LineSeries, { color: '#f59e0b', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
@@ -809,6 +827,7 @@ function initChart() {
         // 容許 1.5 根 K 棒的誤差，只要視野右緣接近最後一筆資料，就視為「停留在最新」
         chartAtRightEdge = range.to >= currentChartData.length - 1.5;
     });
+    chart.subscribeCrosshairMove(updateCrosshairTooltip);
 
     setupChartResize(container);
     return true;

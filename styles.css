@@ -206,6 +206,48 @@ body {
 .chart-tool-btn.active { color: #60a5fa; border-color: rgba(96,165,250,0.6); background: rgba(59,130,246,0.16); }
 #chart-card:fullscreen { width: 100vw; height: 100vh; margin: 0; border-radius: 0; padding: 24px; background: #09090b; }
 #chart-card:fullscreen #chart-container { height: calc(100vh - 100px) !important; min-height: 0; }
+.chart-volume-readout {
+    position: absolute;
+    right: 12px;
+    bottom: 28px;
+    z-index: 4;
+    padding: 3px 7px;
+    border: 1px solid rgba(96,165,250,0.2);
+    border-radius: 5px;
+    color: #94a3b8;
+    background: rgba(9,9,11,0.72);
+    font-size: 10px;
+    pointer-events: none;
+}
+.chart-crosshair-tooltip {
+    position: absolute;
+    left: 12px;
+    top: 70px;
+    z-index: 5;
+    min-width: 165px;
+    padding: 8px 10px;
+    border: 1px solid rgba(96,165,250,0.32);
+    border-radius: 8px;
+    color: #dbeafe;
+    background: rgba(9,9,11,0.88);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.24);
+    font-size: 10px;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    pointer-events: none;
+}
+.chart-crosshair-tooltip.visible { opacity: 1; transform: translateY(0); }
+.tooltip-time { margin-bottom: 5px; color: #93c5fd; font-weight: 700; }
+.tooltip-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; color: #a1a1aa; }
+.tooltip-grid b { color: #f4f4f5; font-weight: 700; }
+.tooltip-volume { grid-column: 1 / -1; color: #fbbf24; }
+body.light-mode .chart-crosshair-tooltip { color: #30413d; background: rgba(255,255,255,0.94); border-color: #b9d5ca; box-shadow: 0 8px 20px rgba(33,68,59,0.15); }
+body.light-mode .tooltip-time { color: #087f62; }
+body.light-mode .tooltip-grid { color: #687873; }
+body.light-mode .tooltip-grid b { color: #30413d; }
+body.light-mode .tooltip-volume { color: #b45309; }
+body.light-mode .chart-volume-readout { color: #526760; background: rgba(241,247,244,0.82); border-color: #c7d8d2; }
 .market-state-badge {
     display: inline-flex;
     align-items: center;

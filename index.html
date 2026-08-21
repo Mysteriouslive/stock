@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <link rel="stylesheet" href="./styles.css?v=21">
+    <link rel="stylesheet" href="./styles.css?v=26">
 </head>
 <body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
@@ -318,6 +318,8 @@
                     <span id="chart-status" class="text-[10px] text-gray-500">提示: 可用 [+] [-] 鍵縮放圖表</span>
                 </div>
                 <div id="chart-container" class="w-full h-full min-h-[330px]"></div>
+                <div id="chart-volume-readout" class="chart-volume-readout">交易量 —</div>
+                <div id="chart-crosshair-tooltip" class="chart-crosshair-tooltip" aria-live="polite"></div>
                 <div id="empty-state" class="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div class="text-center text-gray-500">
                         <div class="text-4xl mb-3 opacity-30">📈</div>
@@ -463,6 +465,6 @@
         </div>
     </div>
 
-    <script src="./app.js?v=21"></script>
+    <script src="./app.js?v=26"></script>
 </body>
 </html>
