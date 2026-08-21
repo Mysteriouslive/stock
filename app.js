@@ -434,7 +434,7 @@ function renderChipContent() {
                 `;
             }).join('');
         }
-        renderChipHistory({ history: cachedChipHistory });
+        renderChipHistory(cachedChipHistory);
     } else {
         let runningF = 0, runningT = 0, runningD = 0;
         const holdingList = [...cachedChipHistory].reverse().map(row => {
@@ -465,12 +465,11 @@ function renderChipContent() {
     }
 }
 
-function renderChipHistory(data) {
+function renderChipHistory(rows) {
     const canvas = document.getElementById('chip-history-chart');
     if (!canvas) return;
-
-    const rows = (data?.history || []).slice(-15);
-    if (!rows.length) {
+    const dataList = (rows || []).slice(-15);
+    if (!dataList.length) {
         canvas.classList.add('hidden');
         return;
     }
@@ -488,15 +487,15 @@ function renderChipHistory(data) {
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    const foreignList = rows.map(r => Number(r.institutional?.foreignNet || 0) / 1000);
-    const trustList = rows.map(r => Number(r.institutional?.investmentTrustNet || 0) / 1000);
-    const dealerList = rows.map(r => Number(r.institutional?.dealerNet || 0) / 1000);
+    const foreignList = dataList.map(r => Number(r.institutional?.foreignNet || 0) / 1000);
+    const trustList = dataList.map(r => Number(r.institutional?.investmentTrustNet || 0) / 1000);
+    const dealerList = dataList.map(r => Number(r.institutional?.dealerNet || 0) / 1000);
     
     const allValues = [...foreignList, ...trustList, ...dealerList];
     const maxVal = Math.max(...allValues.map(Math.abs), 500);
     const zeroY = height / 2;
-    const barWidth = Math.max(Math.floor((width / rows.length) * 0.22), 4);
-    const step = width / rows.length;
+    const barWidth = Math.max(Math.floor((width / dataList.length) * 0.22), 4);
+    const step = width / dataList.length;
 
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1;
@@ -505,7 +504,7 @@ function renderChipHistory(data) {
     ctx.lineTo(width, zeroY);
     ctx.stroke();
 
-    rows.forEach((row, i) => {
+    dataList.forEach((row, i) => {
         const centerX = i * step + step / 2;
         const f = Number(row.institutional?.foreignNet || 0) / 1000;
         const t = Number(row.institutional?.investmentTrustNet || 0) / 1000;
@@ -709,7 +708,7 @@ async function fetchMarketIndices() {
                 if (changeEl) {
                     const sign = quote.isUp ? '+' : '';
                     changeEl.textContent = `${sign}${quote.change} (${sign}${quote.changePercent}%)`;
-                    changeEl.className = `text-[11px] mt-0.5 font-medium ${quote.isFlat ? 'text-gray-500' : (quote.isUp ? 'price-up' : 'price-down')}`;
+                    changeEl.className = `text-[10px] mt-0.5 font-medium ${quote.isFlat ? 'text-gray-500' : (quote.isUp ? 'price-up' : 'price-down')}`;
                 }
             }
         } catch (e) {}
