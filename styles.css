@@ -64,6 +64,15 @@ body {
     border-color: rgba(59, 130, 246, 0.4);
     box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
 }
+.session-legend {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 4px 7px;
+    border-radius: 6px;
+    border: 1px solid currentColor;
+}
+.session-pre { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
+.session-post { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
 
 @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
 .loading-pulse { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }

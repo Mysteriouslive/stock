@@ -565,7 +565,7 @@ function removeStock(index) {
 // ============================================================
 // 圖表初始化與邏輯
 // ============================================================
-let chart = null, candlestickSeries = null, currentChartData = [], chartResizeObserver = null, chartResizeHandler = null, autoRefreshTimer = null, isLoadingStock = false;
+let chart = null, candlestickSeries = null, sessionMarkers = null, currentChartData = [], chartResizeObserver = null, chartResizeHandler = null, autoRefreshTimer = null, isLoadingStock = false;
 let chartAtRightEdge = true; // 是否停留在「最新」畫面：只有停在最新時，背景自動刷新才會把畫面滾回最新，避免使用者往回看歷史 K 線時被強制拉回而感覺「時間跑掉」
 
 function getChartDate(time) {
@@ -575,6 +575,45 @@ function getChartDate(time) {
         return new Date(time.year, time.month - 1, time.day);
     }
     return new Date(NaN);
+}
+
+function updateSessionMarkers(data) {
+    if (!candlestickSeries) return;
+    const clearMarkers = () => {
+        if (sessionMarkers) sessionMarkers.setMarkers([]);
+        else if (typeof candlestickSeries.setMarkers === 'function') candlestickSeries.setMarkers([]);
+    };
+    if (!data.length || isTaiwanSymbol(currentSymbol) || isForexSymbol(currentSymbol) || isCryptoSymbol(currentSymbol)) {
+        clearMarkers();
+        return;
+    }
+
+    const partsFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+    const markers = [], seenSessions = new Set();
+    data.forEach(item => {
+        if (typeof item.time !== 'number') return;
+        const parts = Object.fromEntries(partsFormatter.formatToParts(new Date(item.time * 1000)).map(part => [part.type, part.value]));
+        const minutes = Number(parts.hour) * 60 + Number(parts.minute);
+        const session = minutes >= 240 && minutes < 570 ? 'pre' : (minutes >= 960 && minutes <= 1200 ? 'post' : null);
+        if (!session) return;
+        const sessionKey = `${parts.year}-${parts.month}-${parts.day}-${session}`;
+        if (seenSessions.has(sessionKey)) return;
+        seenSessions.add(sessionKey);
+        markers.push({
+            time: item.time,
+            position: session === 'pre' ? 'aboveBar' : 'belowBar',
+            color: session === 'pre' ? '#f59e0b' : '#8b5cf6',
+            shape: session === 'pre' ? 'arrowDown' : 'arrowUp',
+            text: session === 'pre' ? '盤前' : '盤後'
+        });
+    });
+
+    if (typeof LightweightCharts.createSeriesMarkers === 'function') {
+        if (!sessionMarkers) sessionMarkers = LightweightCharts.createSeriesMarkers(candlestickSeries, markers);
+        else sessionMarkers.setMarkers(markers);
+    } else if (typeof candlestickSeries.setMarkers === 'function') {
+        candlestickSeries.setMarkers(markers);
+    }
 }
 
 function initChart() {
@@ -794,7 +833,7 @@ async function loadStock(symbol, isSilent = false) {
             let preservedRange = null;
             if (!shouldFollowRealTime) { try { preservedRange = timeScale.getVisibleLogicalRange(); } catch {} }
 
-            currentChartData = chartData; candlestickSeries.setData(chartData);
+            currentChartData = chartData; candlestickSeries.setData(chartData); updateSessionMarkers(chartData);
 
             if (shouldFollowRealTime) {
                 chartAtRightEdge = true;
@@ -805,7 +844,7 @@ async function loadStock(symbol, isSilent = false) {
             setText('chart-status', `${currentPeriod.label} · ${chartData.length} 根`);
         } else {
             if (candlestickSeries && currentChartData.length > 0) {
-                candlestickSeries.setData(currentChartData); setText('chart-status', `${currentPeriod.label} · 保留上一筆 K 線`);
+                candlestickSeries.setData(currentChartData); updateSessionMarkers(currentChartData); setText('chart-status', `${currentPeriod.label} · 保留上一筆 K 線`);
             } else { setText('chart-status', yahooError ? 'K線資料暫時無法取得' : '目前週期沒有 K 線資料'); }
         }
 
