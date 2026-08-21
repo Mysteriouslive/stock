@@ -109,8 +109,13 @@ body {
         font-size: 10px; 
     }
     
-    #chart-card { min-height: 380px; height: 480px !important; }
-    #chart-container { margin-bottom: 10px; }
+    #chart-card { min-height: 380px; height: auto !important; }
+    #chart-container {
+        flex: 0 0 340px;
+        height: 340px !important;
+        min-height: 340px;
+        margin-bottom: 0;
+    }
     
     #sidebar { position: fixed; left: -100%; top: 0; height: 100%; z-index: 50; transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     #sidebar.open { left: 0; }
