@@ -120,33 +120,21 @@ export default {
       if (!/^\d{4,6}$/.test(code)) return jsonResponse({ error: 'Taiwan stock code required' }, 400);
 
       const days = source === 'twse_chip_history' ? Math.min(Math.max(Number(url.searchParams.get('days')) || 15, 5), 15) : 7;
-      const candidates = recentTradingDates(days + 6);
 
-      const responses = await Promise.all(candidates.map(async candidate => {
-        const [twseInst, twseMargin] = await Promise.all([
-          fetchJson(`https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=${candidate}&selectType=ALL`, 600),
-          fetchJson(`https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&date=${candidate}&selectType=ALL`, 600)
-        ]);
+      // 修正:改用「循序嘗試、抓滿即停」取代一次全部平行送出，
+      // 避免同時對 TWSE/TPEx 發出過多請求觸發限流或超過 Worker 執行時間。
+      const maxLookback = days + 10; // 最多回溯天數上限(涵蓋假日)
+      const candidates = recentTradingDates(maxLookback);
+      const validList = [];
+      const BATCH_SIZE = 4; // 每批平行請求的日期數，兼顧速度與限流風險
 
-        let instRow = twseInst?.data?.find(row => String(row?.[0] || '').trim() === code);
-        let instFields = twseInst?.fields || [];
-        let institutional = instRow ? parseInstitutionalRow(instFields, instRow) : null;
-
-        if (!institutional) {
-          const tpexTable = await fetchTpexInstitutional(candidate);
-          if (tpexTable && tpexTable.has(code)) {
-            institutional = tpexTable.get(code);
-          }
+      for (let i = 0; i < candidates.length && validList.length < days; i += BATCH_SIZE) {
+        const batch = candidates.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(batch.map(candidate => fetchChipForDate(candidate, code)));
+        for (const result of batchResults) {
+          if (result) validList.push(result);
         }
-
-        const marginTable = twseMargin?.tables?.find(table => table?.fields?.includes('代號') && table?.data?.some(row => String(row?.[0] || '').trim() === code));
-        const marginRow = marginTable?.data?.find(row => String(row?.[0] || '').trim() === code);
-        const margin = marginRow ? parseMarginRow(marginTable?.fields || [], marginRow) : null;
-
-        return (institutional || margin) ? { date: candidate, institutional, margin } : null;
-      }));
-
-      const validList = responses.filter(Boolean);
+      }
 
       if (source === 'twse_chip') {
         const latest = validList[0] || {};
@@ -160,13 +148,16 @@ export default {
           source: 'TWSE Open Data'
         }, 200, { 'Cache-Control': 'public, max-age=300' });
       } else {
-        const history = validList.sort((a, b) => a.date.localeCompare(b.date)).slice(-days);
+        const history = validList
+          .sort((a, b) => a.date.localeCompare(b.date))
+          .slice(-days);
         return jsonResponse({ symbol: code, history: history.reverse(), source: 'TWSE Open Data' }, 200, { 'Cache-Control': 'public, max-age=600' });
       }
     }
 
     // 5. TWSE Name
     if (source === 'twse_name') {
+      if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
       const code = symbolParam.replace(/\.(TW|TWO)$/i, '').replace(/^\^/, '').trim();
       try {
         const res = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', {
@@ -199,12 +190,13 @@ export default {
     if (source === 'finnhub') {
       const finnhubApiKey = env.FINNHUB_API_KEY || '';
       if (!finnhubApiKey) return jsonResponse({ error: 'Finnhub API Key not configured' }, 500);
+      if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
 
       const endpoint = url.searchParams.get('endpoint') || 'quote';
       const metric = url.searchParams.get('metric') || 'all';
       let finnhubUrl = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbolParam)}&token=${finnhubApiKey}`;
       if (endpoint === 'profile2') finnhubUrl = `https://finnhub.io/api/v1/stock/profile2?symbol=${encodeURIComponent(symbolParam)}&token=${finnhubApiKey}`;
-      if (endpoint === 'metric') finnhubUrl = `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(symbolParam)}&metric=${metric}&token=${finnhubApiKey}`;
+      if (endpoint === 'metric') finnhubUrl = `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(symbolParam)}&metric=${encodeURIComponent(metric)}&token=${finnhubApiKey}`;
 
       try {
         const resp = await fetch(finnhubUrl, { headers: { Accept: 'application/json' }, cf: { cacheTtl: 60 } });
@@ -246,13 +238,19 @@ export default {
   }
 };
 
+// 修正:PE/PB 的比對關鍵字太短(如 'pe'、'pb')容易誤中其他英文欄位名稱
+// (例如包含 "type"、"open" 之類字串)。改用更完整、不易誤判的關鍵字。
 function extractPeDyPb(item) {
   let pe = '—', dy = '—', pb = '—';
   for (const [k, v] of Object.entries(item)) {
-    const lk = k.toLowerCase();
-    if ((lk.includes('pe') || lk.includes('priceearning') || lk.includes('本益比')) && v && v !== '0') pe = String(v);
-    if ((lk.includes('dividend') || lk.includes('yield') || lk.includes('殖利率')) && v && v !== '0') dy = String(v).includes('%') ? String(v) : `${v}%`;
-    if ((lk.includes('pb') || lk.includes('pricebook') || lk.includes('淨值比')) && v && v !== '0') pb = String(v);
+    const lk = k.toLowerCase().replace(/\s+/g, '');
+    const isPe = lk.includes('peratio') || lk.includes('priceearningratio') || k.includes('本益比');
+    const isDy = lk.includes('dividendyield') || lk.includes('yieldratio') || k.includes('殖利率');
+    const isPb = lk.includes('pbratio') || lk.includes('pricebookratio') || k.includes('股價淨值比') || k.includes('淨值比');
+
+    if (isPe && v && v !== '0') pe = String(v);
+    if (isDy && v && v !== '0') dy = String(v).includes('%') ? String(v) : `${v}%`;
+    if (isPb && v && v !== '0') pb = String(v);
   }
   return { pe, dy, pb };
 }
@@ -274,6 +272,31 @@ function parseNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   const number = Number(String(value).replace(/,/g, '').replace(/--/g, ''));
   return Number.isFinite(number) ? number : null;
+}
+
+// 新增:單一日期的籌碼資料查詢，抽成獨立函式供批次呼叫使用
+async function fetchChipForDate(candidate, code) {
+  const [twseInst, twseMargin] = await Promise.all([
+    fetchJson(`https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=${candidate}&selectType=ALL`, 600),
+    fetchJson(`https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&date=${candidate}&selectType=ALL`, 600)
+  ]);
+
+  let instRow = twseInst?.data?.find(row => String(row?.[0] || '').trim() === code);
+  let instFields = twseInst?.fields || [];
+  let institutional = instRow ? parseInstitutionalRow(instFields, instRow) : null;
+
+  if (!institutional) {
+    const tpexTable = await fetchTpexInstitutional(candidate);
+    if (tpexTable && tpexTable.has(code)) {
+      institutional = tpexTable.get(code);
+    }
+  }
+
+  const marginTable = twseMargin?.tables?.find(table => table?.fields?.includes('代號') && table?.data?.some(row => String(row?.[0] || '').trim() === code));
+  const marginRow = marginTable?.data?.find(row => String(row?.[0] || '').trim() === code);
+  const margin = marginRow ? parseMarginRow(marginTable?.fields || [], marginRow) : null;
+
+  return (institutional || margin) ? { date: candidate, institutional, margin } : null;
 }
 
 // 核心修正：外資精準抓取「不含外資自營商」，自營商抓「自行買賣 + 避險」
@@ -303,7 +326,7 @@ function parseInstitutionalRow(fields, row) {
   if (dealer === null) {
     const propIdx = cleanFields.findIndex(f => f.includes('自營商') && f.includes('自行買賣'));
     const hedgeIdx = cleanFields.findIndex(f => f.includes('自營商') && f.includes('避險'));
-    
+
     const propVal = read(propIdx);
     const hedgeVal = read(hedgeIdx);
 
@@ -358,12 +381,16 @@ async function fetchTpexInstitutional(date) {
   return result;
 }
 
+// 修正:比對前先清除欄位名稱中的空白，避免因全形/半形空白差異而抓不到欄位索引
 function parseMarginRow(fields, row) {
-  const findIndex = (group, label) => fields.findIndex(field => String(field).includes(group) && String(field).includes(label));
+  const cleanFields = fields.map(f => String(f || '').replace(/\s+/g, ''));
+  const findIndex = (group, label) => cleanFields.findIndex(field => field.includes(group) && field.includes(label));
+
   const financingBalance = findIndex('融資', '今日餘額');
-  const shortBalance = fields.findIndex((field, index) => String(field).includes('今日餘額') && index > financingBalance);
+  const shortBalance = cleanFields.findIndex((field, index) => field.includes('今日餘額') && index > financingBalance);
   const financingPrevious = findIndex('融資', '前日餘額');
-  const shortPrevious = fields.findIndex((field, index) => String(field).includes('前日餘額') && index > financingPrevious);
+  const shortPrevious = cleanFields.findIndex((field, index) => field.includes('前日餘額') && index > financingPrevious);
+
   return {
     name: String(row[1] || '').trim(),
     financingBalance: financingBalance >= 0 ? parseNumber(row[financingBalance]) : null,

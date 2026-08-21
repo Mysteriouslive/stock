@@ -409,17 +409,45 @@ function renderChipData(data, historyData) {
 
     renderChipContent();
 
-    const margin = data?.margin;
+    // 優先讀取最新一筆資券資料
+    const margin = data?.margin || cachedChipHistory[0]?.margin;
     if (margin) {
-        const finBal = margin.financingBalance != null ? Math.round(margin.financingBalance / 1000).toLocaleString('zh-TW') + ' 張' : '—';
-        const finChg = margin.financingChange != null ? `${margin.financingChange >= 0 ? '+' : ''}${Math.round(margin.financingChange / 1000).toLocaleString('zh-TW')} 張` : '—';
-        const shortBal = margin.shortBalance != null ? Math.round(margin.shortBalance / 1000).toLocaleString('zh-TW') + ' 張' : '—';
-        const shortChg = margin.shortChange != null ? `${margin.shortChange >= 0 ? '+' : ''}${Math.round(margin.shortChange / 1000).toLocaleString('zh-TW')} 張` : '—';
+        // 融資處理
+        if (margin.financingBalance !== null && margin.financingBalance !== undefined) {
+            const finBal = Math.round(Number(margin.financingBalance) / 1000).toLocaleString('zh-TW') + ' 張';
+            setMetric('margin-financing', finBal);
+        } else {
+            setMetric('margin-financing', '—');
+        }
 
-        setMetric('margin-financing', finBal);
-        setMetric('margin-financing-change', finChg);
-        setMetric('margin-short', shortBal);
-        setMetric('margin-short-change', shortChg);
+        if (margin.financingChange !== null && margin.financingChange !== undefined) {
+            const chg = Math.round(Number(margin.financingChange) / 1000);
+            const finChg = `${chg >= 0 ? '+' : ''}${chg.toLocaleString('zh-TW')} 張`;
+            setMetric('margin-financing-change', finChg);
+        } else {
+            setMetric('margin-financing-change', '—');
+        }
+
+        // 融券處理 (相容 0 值)
+        if (margin.shortBalance !== null && margin.shortBalance !== undefined) {
+            const shortBal = Math.round(Number(margin.shortBalance) / 1000).toLocaleString('zh-TW') + ' 張';
+            setMetric('margin-short', shortBal);
+        } else {
+            setMetric('margin-short', '0 張');
+        }
+
+        if (margin.shortChange !== null && margin.shortChange !== undefined) {
+            const chg = Math.round(Number(margin.shortChange) / 1000);
+            const shortChg = `${chg >= 0 ? '+' : ''}${chg.toLocaleString('zh-TW')} 張`;
+            setMetric('margin-short-change', shortChg);
+        } else {
+            setMetric('margin-short-change', '0 張');
+        }
+    } else {
+        setMetric('margin-financing', '—');
+        setMetric('margin-financing-change', '—');
+        setMetric('margin-short', '—');
+        setMetric('margin-short-change', '—');
     }
 }
 
