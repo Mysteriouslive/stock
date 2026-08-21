@@ -1,42 +1,12 @@
-/* 預設支援系統或使用者切換的色彩模式 */
-:root {
-    color-scheme: dark light;
-}
+:root { color-scheme: dark light; }
 
-/* 亮色模式與暗色模式的樣式變數 */
-body {
-    background-color: var(--bg-main, #000);
-    color: var(--text-main, #fff);
-    transition: background-color 0.3s, color 0.3s;
-}
+body { background-color: var(--bg-main, #000); color: var(--text-main, #fff); transition: background-color 0.3s, color 0.3s; }
 
-/* 亮色模式樣式覆蓋 */
-body.light-mode {
-    --bg-main: #f4f4f5;
-    --text-main: #18181b;
-}
-body.light-mode .glass, 
-body.light-mode .section-card,
-body.light-mode #settings-modal,
-body.light-mode #profile-modal {
-    background: rgba(255, 255, 255, 0.85) !important;
-    border: 1px solid rgba(0, 0, 0, 0.08) !important;
-    color: #18181b !important;
-}
-body.light-mode .section-title, 
-body.light-mode h1, body.light-mode h2, body.light-mode h3, 
-body.light-mode #current-price,
-body.light-mode .text-white {
-    color: #111827 !important;
-}
-body.light-mode .text-gray-400, body.light-mode .text-gray-500 {
-    color: #4b5563 !important;
-}
-body.light-mode input, body.light-mode select {
-    background: rgba(0, 0, 0, 0.05) !important;
-    color: #111827 !important;
-    border-color: rgba(0, 0, 0, 0.1) !important;
-}
+body.light-mode { --bg-main: #f4f4f5; --text-main: #18181b; }
+body.light-mode .glass, body.light-mode .section-card, body.light-mode #settings-modal, body.light-mode #profile-modal { background: rgba(255, 255, 255, 0.85) !important; border: 1px solid rgba(0, 0, 0, 0.08) !important; color: #18181b !important; }
+body.light-mode .section-title, body.light-mode h1, body.light-mode h2, body.light-mode h3, body.light-mode #current-price, body.light-mode .text-white { color: #111827 !important; }
+body.light-mode .text-gray-400, body.light-mode .text-gray-500 { color: #4b5563 !important; }
+body.light-mode input, body.light-mode select { background: rgba(0, 0, 0, 0.05) !important; color: #111827 !important; border-color: rgba(0, 0, 0, 0.1) !important; }
 
 .section-card { background:rgba(12,12,14,0.65); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.06); border-radius:16px; }
 .section-title { font-size:15px; font-weight:700; color:#f4f4f5; }
@@ -68,28 +38,18 @@ body.light-mode input, body.light-mode select {
     .fundamental-value { font-size:13px; }
 }
 
-/* 手機版排版與防跑位優化 */
 @media (max-width: 768px) {
     .company-info-card { margin-bottom: 12px; }
     #stock-symbol-title { font-size: 2rem; line-height: 1.05; }
     main header.glass { padding: 16px; flex: 0 0 auto; min-height: 0; overflow: visible; }
     
-    /* 嚴格限制手機版圖表與容器高度，防止時間軸溢出 */
-    #chart-card { min-height: 400px; height: 400px !important; margin-bottom: 1rem; }
-    #chart-container { height: 300px !important; padding-bottom: 10px !important; }
+    #chart-card { min-height: 380px; height: 380px !important; margin-bottom: 1rem; }
+    #chart-container { height: 280px !important; padding-bottom: 5px !important; }
 
-    /* 修復手機版側邊欄輸入框與新增按鈕跑版 */
     aside#sidebar .flex.gap-2 { display: flex; flex-direction: row; align-items: center; }
     aside#sidebar input#stock-input { min-width: 0; flex: 1; }
     
-    #sidebar {
-        position: fixed;
-        left: -100%;
-        top: 0;
-        height: 100%;
-        z-index: 50;
-        transition: left 0.3s ease;
-    }
+    #sidebar { position: fixed; left: -100%; top: 0; height: 100%; z-index: 50; transition: left 0.3s ease; }
     #sidebar.open { left: 0; }
     #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 40; }
     #overlay.show { display: block; }
@@ -97,22 +57,8 @@ body.light-mode input, body.light-mode select {
 
 main > .flex-1, main .flex-1.flex-col { min-height: 0; }
 .company-info-card { flex: 0 0 auto; min-height: 0; transition: all 0.25s ease; }
-#chart-card { 
-    display: flex;
-    flex-direction: column;
-    background: rgba(12,12,14,0.65); 
-    border: 1px solid rgba(255,255,255,0.06); 
-    border-radius: 16px;
-    padding: 16px;
-    margin-bottom: 1.25rem; 
-    height: 440px; 
-}
-#chart-container { 
-    flex: 1;
-    width: 100%; 
-    min-height: 0; 
-    padding-bottom: 10px;
-}
+#chart-card { display: flex; flex-direction: column; background: rgba(12,12,14,0.65); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 16px; margin-bottom: 1.25rem; height: 420px; }
+#chart-container { flex: 1; width: 100%; min-height: 0; padding-bottom: 5px; }
 .company-info-card.collapsed .company-info-body { display: none; }
 .company-info-item { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 10px 12px; }
 
