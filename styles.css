@@ -1,101 +1,75 @@
-/* ============================================================
-   基礎卡片與版面定義
-   ============================================================ */
-.section-card {
-    background: rgba(12, 12, 14, 0.7);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.section-title { font-size: 15px; font-weight: 700; color: #f4f4f5; }
-.section-subtitle { font-size: 10px; color: #71717a; margin-top: 2px; }
-
-body {
-    background-color: #09090b;
-    color: #f4f4f5;
-    transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    font-feature-settings: "tnum" on, "cv02" on, "cv03" on, "cv04" on;
+/* 強制鎖定全站為深色模式，拒絕醜醜的白色淺色主題 */
+:root {
+    color-scheme: dark;
 }
 
-.glass {
-    background: rgba(18, 18, 22, 0.65);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
+.section-card { background:rgba(12,12,14,0.65); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border:1px solid rgba(255,255,255,0.06); border-radius:16px; }
+.section-title { font-size:15px; font-weight:700; color:#f4f4f5; }
+.section-subtitle { font-size:10px; color:#52525b; margin-top:2px; }
 
-/* 漲跌動態顏色 (由動態樣式覆蓋) */
+body { background-color: #000; color: #fff; }
+.glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.05); }
+
+/* 預設漲跌色 (將由 JS 動態覆蓋) */
 .price-up { color: #ef4444; }
 .price-down { color: #10b981; }
 
-.fundamental-card {
-    background: rgba(255, 255, 255, 0.025);
-    border-radius: 10px;
-    padding: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    transition: all 0.2s ease;
-}
-.fundamental-card:hover {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.08);
-}
-.fundamental-label { font-size: 11px; color: #a1a1aa; margin-bottom: 4px; font-weight: 500; }
-.fundamental-value { font-size: 14px; font-weight: 700; color: #f4f4f5; }
+.fundamental-card { background: rgba(255,255,255,0.02); border-radius: 8px; padding: 12px; border: 1px solid rgba(255,255,255,0.03); }
+.fundamental-label { font-size: 11px; color: #9ca3af; margin-bottom: 4px; }
+.fundamental-value { font-size: 14px; font-weight: 600; color: #e5e7eb; }
 .fundamentals-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 
-.period-btn {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 5px 10px;
-    border-radius: 8px;
-    color: #a1a1aa;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: all 0.2s ease;
-}
-.period-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; border-color: rgba(255, 255, 255, 0.15); }
-.period-btn.active {
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
-    border-color: rgba(59, 130, 246, 0.4);
-    box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
-}
+.period-btn { font-size: 11px; padding: 4px 8px; border-radius: 6px; color: #9ca3af; transition: all 0.2s; }
+.period-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+.period-btn.active { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
 
-@keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+@keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
 .loading-pulse { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 
-/* 響應式排版 */
 @media (max-width: 900px) {
-    .fundamentals-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .fundamentals-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
 @media (max-width: 520px) {
-    .fundamentals-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-    .fundamental-card { padding: 10px; }
-    .fundamental-value { font-size: 13px; }
+    .fundamentals-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .fundamental-card { padding:10px; }
+    .fundamental-value { font-size:13px; }
 }
 
+/* 手機版效能與排版優化 */
 @media (max-width: 768px) {
     .glass, .section-card {
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
-        background: rgba(20, 20, 24, 0.98) !important;
+        background: rgba(24, 24, 27, 0.95) !important;
     }
-    .blur-\[140px\], .blur-\[120px\] { display: none !important; }
+    .blur-\[140px\], .blur-\[120px\] {
+        display: none !important;
+    }
+
     .company-info-card { margin-bottom: 12px; }
+    #stock-symbol-title { font-size: 2rem; line-height: 1.05; }
     .header-price-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     main header.glass { padding: 16px; flex: 0 0 auto; min-height: 0; overflow: visible; }
     main header.glass .grid.grid-cols-5 { gap: 6px; font-size: 10px; }
     
-    #chart-card { min-height: 380px; height: 480px !important; }
-    #chart-container { margin-bottom: 10px; }
+    /* 修正手機版圖表高度與時間軸跑位 */
+    #chart-card { min-height: 420px; height: 420px !important; margin-bottom: 1.25rem; }
+    #chart-container { height: 330px !important; padding-bottom: 15px !important; }
+
+    /* 防止手機版側邊欄輸入框與新增按鈕擠壓跑位 */
+    aside#sidebar .flex.gap-2 { display: flex; flex-direction: row; align-items: center; }
+    aside#sidebar input#stock-input { min-width: 0; flex: 1; }
     
-    #sidebar { position: fixed; left: -100%; top: 0; height: 100%; z-index: 50; transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    #sidebar {
+        position: fixed;
+        left: -100%;
+        top: 0;
+        height: 100%;
+        z-index: 50;
+        transition: left 0.3s ease;
+    }
     #sidebar.open { left: 0; }
-    #overlay { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); z-index: 40; }
+    #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 40; }
     #overlay.show { display: block; }
 }
 
@@ -104,154 +78,35 @@ main > .flex-1, main .flex-1.flex-col { min-height: 0; }
 #chart-card { 
     display: flex;
     flex-direction: column;
-    background: rgba(12, 12, 14, 0.7);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(12,12,14,0.65); 
+    backdrop-filter: blur(20px); 
+    border: 1px solid rgba(255,255,255,0.06); 
     border-radius: 16px;
-    padding: 18px;
-    margin-bottom: 1.5rem;
-    height: 460px;
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    padding: 16px;
+    margin-bottom: 1.25rem; 
+    height: 440px; 
 }
-#chart-container { flex: 1; width: 100%; min-height: 340px; }
+#chart-container { 
+    flex: 1;
+    width: 100%; 
+    min-height: 0; 
+    padding-bottom: 10px;
+}
 .company-info-card.collapsed .company-info-body { display: none; }
-.company-info-item {
-    background: rgba(255, 255, 255, 0.025);
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    border-radius: 12px;
-    padding: 10px 14px;
-}
+.company-info-item { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 10px 12px; }
 
-/* 捲動條美化 */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
-
-/* ============================================================
-   ☀️ 頂級白天模式 (Light Mode) 現代金融儀表板質感
-   ============================================================ */
-body.light-mode {
-    background-color: #f8fafc !important; /* 柔和自然白 */
-    color: #0f172a !important;
+/* 美化全局與側邊欄的滾動條 */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
 }
-
-/* 卡片與容器 */
-body.light-mode .glass,
-body.light-mode .section-card,
-body.light-mode #chart-card {
-    background: rgba(255, 255, 255, 0.9) !important;
-    border: 1px solid rgba(226, 232, 240, 0.8) !important;
-    backdrop-filter: blur(20px) !important;
-    -webkit-backdrop-filter: blur(20px) !important;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.03), 0 8px 10px -6px rgba(0, 0, 0, 0.02) !important;
+::-webkit-scrollbar-track {
+    background: transparent;
 }
-
-/* 側邊欄與底部欄 */
-body.light-mode #sidebar {
-    background: rgba(255, 255, 255, 0.95) !important;
-    border-right: 1px solid rgba(226, 232, 240, 0.9) !important;
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
 }
-body.light-mode #sidebar > .mt-auto {
-    background: rgba(248, 250, 252, 0.95) !important;
-    border-top: 1px solid rgba(226, 232, 240, 0.9) !important;
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
-
-/* 文字層級修復 */
-body.light-mode .text-white,
-body.light-mode #stock-symbol-title,
-body.light-mode .section-title,
-body.light-mode .theme-text-primary {
-    color: #0f172a !important;
-    text-shadow: none !important;
-}
-body.light-mode .text-gray-200,
-body.light-mode .text-gray-300,
-body.light-mode .fundamental-value {
-    color: #1e293b !important;
-}
-body.light-mode .text-gray-400,
-body.light-mode .text-gray-500,
-body.light-mode .fundamental-label {
-    color: #64748b !important;
-}
-body.light-mode .text-gray-600 {
-    color: #94a3b8 !important;
-}
-
-/* 輸入框、下拉選單、內部小卡片 */
-body.light-mode input,
-body.light-mode select {
-    background: #f1f5f9 !important;
-    border: 1px solid #cbd5e1 !important;
-    color: #0f172a !important;
-}
-body.light-mode input::placeholder {
-    color: #94a3b8 !important;
-}
-
-body.light-mode .company-info-item,
-body.light-mode .fundamental-card {
-    background: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
-}
-body.light-mode .fundamental-card:hover {
-    background: #f1f5f9 !important;
-    border-color: #cbd5e1 !important;
-}
-
-/* 中間大盤指數小卡 */
-body.light-mode header .grid > div {
-    background: #f8fafc !important;
-    border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02) !important;
-}
-body.light-mode header .grid > div:hover {
-    background: #f1f5f9 !important;
-    border-color: #93c5fd !important;
-}
-
-/* 列表按鈕 */
-body.light-mode .stock-btn {
-    color: #475569 !important;
-}
-body.light-mode .stock-btn:hover {
-    background: #f1f5f9 !important;
-}
-body.light-mode .stock-btn.active {
-    background: #e2e8f0 !important;
-    color: #0f172a !important;
-}
-
-/* 週期切換按鈕 */
-body.light-mode .period-btn {
-    background: #f1f5f9 !important;
-    border-color: #e2e8f0 !important;
-    color: #64748b !important;
-}
-body.light-mode .period-btn:hover {
-    background: #e2e8f0 !important;
-    color: #0f172a !important;
-}
-body.light-mode .period-btn.active {
-    background: #eff6ff !important;
-    border-color: #3b82f6 !important;
-    color: #2563eb !important;
-    box-shadow: 0 0 0 1px #3b82f6 !important;
-}
-
-/* Modal 彈出視窗 */
-body.light-mode #settings-modal,
-body.light-mode #profile-modal {
-    background: #ffffff !important;
-    border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15) !important;
-}
-body.light-mode #profile-modal .bg-white\/5 {
-    background: #f8fafc !important;
-    border-color: #e2e8f0 !important;
-}
-
-/* 日夜模式滾動條 */
-body.light-mode ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); }
-body.light-mode ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.3); }
