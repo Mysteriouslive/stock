@@ -264,8 +264,14 @@ body {
         gap: 6px; 
         font-size: 10px; 
     }
+    .index-strip { padding: 7px !important; }
+    .index-strip-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+    .index-card { padding: 5px 7px; min-width: 0; }
+    .index-card-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .index-card > div:not(.index-card-head):not(.index-card-change) { margin-top: 1px; font-size: 12px; }
+    .chart-tools { flex-wrap: wrap; gap: 4px; }
     
-    #chart-card { min-height: 500px; height: 500px !important; flex: 0 0 500px !important; }
+    #chart-card { min-height: 520px; height: 520px !important; flex: 0 0 520px !important; }
     #chart-container {
         flex: 0 0 340px !important;
         height: 340px !important;
