@@ -21,7 +21,7 @@ function isCryptoSymbol(symbol) {
 
 function isTaiwanSymbol(symbol) {
     const s = String(symbol || '').toUpperCase().trim();
-    return /^\d{4,6}(\.(TW|TWO))?$/i.test(s);
+    return /^\d{4,6}(\.(TW|TWO))?$/i.test(s) || s.startsWith('^TW');
 }
 
 function toYahooSymbol(symbol) {
@@ -222,7 +222,6 @@ function updateMarketState(state, symbol = '') {
     badge.className = `market-state-badge ${className}`;
 }
 
-// 修正：嚴格取得當日昨收價，防止多日K線昨收抓錯
 function parseQuote(result, symbol = '') {
     const meta = result?.meta || {}, quote = result?.indicators?.quote?.[0] || {};
     let lastClose = null, lastOpen = null, lastHigh = null, lastLow = null, lastVol = null;
@@ -240,12 +239,10 @@ function parseQuote(result, symbol = '') {
         }
     }
 
-    // 優先使用正規市場昨收價，避免被 chartPreviousClose (5天前) 污染
     let previousClose = Number(meta.regularMarketPreviousClose ?? meta.previousClose);
     const currentPrice = Number(meta.regularMarketPrice ?? lastClose);
 
     if (!Number.isFinite(previousClose) || previousClose <= 0) {
-        // 如果沒有昨收，嘗試用倒數第二根非空的 close 作為基準
         if (Array.isArray(quote.close)) {
             const validCloses = quote.close.filter(v => v != null && Number.isFinite(Number(v)));
             if (validCloses.length >= 2) {
@@ -325,52 +322,50 @@ function setMetric(id, value) { const el = document.getElementById(id); if (el) 
 function escapeHtmlAttribute(value) { return String(value).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 function resetChipData() {
-    ['chip-date', 'chip-foreign', 'chip-trust', 'chip-dealer', 'chip-total', 'margin-financing', 'margin-financing-change', 'margin-short', 'margin-short-change', 'chip-revenue', 'chip-gross-profit', 'chip-operating-income', 'chip-net-income'].forEach(id => setMetric(id, '—'));
+    setMetric('chip-date', '—');
     setMetric('chip-source-note', '選擇台股後載入 TWSE 官方籌碼與財報資料');
     document.getElementById('chip-history-chart')?.classList.add('hidden');
-    document.getElementById('chip-history-empty')?.classList.remove('hidden');
-    setMetric('chip-history-label', '—');
+    document.getElementById('chip-table-rows')?.replaceChildren();
+    setMetric('margin-financing', '—');
+    setMetric('margin-financing-change', '—');
+    setMetric('margin-short', '—');
+    setMetric('margin-short-change', '—');
 }
 
+// 三竹風格籌碼資料渲染 (單位：張，買超紅、賣超綠)
 function renderChipData(data) {
     const chipCard = document.getElementById('chip-card');
     if (!chipCard) return;
 
-    // 1. 如果沒有資料或不是台股 TWSE 資料，直接隱藏整個籌碼區塊（美股會乾淨隱藏）
     if (!data || data.source !== 'TWSE Open Data') {
         chipCard.classList.add('hidden');
         return;
     }
 
-    // 台股有資料時顯示
     chipCard.classList.remove('hidden');
 
     const institutional = data.institutional;
     const margin = data.margin;
     const history = data.institutionalHistory || data.history || [];
 
-    // 2. 格式化張數（股轉張、大於0紅、小於0綠、等於0白）
     const formatSheets = (shares) => {
         if (shares === undefined || shares === null || isNaN(shares)) return '<span class="text-gray-500">—</span>';
-        const sheets = Math.round(shares / 1000); // 股數轉張數
+        const sheets = Math.round(shares / 1000);
         const formatted = Math.abs(sheets).toLocaleString('zh-TW');
         if (sheets > 0) return `<span class="text-[#ef4444] font-semibold">+${formatted}</span>`;
         if (sheets < 0) return `<span class="text-[#22c55e] font-semibold">-${formatted}</span>`;
         return `<span class="text-gray-400">0</span>`;
     };
 
-    // 格式化日期 (如 20260821 -> 08/21)
     const formatDate = (d) => {
         if (!d) return '—';
         const s = String(d).replace(/[-\/]/g, '');
         return s.length === 8 ? `${s.substring(4, 6)}/${s.substring(6, 8)}` : d;
     };
 
-    // 3. 更新頂部日期與來源說明
     setMetric('chip-date', data.date || '—');
     setMetric('chip-source-note', `資料來源：${data.source || 'TWSE 臺灣證券交易所'} · 交易日 ${data.date || '—'}`);
 
-    // 4. 動態渲染三竹風格每日列表 (優先使用歷史陣列，若無歷史則顯示當日)
     const tableRows = document.getElementById('chip-table-rows');
     if (tableRows) {
         if (history.length > 0) {
@@ -390,7 +385,6 @@ function renderChipData(data) {
                 `;
             }).join('');
         } else if (institutional) {
-            // 單日備用顯示
             tableRows.innerHTML = `
                 <div class="grid grid-cols-5 text-center py-2 px-1 hover:bg-white/[0.04] transition-colors items-center">
                     <div class="text-gray-300 font-medium">${formatDate(data.date)}</div>
@@ -405,7 +399,6 @@ function renderChipData(data) {
         }
     }
 
-    // 5. 融資融券精簡資訊更新（轉為張數顯示更直覺）
     if (margin) {
         const finBal = margin.financingBalance != null ? Math.round(margin.financingBalance / 1000).toLocaleString('zh-TW') + ' 張' : '—';
         const finChg = margin.financingChange != null ? `${margin.financingChange >= 0 ? '+' : ''}${Math.round(margin.financingChange / 1000).toLocaleString('zh-TW')} 張` : '—';
@@ -419,20 +412,18 @@ function renderChipData(data) {
     }
 }
 
+// 三竹風格三大法人長條走勢圖
 function renderChipHistory(data) {
     const canvas = document.getElementById('chip-history-chart');
-    const empty = document.getElementById('chip-history-empty');
     if (!canvas) return;
 
-    const rows = (data?.history || []).slice(-15); // 取最近 15 天
+    const rows = (data?.history || []).slice(-15);
     if (!rows.length) {
         canvas.classList.add('hidden');
-        if (empty) empty.classList.remove('hidden');
         return;
     }
 
     canvas.classList.remove('hidden');
-    if (empty) empty.classList.add('hidden');
 
     const width = canvas.clientWidth || 600;
     const height = 180;
@@ -445,7 +436,6 @@ function renderChipHistory(data) {
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    // 計算最大張數範圍
     const foreignList = rows.map(r => Number(r.institutional?.foreignNet || 0) / 1000);
     const trustList = rows.map(r => Number(r.institutional?.investmentTrustNet || 0) / 1000);
     const dealerList = rows.map(r => Number(r.institutional?.dealerNet || 0) / 1000);
@@ -456,7 +446,6 @@ function renderChipHistory(data) {
     const barWidth = Math.max(Math.floor((width / rows.length) * 0.22), 4);
     const step = width / rows.length;
 
-    // 繪製 0 基準線
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -464,7 +453,6 @@ function renderChipHistory(data) {
     ctx.lineTo(width, zeroY);
     ctx.stroke();
 
-    // 繪製三色法人長條柱 (外資藍、投信紅、自營紫)
     rows.forEach((row, i) => {
         const centerX = i * step + step / 2;
         const f = Number(row.institutional?.foreignNet || 0) / 1000;
@@ -481,8 +469,6 @@ function renderChipHistory(data) {
         drawBar(t, '#f87171', -barWidth * 0.5); // 投信紅
         drawBar(d, '#c084fc', barWidth * 0.6);  // 自營商紫
     });
-
-    setMetric('chip-history-label', `近 ${rows.length} 日三大法人進出走勢 (張)`);
 }
 
 function jumpToSection(id, button) {
@@ -791,7 +777,7 @@ function removeStock(index) {
 // ============================================================
 let chart = null, candlestickSeries = null, volumeSeries = null, ma5Series = null, ma10Series = null, ma20Series = null, ma60Series = null, upperBandSeries = null, lowerBandSeries = null, sessionMarkers = null, currentChartData = [], chartResizeObserver = null, chartResizeHandler = null, autoRefreshTimer = null, isLoadingStock = false;
 const chartIndicators = { volume: true, ma5: false, ma10: false, ma20: false, ma60: false, bollinger: false };
-let chartAtRightEdge = true; // 是否停留在「最新」畫面：只有停在最新時，背景自動刷新才會把畫面滾回最新，避免使用者往回看歷史 K 線時被強制拉回而感覺「時間跑掉」
+let chartAtRightEdge = true;
 
 function getChartDate(time) {
     if (typeof time === 'number') return new Date(time * 1000);
@@ -964,7 +950,6 @@ function initChart() {
         grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 }, horzLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 } },
         localization: {
-            // 十字線上顯示的時間標籤同樣要帶日期，跟下方座標軸的邏輯一致，避免盤前/盤後跨日資料只顯示「幾點幾分」造成混淆
             timeFormatter: (time) => {
                 const date = getChartDate(time), hours = String(date.getHours()).padStart(2, '0'), minutes = String(date.getMinutes()).padStart(2, '0'), month = date.getMonth() + 1, day = date.getDate();
                 if (['1d', '1wk', '1mo'].includes(currentPeriod.interval)) return `${month}月${day}日`;
@@ -976,10 +961,6 @@ function initChart() {
             tickMarkFormatter: (time, tickMarkType) => {
                 const date = getChartDate(time), hours = String(date.getHours()).padStart(2, '0'), minutes = String(date.getMinutes()).padStart(2, '0'), month = date.getMonth() + 1, day = date.getDate();
                 if (['1d', '1wk', '1mo'].includes(currentPeriod.interval)) return `${month}月${day}日`;
-                // 盤前/盤後與跨日資料會把非交易時段的資料點省略掉，導致畫面上的時間刻度不是等距的。
-                // 當刻度跨到新的一天時（tickMarkType 為 Year/Month/DayOfMonth），改顯示日期而非時間，
-                // 避免同樣的「幾點幾分」在不同天重複出現，讓人誤以為時間跑掉或
-                // 往回跳。
                 const TickMarkType = LightweightCharts.TickMarkType;
                 if (TickMarkType && (tickMarkType === TickMarkType.Year || tickMarkType === TickMarkType.Month || tickMarkType === TickMarkType.DayOfMonth)) {
                     return `${month}/${day}`;
@@ -1007,7 +988,6 @@ function initChart() {
 
     chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
         if (!range || !currentChartData.length) { chartAtRightEdge = true; return; }
-        // 容許 1.5 根 K 棒的誤差，只要視野右緣接近最後一筆資料，就視為「停留在最新」
         chartAtRightEdge = range.to >= currentChartData.length - 1.5;
     });
     chart.subscribeCrosshairMove(updateCrosshairTooltip);
@@ -1126,11 +1106,18 @@ async function loadStock(symbol, isSilent = false) {
                 }
             }
             if (!isSilent) {
-                renderChipData(await fetchTwseChipData(symbol));
-                renderChipHistory(await fetchTwseChipHistory(symbol));
+                const [chipData, chipHistory] = await Promise.all([
+                    fetchTwseChipData(symbol),
+                    fetchTwseChipHistory(symbol)
+                ]);
+                renderChipData(chipData);
+                renderChipHistory(chipHistory);
             }
         } else {
-            if (!isSilent) setMetric('chip-source-note', '籌碼與財報功能目前支援台股代碼');
+            if (!isSilent) {
+                const chipCard = document.getElementById('chip-card');
+                if (chipCard) chipCard.classList.add('hidden');
+            }
             if (!quote && !isIndexSymbol(symbol)) { try { quote = await fetchFinnhubQuote(symbol); } catch {} }
             if (!isSilent) {
                 if (isIndexSymbol(symbol)) renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
@@ -1156,7 +1143,7 @@ async function loadStock(symbol, isSilent = false) {
 
         const currentPriceEl = document.getElementById('current-price');
         const baseChangeClass = 'text-sm sm:text-base font-bold px-2.5 py-1 rounded-lg border transition-colors duration-300';
-        const basePriceClass = 'text-4xl sm:text-5xl font-black tracking-tight leading-none transition-colors duration-300';
+        const basePriceClass = 'text-3xl sm:text-4xl font-black tracking-tight leading-none transition-colors duration-300';
         if (isFlat) {
             if (changeEl) changeEl.className = `${baseChangeClass} bg-white/5 border-white/5 text-gray-400`;
             if (currentPriceEl) currentPriceEl.className = `${basePriceClass} text-gray-300`;
@@ -1174,8 +1161,6 @@ async function loadStock(symbol, isSilent = false) {
 
         if (chart && candlestickSeries && chartData.length > 0) {
             const timeScale = chart.timeScale();
-            // 非靜默刷新（使用者主動切換股票/週期）一律回到最新；靜默背景刷新則只在使用者原本就停留在最新畫面時才跟著滾動，
-            // 否則會在使用者往回查看歷史 K 線時，每隔幾秒就被強制拉回最新，造成「時間軸一直跑掉」的錯覺。
             const shouldFollowRealTime = !isSilent || chartAtRightEdge;
             let preservedRange = null;
             if (!shouldFollowRealTime) { try { preservedRange = timeScale.getVisibleLogicalRange(); } catch {} }
@@ -1257,7 +1242,7 @@ function setupIndexStripScroll() {
 }
 
 // ============================================================
-// 日夜模式 (Dark / Light Mode) 修正版
+// 日夜模式 (Dark / Light Mode)
 // ============================================================
 let isDarkMode = localStorage.getItem('stockThemeMode') !== 'light';
 
