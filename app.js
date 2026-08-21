@@ -582,11 +582,26 @@ function initChart() {
         layout: { textColor: textColor, background: { type: 'solid', color: 'transparent' }, fontSize: 12 },
         grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 }, horzLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 } },
-        timeScale: {
-            borderColor: scaleBorderColor, timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true,
-            tickMarkFormatter: (time) => {
+        localization: {
+            // 十字線上顯示的時間標籤同樣要帶日期，跟下方座標軸的邏輯一致，避免盤前/盤後跨日資料只顯示「幾點幾分」造成混淆
+            timeFormatter: (time) => {
                 const date = new Date(time * 1000), hours = String(date.getHours()).padStart(2, '0'), minutes = String(date.getMinutes()).padStart(2, '0'), month = date.getMonth() + 1, day = date.getDate();
                 if (['1d', '1wk', '1mo'].includes(currentPeriod.interval)) return `${month}月${day}日`;
+                return `${month}/${day} ${hours}:${minutes}`;
+            }
+        },
+        timeScale: {
+            borderColor: scaleBorderColor, timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true,
+            tickMarkFormatter: (time, tickMarkType) => {
+                const date = new Date(time * 1000), hours = String(date.getHours()).padStart(2, '0'), minutes = String(date.getMinutes()).padStart(2, '0'), month = date.getMonth() + 1, day = date.getDate();
+                if (['1d', '1wk', '1mo'].includes(currentPeriod.interval)) return `${month}月${day}日`;
+                // 盤前/盤後與跨日資料會把非交易時段的資料點省略掉，導致畫面上的時間刻度不是等距的。
+                // 當刻度跨到新的一天時（tickMarkType 為 Year/Month/DayOfMonth），改顯示日期而非時間，
+                // 避免同樣的「幾點幾分」在不同天重複出現，讓人誤以為時間跑掉或往回跳。
+                const TickMarkType = LightweightCharts.TickMarkType;
+                if (TickMarkType && (tickMarkType === TickMarkType.Year || tickMarkType === TickMarkType.Month || tickMarkType === TickMarkType.DayOfMonth)) {
+                    return `${month}/${day}`;
+                }
                 return `${hours}:${minutes}`;
             }
         },
