@@ -133,7 +133,7 @@ export default {
     }
 
     // ============================================================
-    // 4. 台股籌碼與財報 (官方 TWSE 資料)
+    // 4. 台股籌碼與財報 (三大法人、融資券 - 上市與上櫃支援)
     // ============================================================
     if (source === 'twse_chip') {
       if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
@@ -145,19 +145,34 @@ export default {
       let institutional = null, margin = null, date = null;
 
       for (const candidate of dates) {
-        const [institutionalJson, marginJson] = await Promise.all([
-          fetchJson(`https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=${candidate}&selectType=ALL`, 300),
-          fetchJson(`https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&date=${candidate}&selectType=ALL`, 300)
+        // 1. 先抓上市 (TWSE)
+        const [twseInst, twseMargin] = await Promise.all([
+          fetchJson(`https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=${candidate}&selectType=ALL`, 600),
+          fetchJson(`https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&date=${candidate}&selectType=ALL`, 600)
         ]);
-        const institutionalRows = institutionalJson?.data || [];
-        const institutionalFields = institutionalJson?.fields || [];
-        const institutionalRow = institutionalRows.find(row => String(row?.[0] || '').trim() === code);
-        const marginTable = marginJson?.tables?.find(table => table?.fields?.includes('代號') && table?.data?.some(row => String(row?.[0] || '').trim() === code));
-        const marginRow = marginTable?.data?.find(row => String(row?.[0] || '').trim() === code);
-        if (institutionalRow || marginRow) {
+
+        let instRow = twseInst?.data?.find(row => String(row?.[0] || '').trim() === code);
+        let instFields = twseInst?.fields || [];
+        
+        let marginTable = twseMargin?.tables?.find(table => table?.fields?.includes('代號') && table?.data?.some(row => String(row?.[0] || '').trim() === code));
+        let marginRow = marginTable?.data?.find(row => String(row?.[0] || '').trim() === code);
+        let marginFields = marginTable?.fields || [];
+
+        // 2. 若 TWSE 無資料，嘗試抓櫃買 (TPEx 上櫃)
+        if (!instRow) {
+          const rocDate = toRocDate(candidate);
+          const tpexInst = await fetchJson(`https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&d=${rocDate}&se=EW&t=D`, 600);
+          const tpexRow = tpexInst?.aaData?.find(row => String(row?.[0] || '').trim() === code);
+          if (tpexRow) {
+            instRow = tpexRow;
+            instFields = ['證券代號', '證券名稱', '外資及陸資買進股數', '外資及陸資賣出股數', '外資及陸資買賣超股數', '投信買進股數', '投信賣出股數', '投信買賣超股數', '自營商買進股數', '自營商賣出股數', '自營商買賣超股數', '三大法人買賣超股數合計'];
+          }
+        }
+
+        if (instRow || marginRow) {
           date = candidate;
-          institutional = institutionalRow ? parseInstitutionalRow(institutionalFields, institutionalRow) : null;
-          margin = marginRow ? parseMarginRow(marginTable.fields, marginRow) : null;
+          institutional = instRow ? parseInstitutionalRow(instFields, instRow) : null;
+          margin = marginRow ? parseMarginRow(marginFields, marginRow) : null;
           break;
         }
       }
@@ -169,8 +184,6 @@ export default {
         institutional,
         margin,
         financial,
-        distribution: { available: false, note: 'TWSE 官方資料未提供個股大戶／散戶籌碼分布' },
-        brokers: { available: false, note: 'TWSE 官方資料未提供券商分點排行' },
         source: 'TWSE Open Data'
       }, 200, { 'Cache-Control': 'public, max-age=300' });
     }
@@ -179,26 +192,44 @@ export default {
       if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
       const code = symbolParam.replace(/\.(TW|TWO)$/i, '').trim();
       if (!/^\d{4,6}$/.test(code)) return jsonResponse({ error: 'Taiwan stock code required' }, 400);
+
       const days = Math.min(Math.max(Number(url.searchParams.get('days')) || 15, 5), 15);
-      const candidates = recentTradingDates(days + 7);
+      const candidates = recentTradingDates(days + 6);
+
       const responses = await Promise.all(candidates.map(async candidate => {
         const [institutionalJson, marginJson] = await Promise.all([
-          fetchJson(`https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=${candidate}&selectType=ALL`, 300),
-          fetchJson(`https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&date=${candidate}&selectType=ALL`, 300)
+          fetchJson(`https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=${candidate}&selectType=ALL`, 600),
+          fetchJson(`https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&date=${candidate}&selectType=ALL`, 600)
         ]);
-        const institutionalRow = institutionalJson?.data?.find(row => String(row?.[0] || '').trim() === code);
-        const institutional = institutionalRow ? parseInstitutionalRow(institutionalJson.fields || [], institutionalRow) : null;
+
+        let instRow = institutionalJson?.data?.find(row => String(row?.[0] || '').trim() === code);
+        let instFields = institutionalJson?.fields || [];
+
+        // TPEx 備援
+        if (!instRow) {
+          const rocDate = toRocDate(candidate);
+          const tpexInst = await fetchJson(`https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&d=${rocDate}&se=EW&t=D`, 600);
+          const tpexRow = tpexInst?.aaData?.find(row => String(row?.[0] || '').trim() === code);
+          if (tpexRow) {
+            instRow = tpexRow;
+            instFields = ['證券代號', '證券名稱', '外資及陸資買進股數', '外資及陸資賣出股數', '外資及陸資買賣超股數', '投信買進股數', '投信賣出股數', '投信買賣超股數', '自營商買進股數', '自營商賣出股數', '自營商買賣超股數', '三大法人買賣超股數合計'];
+          }
+        }
+
+        const institutional = instRow ? parseInstitutionalRow(instFields, instRow) : null;
         const marginTable = marginJson?.tables?.find(table => table?.fields?.includes('代號') && table?.data?.some(row => String(row?.[0] || '').trim() === code));
         const marginRow = marginTable?.data?.find(row => String(row?.[0] || '').trim() === code);
         const margin = marginRow ? parseMarginRow(marginTable.fields, marginRow) : null;
+
         return institutional || margin ? { date: candidate, institutional, margin } : null;
       }));
+
       const history = responses.filter(Boolean).sort((a, b) => a.date.localeCompare(b.date)).slice(-days);
       return jsonResponse({ symbol: code, history: history.reverse(), source: 'TWSE Open Data' }, 200, { 'Cache-Control': 'public, max-age=600' });
     }
 
     // ============================================================
-    // 4. 台股名稱查詢
+    // 5. 台股名稱查詢
     // ============================================================
     if (source === 'twse_name') {
       const code = symbolParam.replace(/\.(TW|TWO)$/i, '').replace(/^\^/, '').trim();
@@ -231,7 +262,7 @@ export default {
     }
 
     // ============================================================
-    // 5. Finnhub 代理 (美股基本面與概況)
+    // 6. Finnhub 代理 (美股基本面與概況)
     // ============================================================
     if (source === 'finnhub') {
       const finnhubApiKey = env.FINNHUB_API_KEY || '';
@@ -260,7 +291,7 @@ export default {
     }
 
     // ============================================================
-    // 6. Yahoo Finance 核心轉發 (支援指數 ^、上市 .TW 與 上櫃 .TWO)
+    // 7. Yahoo Finance 核心轉發
     // ============================================================
     if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
 
@@ -288,26 +319,18 @@ export default {
     try {
       let data = null;
 
-      // A. 指數類別 (如 ^TWII, ^IXIC, ^GSPC)
       if (targetSymbol.startsWith('^')) {
         data = await fetchYahoo(targetSymbol);
-      }
-      // B. 純數字：依序嘗試 .TW (上市) 與 .TWO (上櫃)
-      else if (/^\d{4,6}$/.test(targetSymbol)) {
+      } else if (/^\d{4,6}$/.test(targetSymbol)) {
         data = await fetchYahoo(`${targetSymbol}.TW`);
         if (!data) data = await fetchYahoo(`${targetSymbol}.TWO`);
-      }
-      // C. 帶有後綴的台股代碼
-      else if (/^\d{4,6}\.TW$/i.test(targetSymbol)) {
+      } else if (/^\d{4,6}\.TW$/i.test(targetSymbol)) {
         data = await fetchYahoo(targetSymbol);
         if (!data) data = await fetchYahoo(targetSymbol.replace(/\.TW$/i, '.TWO'));
-      }
-      else if (/^\d{4,6}\.TWO$/i.test(targetSymbol)) {
+      } else if (/^\d{4,6}\.TWO$/i.test(targetSymbol)) {
         data = await fetchYahoo(targetSymbol);
         if (!data) data = await fetchYahoo(targetSymbol.replace(/\.TWO$/i, '.TW'));
-      }
-      // D. 美股 / ETF (如 SOXX, AAPL)
-      else {
+      } else {
         data = await fetchYahoo(targetSymbol);
       }
 
@@ -360,10 +383,10 @@ function parseInstitutionalRow(fields, row) {
     return index >= 0 ? parseNumber(row[index]) : null;
   };
   return {
-    foreignNet: get(['外陸資買賣超股數(不含外資自營商)', '外陸資買賣超']),
+    foreignNet: get(['外陸資買賣超股數(不含外資自營商)', '外陸資買賣超', '外資及陸資買賣超股數']),
     investmentTrustNet: get(['投信買賣超股數']),
     dealerNet: get(['自營商買賣超股數']),
-    totalNet: get(['三大法人買賣超股數'])
+    totalNet: get(['三大法人買賣超股數', '三大法人買賣超股數合計'])
   };
 }
 
@@ -411,6 +434,11 @@ async function fetchJson(url, cacheTtl) {
     if (!response.ok) return null;
     return await response.json();
   } catch { return null; }
+}
+
+function toRocDate(dateStr) {
+  const y = Number(dateStr.substring(0, 4)) - 1911;
+  return `${y}/${dateStr.substring(4, 6)}/${dateStr.substring(6, 8)}`;
 }
 
 function recentTradingDates(days) {
