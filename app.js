@@ -839,7 +839,7 @@ const chart = LightweightCharts.createChart(chartContainer, {
         secondsVisible: false,
         fixLeftEdge: true,
         fixRightEdge: true,
-        rightOffset: 5,
+        rightOffset: 3,
         barSpacing: 6,
         tickMarkFormatter: (time, tickMarkType, locale) => {
             const date = new Date(time * 1000);
@@ -962,10 +962,30 @@ const THEMES = {
     orange: { primary: '#f97316', secondary: '#facc15', bg1: 'rgba(249, 115, 22, 0.1)', bg2: 'rgba(250, 204, 21, 0.1)' }
 };
 
+function toggleDarkMode() {
+    const isLight = document.body.classList.toggle('light-mode');
+    localStorage.setItem('stockThemeMode', isLight ? 'light' : 'dark');
+    updateDarkModeBtnIcon(isLight);
+}
+
+function updateDarkModeBtnIcon(isLight) {
+    const btn = document.getElementById('dark-mode-btn');
+    if (btn) btn.textContent = isLight ? '☀️' : '🌙';
+}
+
 function loadUserPreferences() {
     const savedColorMode = localStorage.getItem('stockKlineColor') || 'red-green';
     const savedRefreshRate = localStorage.getItem('stockRefreshRate') || '10000';
     const savedTheme = localStorage.getItem('stockTheme') || 'blue';
+    const savedMode = localStorage.getItem('stockThemeMode') || 'dark';
+
+    if (savedMode === 'light') {
+        document.body.classList.add('light-mode');
+        updateDarkModeBtnIcon(true);
+    } else {
+        document.body.classList.remove('light-mode');
+        updateDarkModeBtnIcon(false);
+    }
 
     const colorSelect = document.getElementById('kline-color');
     const refreshSelect = document.getElementById('refresh-rate');
@@ -1042,7 +1062,7 @@ function updateChartColors(mode) {
         } else {
             candlestickSeries.applyOptions({
                 borderVisible: true, upColor: '#ef4444', downColor: '#10b981', 
-                borderUpColor: '#ef4444', borderDownColor: '#10b981',
+                borderUpColor: '#ef4444', borderDownColor: '#ef4444',
                 wickUpColor: '#ef4444', wickDownColor: '#10b981'
             });
         }
