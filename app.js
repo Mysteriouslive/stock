@@ -1,6 +1,6 @@
 // ============================================================
 // 股票 / 外匯 / 加密貨幣行情系統
-// 完整修正版 (全自動支援 上市 .TW 與 上櫃 .TWO)
+// 完整修正版 (支援核心指數看板 + 上市/上櫃智慧切換)
 // ============================================================
 
 const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
@@ -11,6 +11,11 @@ let AUTO_REFRESH_INTERVAL =
 // ============================================================
 // Symbol 判斷
 // ============================================================
+
+function isIndexSymbol(symbol) {
+    const s = String(symbol || '').trim().toUpperCase();
+    return s.startsWith('^');
+}
 
 function isForexSymbol(symbol) {
     const s = String(symbol || '').toUpperCase().trim();
@@ -32,11 +37,8 @@ function toYahooSymbol(symbol) {
 
     if (isForexSymbol(s)) return 'USDTWD=X';
     if (isCryptoSymbol(s)) return `${s.replace('-USD', '')}-USD`;
-    
-    // 如果已經帶有 .TWO 或 .TW 則保留原樣
+    if (isIndexSymbol(s)) return s;
     if (/^\d{4,6}\.(TW|TWO)$/i.test(s)) return s;
-    
-    // 純數字預設回傳 .TW (稍後會在 API 內部做 .TWO 備援探測)
     if (/^\d{4,6}$/.test(s)) return `${s}.TW`;
 
     return s;
@@ -55,7 +57,7 @@ function finnhubSymbol(symbol) {
 }
 
 // ============================================================
-// API：公司名稱
+// API：公司名稱與基本面
 // ============================================================
 
 async function fetchTwseName(code) {
@@ -73,10 +75,6 @@ async function fetchTwseName(code) {
     }
 }
 
-// ============================================================
-// API：基本面指標
-// ============================================================
-
 async function fetchTwseMetrics(symbol) {
     try {
         const code = displaySymbol(symbol);
@@ -92,7 +90,7 @@ async function fetchTwseMetrics(symbol) {
 }
 
 // ============================================================
-// API：Finnhub
+// API：Finnhub / Forex / Crypto
 // ============================================================
 
 async function fetchFinnhubWorker(symbol, endpoint, params = {}) {
@@ -135,10 +133,6 @@ async function fetchFinnhubQuote(symbol) {
 
 async function fetchFinnhubCompanyProfile(symbol) { return await fetchFinnhubWorker(symbol, 'profile2'); }
 async function fetchFinnhubMetrics(symbol) { return await fetchFinnhubWorker(symbol, 'metric', { metric: 'all' }); }
-
-// ============================================================
-// Forex & Crypto
-// ============================================================
 
 async function fetchForexData() {
     try {
@@ -523,6 +517,38 @@ function initSortable() {
 }
 
 // ============================================================
+// 大盤核心指數看板 (加權、櫃買、NASDAQ、S&P 500)
+// ============================================================
+const INDICES_CONFIG = [
+    { id: 'twii', symbol: '^TWII', name: '加權指數' },
+    { id: 'twoii', symbol: '^TWOII', name: '櫃買指數' },
+    { id: 'ixic', symbol: '^IXIC', name: 'NASDAQ' },
+    { id: 'gspc', symbol: '^GSPC', name: 'S&P 500' }
+];
+
+async function fetchMarketIndices() {
+    for (const idx of INDICES_CONFIG) {
+        try {
+            const data = await fetchYahooData(idx.symbol, '5m', '1d');
+            if (data) {
+                const quote = parseQuote(data, idx.symbol);
+                const priceEl = document.getElementById(`idx-${idx.id}-price`);
+                const changeEl = document.getElementById(`idx-${idx.id}-change`);
+                
+                if (priceEl) priceEl.textContent = quote.latestPrice;
+                if (changeEl) {
+                    const sign = quote.isUp ? '+' : '';
+                    changeEl.textContent = `${sign}${quote.change} (${sign}${quote.changePercent}%)`;
+                    changeEl.className = `text-[10px] font-medium ${quote.isFlat ? 'text-gray-500' : (quote.isUp ? 'price-up' : 'price-down')}`;
+                }
+            }
+        } catch (e) {
+            console.warn(`Index ${idx.name} fetch failed`, e);
+        }
+    }
+}
+
+// ============================================================
 // Add Stock (自動偵測 上市 .TW 與 上櫃 .TWO)
 // ============================================================
 
@@ -533,8 +559,8 @@ async function addStock() {
     const raw = input.value.trim().toUpperCase();
     if (!raw) { input.focus(); return; }
 
-    if (!/^[A-Z0-9.\-=\/]+$/.test(raw)) {
-        alert('請輸入有效的代碼，例如 2330、8069、USDTWD、BTC、AAPL');
+    if (!/^[A-Z0-9.\-=\/^]+$/.test(raw)) {
+        alert('請輸入有效的代碼，例如 2330、3293、USDTWD、BTC、^TWII');
         return;
     }
 
@@ -544,8 +570,9 @@ async function addStock() {
         symbol = 'USDTWD';
     } else if (isCryptoSymbol(raw)) {
         symbol = raw.replace('-USD', '');
+    } else if (isIndexSymbol(raw)) {
+        symbol = raw;
     } else if (/^\d{4,6}$/.test(raw)) {
-        // 先測試是否為上櫃或上市
         try {
             const twRes = await fetchYahooData(`${raw}.TW`, '1d', '5d');
             if (twRes) symbol = `${raw}.TW`;
@@ -647,12 +674,10 @@ async function fetchYahooData(symbol, interval = currentPeriod.interval, range =
     try {
         return await callApi(yahooSymbol);
     } catch (err) {
-        // 上市與上櫃自動互轉探測
         if (/^\d{4,6}\.TW$/i.test(yahooSymbol)) {
             const fallbackSym = yahooSymbol.replace(/\.TW$/i, '.TWO');
             try {
                 const res = await callApi(fallbackSym);
-                // 自動更新清單
                 const item = watchlist.find(s => s.symbol === symbol);
                 if (item) { item.symbol = fallbackSym; saveWatchlist(); }
                 if (currentSymbol === symbol) currentSymbol = fallbackSym;
@@ -1127,7 +1152,6 @@ async function loadStock(symbol, isSilent = false) {
                 const isOtc = String(symbol).toUpperCase().includes('.TWO');
                 renderCompanyInfo(yahooResult, symbol, quote, `Yahoo Finance + ${isOtc ? '櫃買中心' : '證交所'}`);
 
-                // 自動補齊台股名稱 (若目前還是代碼)
                 const stockItem = watchlist.find(s => s.symbol === symbol);
                 if (stockItem && (stockItem.name === displaySymbol(symbol) || !stockItem.name)) {
                     const longName = yahooResult.meta?.longName || yahooResult.meta?.shortName;
@@ -1140,20 +1164,24 @@ async function loadStock(symbol, isSilent = false) {
                 }
             }
         }
-        // 5. 美股
+        // 5. 大盤指數 / 美股
         else {
-            if (!quote) {
+            if (!quote && !isIndexSymbol(symbol)) {
                 try { quote = await fetchFinnhubQuote(symbol); } catch {}
             }
 
             if (!isSilent) {
-                const companyProfile = await fetchFinnhubCompanyProfile(symbol).catch(() => null);
-                const metricResult = await fetchFinnhubMetrics(symbol).catch(() => null);
+                if (isIndexSymbol(symbol)) {
+                    renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
+                } else {
+                    const companyProfile = await fetchFinnhubCompanyProfile(symbol).catch(() => null);
+                    const metricResult = await fetchFinnhubMetrics(symbol).catch(() => null);
 
-                if (companyProfile) renderFinnhubCompanyInfo(companyProfile, symbol, quote);
-                else if (yahooResult) renderCompanyInfo(yahooResult, symbol, quote);
+                    if (companyProfile) renderFinnhubCompanyInfo(companyProfile, symbol, quote);
+                    else if (yahooResult) renderCompanyInfo(yahooResult, symbol, quote);
 
-                if (metricResult) renderFinnhubMetrics(metricResult, companyProfile, symbol);
+                    if (metricResult) renderFinnhubMetrics(metricResult, companyProfile, symbol);
+                }
             }
         }
 
@@ -1248,8 +1276,9 @@ function startAutoRefresh() {
     if (!currentSymbol) return;
 
     autoRefreshTimer = setInterval(() => {
-        if (!document.hidden && currentSymbol) {
-            loadStock(currentSymbol, true);
+        if (!document.hidden) {
+            if (currentSymbol) loadStock(currentSymbol, true);
+            fetchMarketIndices(); // 同步自動刷新核心指數
         }
     }, Math.max(AUTO_REFRESH_INTERVAL, 3000));
 }
@@ -1271,6 +1300,7 @@ document.addEventListener('visibilitychange', () => {
         stopAutoRefresh();
     } else if (currentSymbol) {
         loadStock(currentSymbol, true);
+        fetchMarketIndices();
         startAutoRefresh();
     }
 });
@@ -1310,6 +1340,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     loadUserPreferences();
     renderWatchlist();
+
+    // 初始載入核心大盤指數
+    fetchMarketIndices();
 
     for (const stock of watchlist) {
         if (isTaiwanSymbol(stock.symbol)) {
@@ -1403,7 +1436,7 @@ window.addEventListener('keydown', event => {
 
 const THEMES = {
     blue: { primary: '#3b82f6', secondary: '#8b5cf6', bg1: 'rgba(59, 130, 246, 0.1)', bg2: 'rgba(139, 92, 246, 0.1)' },
-    emerald: { primary: '#10b981', secondary: '#06b6d4', bg1: 'rgba(168, 185, 129, 0.1)', bg2: 'rgba(6, 182, 212, 0.1)' },
+    emerald: { primary: '#10b981', secondary: '#06b6d4', bg1: 'rgba(16, 185, 129, 0.1)', bg2: 'rgba(6, 182, 212, 0.1)' },
     purple: { primary: '#a855f7', secondary: '#ec4899', bg1: 'rgba(168, 85, 247, 0.1)', bg2: 'rgba(236, 72, 153, 0.1)' },
     orange: { primary: '#f97316', secondary: '#facc15', bg1: 'rgba(249, 115, 22, 0.1)', bg2: 'rgba(250, 204, 21, 0.1)' }
 };
@@ -1534,6 +1567,7 @@ function updateChartColors(mode) {
     }
 
     renderWatchlist();
+    fetchMarketIndices(); // 重新整理指數標籤顏色
 }
 
 window.addEventListener('resize', () => {
