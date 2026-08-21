@@ -94,10 +94,26 @@ export default {
           }
         }
       } catch {}
+
+      try {
+        const tpexRes = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_peratio_analysis', {
+          headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+          cf: { cacheTtl: 3600, cacheEverything: true }
+        });
+        if (tpexRes.ok) {
+          const list = await tpexRes.json();
+          const item = list.find(x => String(x.SecuritiesCompanyCode || x.Code) === code);
+          if (item) {
+            const { pe, dy, pb } = extractPeDyPb(item);
+            return jsonResponse({ pe, dividendYield: dy, pb, source: '櫃買中心 (TPEx)' });
+          }
+        }
+      } catch {}
+
       return jsonResponse({ pe: '—', dividendYield: '—', pb: '—', source: '—' });
     }
 
-    // 4. TWSE Chip & History (三大法人與資券)
+    // 4. TWSE / TPEx Chip & History (三大法人與資券)
     if (source === 'twse_chip' || source === 'twse_chip_history') {
       if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
       const code = symbolParam.replace(/\.(TW|TWO)$/i, '').trim();
@@ -114,21 +130,17 @@ export default {
 
         let instRow = twseInst?.data?.find(row => String(row?.[0] || '').trim() === code);
         let instFields = twseInst?.fields || [];
+        let institutional = instRow ? parseInstitutionalRow(instFields, instRow) : null;
 
-        if (!instRow) {
-          const rocDate = toRocDate(candidate);
-          const tpexInst = await fetchJson(`https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&d=${rocDate}&se=EW&t=D`, 600);
-          const tpexRow = tpexInst?.aaData?.find(row => String(row?.[0] || '').trim() === code);
-          if (tpexRow) {
-            instRow = tpexRow;
-            instFields = ['證券代號', '證券名稱', '外資及陸資買進股數', '外資及陸資賣出股數', '外資及陸資買賣超股數', '投信買進股數', '投信賣出股數', '投信買賣超股數', '自營商買進股數', '自營商賣出股數', '自營商買賣超股數', '三大法人買賣超股數合計'];
+        if (!institutional) {
+          const tpexTable = await fetchTpexInstitutional(candidate);
+          if (tpexTable && tpexTable.has(code)) {
+            institutional = tpexTable.get(code);
           }
         }
 
         const marginTable = twseMargin?.tables?.find(table => table?.fields?.includes('代號') && table?.data?.some(row => String(row?.[0] || '').trim() === code));
         const marginRow = marginTable?.data?.find(row => String(row?.[0] || '').trim() === code);
-
-        const institutional = instRow ? parseInstitutionalRow(instFields, instRow) : null;
         const margin = marginRow ? parseMarginRow(marginTable?.fields || [], marginRow) : null;
 
         return (institutional || margin) ? { date: candidate, institutional, margin } : null;
@@ -153,7 +165,7 @@ export default {
       }
     }
 
-    // 5. TWSE Name (中文名稱查詢)
+    // 5. TWSE Name
     if (source === 'twse_name') {
       const code = symbolParam.replace(/\.(TW|TWO)$/i, '').replace(/^\^/, '').trim();
       try {
@@ -167,10 +179,23 @@ export default {
           if (item && item.Name) return jsonResponse({ code, name: item.Name });
         }
       } catch {}
+
+      try {
+        const res = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes', {
+          headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' },
+          cf: { cacheTtl: 86400, cacheEverything: true }
+        });
+        if (res.ok) {
+          const list = await res.json();
+          const item = list.find(x => x.SecuritiesCompanyCode === code);
+          if (item && item.CompanyName) return jsonResponse({ code, name: item.CompanyName });
+        }
+      } catch {}
+
       return jsonResponse({ code, name: null });
     }
 
-    // 6. Finnhub 代理
+    // 6. Finnhub
     if (source === 'finnhub') {
       const finnhubApiKey = env.FINNHUB_API_KEY || '';
       if (!finnhubApiKey) return jsonResponse({ error: 'Finnhub API Key not configured' }, 500);
@@ -193,7 +218,7 @@ export default {
       }
     }
 
-    // 7. Yahoo Finance 轉發
+    // 7. Yahoo Finance
     if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
     const interval = url.searchParams.get('interval') || '1d';
     const range = url.searchParams.get('range') || '5d';
@@ -251,30 +276,86 @@ function parseNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+// 核心修正：外資精準抓取「不含外資自營商」，自營商抓「自行買賣 + 避險」
 function parseInstitutionalRow(fields, row) {
-  const get = patterns => {
-    const index = fields.findIndex(field => patterns.some(pattern => String(field).includes(pattern)));
-    return index >= 0 ? parseNumber(row[index]) : null;
-  };
+  const read = (index) => (index >= 0 ? parseNumber(row[index]) : null);
 
-  const foreign = get(['外陸資買賣超股數(不含外資自營商)', '外陸資買賣超', '外資及陸資買賣超股數', '外資買賣超']) || 0;
-  const trust = get(['投信買賣超股數', '投信買賣超']) || 0;
-  
-  let dealer = get(['自營商買賣超股數合計', '自營商買賣超股數', '自營商買賣超']);
-  if (dealer === null) {
-    const prop = get(['自營商買賣超股數(自行買賣)', '自行買賣']) || 0;
-    const hedge = get(['自營商買賣超股數(避險)', '避險']) || 0;
-    dealer = prop + hedge;
+  const cleanFields = fields.map(f => String(f || '').replace(/\s+/g, ''));
+
+  // 1. 外資：匹配「不含外資自營商」或 TWSE/TPEx 標準外資欄位
+  let foreignIdx = cleanFields.findIndex(f => f.includes('不含外資自營商') && f.includes('買賣超'));
+  if (foreignIdx < 0) {
+    foreignIdx = cleanFields.findIndex(f => (f.includes('外陸資') || f.includes('外資及陸資') || f.includes('外資')) && f.includes('買賣超') && !f.includes('外資自營商買賣超'));
+  }
+  const foreign = read(foreignIdx) ?? 0;
+
+  // 2. 投信：匹配「投信」買賣超
+  const trustIdx = cleanFields.findIndex(f => f.includes('投信') && f.includes('買賣超'));
+  const trust = read(trustIdx) ?? 0;
+
+  // 3. 自營商：優先找合計欄位，若無則加總 (自行買賣 + 避險)
+  let dealer = null;
+  const dealerTotalIdx = cleanFields.findIndex(f => f.includes('自營商買賣超股數合計') || (f.includes('自營商') && f.includes('合計') && f.includes('買賣超')));
+  if (dealerTotalIdx >= 0) {
+    dealer = read(dealerTotalIdx);
   }
 
-  const total = get(['三大法人買賣超股數', '三大法人買賣超股數合計', '三大法人買賣超']) ?? (foreign + trust + (dealer || 0));
+  if (dealer === null) {
+    const propIdx = cleanFields.findIndex(f => f.includes('自營商') && f.includes('自行買賣'));
+    const hedgeIdx = cleanFields.findIndex(f => f.includes('自營商') && f.includes('避險'));
+    
+    const propVal = read(propIdx);
+    const hedgeVal = read(hedgeIdx);
+
+    if (propVal !== null || hedgeVal !== null) {
+      dealer = (propVal ?? 0) + (hedgeVal ?? 0);
+    }
+  }
+
+  const dealerNet = dealer ?? 0;
+
+  // 4. 三大法人合計
+  const totalIdx = cleanFields.findIndex(f => f.includes('三大法人') && f.includes('買賣超'));
+  const total = read(totalIdx) ?? (foreign + trust + dealerNet);
 
   return {
     foreignNet: foreign,
     investmentTrustNet: trust,
-    dealerNet: dealer || 0,
+    dealerNet: dealerNet,
     totalNet: total
   };
+}
+
+async function fetchTpexInstitutional(date) {
+  const rocDate = toRocDate(date);
+  const url = `https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade?type=Daily&sect=EW&date=${rocDate}&response=json`;
+  const data = await fetchJson(url, 600);
+  if (!data) return null;
+
+  const tables = data.tables || [];
+  if (!tables.length) return null;
+  const rows = tables[0].data || [];
+  if (!rows.length) return null;
+
+  const result = new Map();
+  for (const row of rows) {
+    if (!Array.isArray(row) || row.length < 24) continue;
+    const code = String(row[0] || '').trim().replace(/^=/, '').replace(/"/g, '');
+    if (!code) continue;
+
+    const foreign = parseNumber(row[10]) ?? 0;
+    const trust = parseNumber(row[13]) ?? 0;
+    const dealer = parseNumber(row[22]) ?? 0;
+    const total = parseNumber(row[23]) ?? (foreign + trust + dealer);
+
+    result.set(code, {
+      foreignNet: foreign,
+      investmentTrustNet: trust,
+      dealerNet: dealer,
+      totalNet: total
+    });
+  }
+  return result;
 }
 
 function parseMarginRow(fields, row) {

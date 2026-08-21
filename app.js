@@ -348,6 +348,10 @@ function setChipVisibility(visible) {
         chipNavBtn?.classList.remove('hidden');
         chipCard?.classList.remove('hidden');
     } else {
+        if (chipNavBtn?.classList.contains('active')) {
+            const overviewBtn = document.querySelector('.section-nav-btn');
+            if (overviewBtn) jumpToSection('overview-card', overviewBtn);
+        }
         chipNavBtn?.classList.remove('active');
         chipNavBtn?.classList.add('hidden');
         chipCard?.classList.add('hidden');
@@ -431,21 +435,29 @@ function renderChipContent() {
 
     const formatSheets = (shares) => {
         if (shares === undefined || shares === null || isNaN(shares)) return '<span class="text-gray-500">—</span>';
-        const sheets = Math.round(shares / 1000);
+        const sheets = Math.round(Number(shares) / 1000);
         const formatted = Math.abs(sheets).toLocaleString('zh-TW');
         if (sheets > 0) return `<span class="text-[#ef4444] font-semibold">+${formatted}</span>`;
         if (sheets < 0) return `<span class="text-[#22c55e] font-semibold">-${formatted}</span>`;
         return `<span class="text-gray-400">0</span>`;
     };
 
+    const getRowVal = (row, key) => {
+        const inst = row.institutional || {};
+        if (inst[key] !== undefined && inst[key] !== null) return Number(inst[key]);
+        if (row[key] !== undefined && row[key] !== null) return Number(row[key]);
+        return 0;
+    };
+
     if (currentChipTab === 'flow') {
         if (cachedChipHistory.length > 0) {
             tableRows.innerHTML = cachedChipHistory.map(row => {
+                const f = getRowVal(row, 'foreignNet');
+                const t = getRowVal(row, 'investmentTrustNet');
+                const d = getRowVal(row, 'dealerNet');
                 const inst = row.institutional || {};
-                const f = inst.foreignNet != null ? inst.foreignNet : (row.foreignNet || 0);
-                const t = inst.investmentTrustNet != null ? inst.investmentTrustNet : (row.investmentTrustNet || 0);
-                const d = inst.dealerNet != null ? inst.dealerNet : (row.dealerNet || 0);
-                const total = inst.totalNet != null ? inst.totalNet : (row.totalNet || (f + t + d));
+                const total = (inst.totalNet !== undefined && inst.totalNet !== null) ? Number(inst.totalNet) : (row.totalNet !== undefined && row.totalNet !== null ? Number(row.totalNet) : (f + t + d));
+
                 return `
                     <div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center border-b border-white/5">
                         <div class="text-gray-300 font-medium">${formatDate(row.date)}</div>
@@ -456,15 +468,20 @@ function renderChipContent() {
                     </div>
                 `;
             }).join('');
+        } else {
+            tableRows.innerHTML = `<div class="text-center py-6 text-gray-500 text-xs">暫無法人進出資料</div>`;
         }
         renderChipHistory(cachedChipHistory);
     } else {
         let runningF = 0, runningT = 0, runningD = 0;
         const holdingList = [...cachedChipHistory].reverse().map(row => {
-            const inst = row.institutional || {};
-            runningF += (inst.foreignNet || 0) / 1000;
-            runningT += (inst.investmentTrustNet || 0) / 1000;
-            runningD += (inst.dealerNet || 0) / 1000;
+            const f = getRowVal(row, 'foreignNet');
+            const t = getRowVal(row, 'investmentTrustNet');
+            const d = getRowVal(row, 'dealerNet');
+
+            runningF += f / 1000;
+            runningT += t / 1000;
+            runningD += d / 1000;
             return {
                 date: row.date,
                 foreignHolding: Math.round(runningF),
@@ -474,24 +491,30 @@ function renderChipContent() {
             };
         }).reverse();
 
-        tableRows.innerHTML = holdingList.map(row => `
-            <div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center border-b border-white/5">
-                <div class="text-gray-300 font-medium">${formatDate(row.date)}</div>
-                <div class="text-[#38bdf8] font-semibold">${row.foreignHolding > 0 ? '+' : ''}${row.foreignHolding.toLocaleString()}</div>
-                <div class="text-[#f87171] font-semibold">${row.trustHolding > 0 ? '+' : ''}${row.trustHolding.toLocaleString()}</div>
-                <div class="text-[#c084fc] font-semibold">${row.dealerHolding > 0 ? '+' : ''}${row.dealerHolding.toLocaleString()}</div>
-                <div class="text-white font-bold">${row.totalHolding > 0 ? '+' : ''}${row.totalHolding.toLocaleString()}</div>
-            </div>
-        `).join('');
+        if (holdingList.length > 0) {
+            tableRows.innerHTML = holdingList.map(row => `
+                <div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center border-b border-white/5">
+                    <div class="text-gray-300 font-medium">${formatDate(row.date)}</div>
+                    <div class="text-[#38bdf8] font-semibold">${row.foreignHolding > 0 ? '+' : ''}${row.foreignHolding.toLocaleString()}</div>
+                    <div class="text-[#f87171] font-semibold">${row.trustHolding > 0 ? '+' : ''}${row.trustHolding.toLocaleString()}</div>
+                    <div class="text-[#c084fc] font-semibold">${row.dealerHolding > 0 ? '+' : ''}${row.dealerHolding.toLocaleString()}</div>
+                    <div class="text-white font-bold">${row.totalHolding > 0 ? '+' : ''}${row.totalHolding.toLocaleString()}</div>
+                </div>
+            `).join('');
+        } else {
+            tableRows.innerHTML = `<div class="text-center py-6 text-gray-500 text-xs">暫無持股走勢資料</div>`;
+        }
 
         renderHoldingChart(holdingList);
     }
 }
 
-function renderChipHistory(rows) {
+function renderChipHistory(rowsOrObj) {
     const canvas = document.getElementById('chip-history-chart');
     if (!canvas) return;
-    const dataList = (rows || []).slice(-15);
+
+    const rows = Array.isArray(rowsOrObj) ? rowsOrObj : (rowsOrObj?.history || []);
+    const dataList = rows.slice(-15);
     if (!dataList.length) {
         canvas.classList.add('hidden');
         return;
@@ -510,9 +533,9 @@ function renderChipHistory(rows) {
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
-    const foreignList = dataList.map(r => Number(r.institutional?.foreignNet || 0) / 1000);
-    const trustList = dataList.map(r => Number(r.institutional?.investmentTrustNet || 0) / 1000);
-    const dealerList = dataList.map(r => Number(r.institutional?.dealerNet || 0) / 1000);
+    const foreignList = dataList.map(r => Number(r.institutional?.foreignNet ?? r.foreignNet ?? 0) / 1000);
+    const trustList = dataList.map(r => Number(r.institutional?.investmentTrustNet ?? r.investmentTrustNet ?? 0) / 1000);
+    const dealerList = dataList.map(r => Number(r.institutional?.dealerNet ?? r.dealerNet ?? 0) / 1000);
     
     const allValues = [...foreignList, ...trustList, ...dealerList];
     const maxVal = Math.max(...allValues.map(Math.abs), 500);
@@ -529,9 +552,9 @@ function renderChipHistory(rows) {
 
     dataList.forEach((row, i) => {
         const centerX = i * step + step / 2;
-        const f = Number(row.institutional?.foreignNet || 0) / 1000;
-        const t = Number(row.institutional?.investmentTrustNet || 0) / 1000;
-        const d = Number(row.institutional?.dealerNet || 0) / 1000;
+        const f = Number(row.institutional?.foreignNet ?? row.foreignNet ?? 0) / 1000;
+        const t = Number(row.institutional?.investmentTrustNet ?? row.investmentTrustNet ?? 0) / 1000;
+        const d = Number(row.institutional?.dealerNet ?? row.dealerNet ?? 0) / 1000;
 
         const drawBar = (val, color, offsetX) => {
             const barH = (val / maxVal) * (height * 0.4);
@@ -598,9 +621,11 @@ function jumpToSection(id, button) {
 }
 
 function resetFundamentals() {
-    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth', 'metric-forward-pe', 'metric-peg', 'metric-ev-ebitda', 'metric-shares'].forEach(id => setMetric(id, '—'));
-    setMetric('fundamentals-status', '—'); setMetric('fundamentals-note', '—');
+    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth', 'metric-forward-pe', 'metric-peg', 'metric-ev-ebitda', 'metric-shares', 'profile-country', 'profile-industry', 'profile-ipo', 'profile-currency'].forEach(id => setMetric(id, '—'));
+    setMetric('fundamentals-status', '—'); setMetric('fundamentals-note', '—'); setMetric('profile-note', '—');
     const subtitle = document.getElementById('fundamentals-subtitle'); if (subtitle) subtitle.textContent = 'Finnhub · Fundamental Metrics';
+    const desc = document.getElementById('profile-description'); if (desc) { desc.textContent = ''; desc.classList.add('hidden'); }
+    const link = document.getElementById('company-web-link'); if (link) { link.href = '#'; link.classList.add('hidden'); }
 }
 
 function renderFinnhubMetrics(result, profile, symbol) {
@@ -622,6 +647,10 @@ function renderFinnhubMetrics(result, profile, symbol) {
     setMetric('metric-ev-ebitda', formatMetric(firstFinite(m, ['enterpriseValueEbitdaTTM', 'evToEbitda', 'evEbitda'])));
     setMetric('metric-shares', formatCompactNumber(firstFinite(m, ['shareOutstanding'])));
     setMetric('fundamentals-status', 'Finnhub 已載入'); setMetric('fundamentals-note', `資料來源：Finnhub · ${displaySymbol(symbol)}`);
+    setMetric('profile-country', p.country || '—'); setMetric('profile-industry', p.finnhubIndustry || '—'); setMetric('profile-ipo', p.ipo || '—'); setMetric('profile-currency', p.currency || '—');
+    const desc = document.getElementById('profile-description'); if (desc && p.name) { desc.textContent = `${p.name}${p.finnhubIndustry ? ` · ${p.finnhubIndustry}` : ''}`; desc.classList.add('hidden'); }
+    const link = document.getElementById('company-web-link'); if (link && p.weburl) { link.href = p.weburl; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.classList.remove('hidden'); }
+    setMetric('profile-note', `公司：${p.name || displaySymbol(symbol)} · 交易所：${p.exchange || '—'}`);
 }
 
 function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
@@ -639,6 +668,9 @@ function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
     setMetric('metric-52high', formatPrice(high52, symbol)); setMetric('metric-52low', formatPrice(low52, symbol));
     if (meta.marketCap) setMetric('metric-marketcap', formatCompactNumber(meta.marketCap));
     setMetric('fundamentals-status', `${twseData?.source || marketName} 已載入`); setMetric('fundamentals-note', `資料來源：${twseData?.source || marketName} + Yahoo Finance · 代碼 ${displaySymbol(symbol)}`);
+    setMetric('profile-country', '台灣'); setMetric('profile-industry', meta.fullExchangeName || (isOtc ? '上櫃股票' : '上市股票')); setMetric('profile-currency', meta.currency || 'TWD');
+    const desc = document.getElementById('profile-description'); if (desc) { desc.textContent = `${meta.longName || displaySymbol(symbol)} - 台灣在地公開資訊。`; desc.classList.add('hidden'); }
+    setMetric('profile-note', `市場別：${marketName} · 代碼：${displaySymbol(symbol)}`);
 }
 
 function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
@@ -1139,7 +1171,7 @@ function setupChartKeyboard() {
 }
 
 // ============================================================
-// Load Stock 主流程 (狀態優先切換)
+// Load Stock 主流程
 // ============================================================
 async function loadStock(symbol, isSilent = false) {
     if (!symbol || (isLoadingStock && !isSilent)) return;
@@ -1159,7 +1191,7 @@ async function loadStock(symbol, isSilent = false) {
         const currentPrice = document.getElementById('current-price'); if (currentPrice) currentPrice.className = 'text-3xl sm:text-4xl font-black text-white tracking-tight leading-none transition-colors duration-300';
         setText('chart-status', `${currentPeriod.label} · 載入中`); resetFundamentals();
         
-        // 核心關鍵：不等 API，立刻決定籌碼卡片與按鈕的顯隱狀態
+        // 狀態優先：立刻決定籌碼卡片與標籤顯隱
         setChipVisibility(isTw);
     }
 
