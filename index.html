@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>股票觀測站</title>
-    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImIiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxODE4MWIiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiMwOTA5MGIiLz48L2xpbmVhckdyYWRpZW50PjxsaW5lYXJHcmFkaWVudCBpZD0idCIgeDE9IjAlIiB5MT0iMTAwJSIgeDI9IjEwMCUiIHkyPSIwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2VmNDQ0NCIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2E4NTVmNyIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI1MDAiIGhlaWdodD0iNTAwIiByeD0iMTEwIiBmaWxsPSJ1cmwoI2IpIi8+PGcgZmlsbD0iIzMzNDE1NSIgb3BhY2l0eT0iMC41Ij48cmVjdCB4PSIxMzAiIHk9IjI4MCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjEyMCIgcng9IjEwIi8+PHJlY3QgeD0iMjMwIiB5PSIyMjAiIHdpZHRoPSI0MCIgaGVpZ2h0PSIxODAiIHJ4PSIxMCIvPjxyZWN0IHg9IjMzMCIgeT0iMTIwIiB3aWR0aD0iNDAiIGhlaWdodD0iMjgwIiByeD0iMTAiLz48L2c+PHBhdGggZD0iTTEwMCAzNTBsMTIwLTEyMCA2MCA0MCAxMDAtMTMwIiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjdCkiIHN0cm9rZS13aWR0aD0iMzUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik0zMTAgMTQwaDcwdjcwIiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjdCkiIHN0cm9rZS13aWR0aD0iMzUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==" type="image/svg+xml">
+    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImIiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxODE4MWIiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiMwOTA5MGIiLz48L2xpbmVhckdyYWRpZW50PjxsaW5lYXJHcmFkaWVudCBpZD0idCIgeDE9IjAlIiB5MT0iMTAwJSIgeDI9IjEwMCUiIHkyPSIwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2VmNDQ0NCIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2E4NTVmNyIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI1MDAiIGhlaWdodD0iNTAwIiByeD0iMTEwIiBmaWxsPSJ1cmwoI2IpIi8+PGcgZmlsbD0iIzMzNDE1NSIgb3BhY2l0eT0iMC41Ij48cmVjdCB4PSIxMzAiIHk9IjI4MCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjEyMCIgcng9IjEwIi8+PHJlY3QgeD0iMjMwIiB5PSIyMjAiIHdpZHRoPSI0MCIgaGVpZ2h0PSIxODAiIHJ4PSIxMCIvPjxyZWN0IHg9IjMzMCIgeT0iMTIwIiB3aWR0aD0iNDAiIGhlaWdodD0iMjgwIiByeD0iMTAiLz48L2c+PHBhdGggZD0iTTEwMCAzNTBsMTIwLTEyMCA2MCA0MCAxMDAtMTMwIiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjdCkiIHN0cm9rZS13aWR0aD0iMzUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik0zMTAgMTQwaDcwdjcwIiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjdCkiIHN0cm9rZS13aWR0aD0iMzUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==" type="image/svg+xml">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <link rel="stylesheet" href="./styles.css?v=27">
+    <link rel="stylesheet" href="./styles.css?v=28">
 </head>
 <body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
@@ -95,7 +95,7 @@
         </div>
         <div class="flex-1 overflow-y-auto p-3 space-y-1" id="stock-list"></div>
         
-        <!-- 側邊欄底部 (頭像、日夜模式與設定) -->
+        <!-- 側邊欄底部 -->
         <div class="mt-auto border-t border-white/5 p-3 flex items-center justify-between bg-black/20 shrink-0">
             <button onclick="openProfileModal()" class="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-white/5 transition-colors text-left group">
                 <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md group-hover:shadow-purple-500/20 transition-all">
@@ -107,13 +107,10 @@
                 </div>
             </button>
             <div class="flex items-center gap-1">
-                <!-- 日夜模式切換按鈕 -->
                 <button id="theme-toggle-btn" onclick="toggleDarkMode()" class="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors" title="切換深淺模式">
-                    <!-- 月亮 (深色模式) -->
                     <svg id="theme-moon-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
                     </svg>
-                    <!-- 太陽 (淺色模式) -->
                     <svg id="theme-sun-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
@@ -134,44 +131,21 @@
         <div id="glow-1" class="absolute top-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full blur-[140px] pointer-events-none transition-colors duration-1000" style="background-color: var(--theme-color-1, rgba(59, 130, 246, 0.1));"></div>
         <div id="glow-2" class="absolute bottom-[-15%] left-[-5%] w-[40%] h-[40%] rounded-full blur-[120px] pointer-events-none transition-colors duration-1000" style="background-color: var(--theme-color-2, rgba(139, 92, 246, 0.1));"></div>
         
-        <div class="md:hidden flex items-center justify-between gap-3 px-4 pb-4 border-b border-white/5" style="padding-top: max(16px, env(safe-area-inset-top));">
+        <!-- 手機版頂部導航 -->
+        <div class="md:hidden flex items-center justify-between gap-3 px-4 pb-3 border-b border-white/5 shrink-0" style="padding-top: max(14px, env(safe-area-inset-top));">
             <div class="flex items-center gap-3">
                 <button onclick="toggleSidebar()" class="p-2 rounded-lg glass text-gray-300">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                 </button>
                 <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 shrink-0 rounded-lg shadow-md shadow-purple-500/20 overflow-hidden">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" class="w-full h-full">
-                            <defs>
-                                <linearGradient id="bg-mobile" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#18181b"/><stop offset="100%" stop-color="#09090b"/>
-                                </linearGradient>
-                                <linearGradient id="trend-mobile" x1="0%" y1="100%" x2="100%" y2="0%">
-                                    <stop offset="0%" stop-color="#ef4444"/><stop offset="100%" stop-color="#a855f7"/>
-                                </linearGradient>
-                                <filter id="glow-mobile" x="-20%" y="-20%" width="140%" height="140%">
-                                    <feGaussianBlur stdDeviation="15" result="blur" />
-                                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                                </filter>
-                            </defs>
-                            <rect width="500" height="500" rx="110" fill="url(#bg-mobile)"/>
-                            <g fill="#334155" opacity="0.5">
-                                <rect x="130" y="280" width="40" height="120" rx="10" />
-                                <rect x="230" y="220" width="40" height="180" rx="10" />
-                                <rect x="330" y="120" width="40" height="280" rx="10" />
-                            </g>
-                            <path d="M 100 350 L 220 230 L 280 270 L 380 140" fill="none" stroke="url(#trend-mobile)" stroke-width="35" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow-mobile)"/>
-                            <path d="M 310 140 L 380 140 L 380 210" fill="none" stroke="url(#trend-mobile)" stroke-width="35" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow-mobile)"/>
-                        </svg>
-                    </div>
-                    <span class="font-semibold tracking-wide text-white theme-text-primary">股票觀測站</span>
+                    <span class="font-semibold tracking-wide text-white theme-text-primary text-base">股票觀測站</span>
                 </div>
             </div>
         </div>
 
         <div class="flex-1 min-w-0 flex flex-col p-3 sm:p-4 md:p-6 overflow-y-auto relative z-10">
-            <!-- 頂部資訊看板 (手機/電腦響應優化版) -->
-            <div class="index-strip glass rounded-2xl p-3 sm:p-4 mb-5 relative z-20 shrink-0">
+            <!-- 頂部四大指數小卡 -->
+            <div class="index-strip glass rounded-2xl p-3 sm:p-4 mb-4 relative z-20 shrink-0">
                 <div class="index-strip-grid">
                     <div onclick="loadStock('^TWII')" class="index-card cursor-pointer"><div class="index-card-head"><span>加權指數</span><small>TWSE</small></div><div id="idx-twii-price">—</div><div id="idx-twii-change">—</div></div>
                     <div onclick="loadStock('SOXX')" class="index-card cursor-pointer"><div class="index-card-head"><span>費城半導體</span><small>SOXX</small></div><div id="idx-soxx-price">—</div><div id="idx-soxx-change">—</div></div>
@@ -179,98 +153,54 @@
                     <div onclick="loadStock('^GSPC')" class="index-card cursor-pointer"><div class="index-card-head"><span>S&amp;P 500</span><small>大盤</small></div><div id="idx-gspc-price">—</div><div id="idx-gspc-change">—</div></div>
                 </div>
             </div>
-            <header class="dashboard-header glass rounded-2xl p-4 sm:p-6 mb-5 relative overflow-visible shrink-0 border border-white/10 shadow-2xl">
+
+            <!-- 個股即時資訊看板 (已移除重複指數，排版絕不擠壓) -->
+            <header class="dashboard-header glass rounded-2xl p-4 sm:p-5 mb-4 relative overflow-visible shrink-0 border border-white/10 shadow-2xl">
                 <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-blue-500 via-purple-500 to-transparent opacity-80"></div>
                 
-                <div class="dashboard-main-row flex flex-col xl:flex-row xl:items-center justify-between gap-6 min-w-0">
-                    <!-- 左側：標的資訊 -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 min-w-0">
+                    <!-- 左側：標的名稱、代碼與時間 -->
                     <div class="flex flex-col justify-center min-w-0">
                         <div class="flex items-center flex-wrap gap-2 sm:gap-3">
-                            <h2 id="stock-symbol-title" class="text-xl sm:text-2xl lg:text-[32px] font-black tracking-tight text-white leading-tight break-words">—</h2>
-                            <span id="loading-badge" class="hidden text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 loading-pulse shrink-0">
-                                載入中
-                            </span>
+                            <h2 id="stock-symbol-title" class="text-2xl sm:text-3xl font-black tracking-tight text-white leading-tight break-words">—</h2>
+                            <span id="loading-badge" class="hidden text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 loading-pulse shrink-0">載入中</span>
                             <span id="auto-refresh-indicator" class="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5 shrink-0 shadow-sm shadow-emerald-500/10">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> 即時
                             </span>
+                            <span id="market-state-badge" class="market-state-badge state-unknown text-[10px]">—</span>
                         </div>
                         <div class="flex items-center gap-2 mt-1.5 flex-wrap">
-                            <span id="stock-name" class="text-xs font-semibold px-2 py-0.5 rounded-md bg-white/5 text-gray-400 tracking-wider">代碼</span>
-                            <span id="last-update" class="text-[11px] text-gray-500">—</span>
+                            <span id="stock-name" class="text-xs font-semibold px-2 py-0.5 rounded-md bg-white/5 text-gray-300 tracking-wider">代碼</span>
+                            <span id="last-update" class="text-[11px] text-gray-400 font-mono">—</span>
                         </div>
                     </div>
 
-                    <!-- 中間：核心大盤指數行情小卡 (手機版改為自適應兩欄或自動收納，避免擠壓) -->
-                    <div class="legacy-index-grid w-full xl:flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                        <!-- 加權指數 -->
-                        <div onclick="loadStock('^TWII')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-2.5 sm:p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[11px] sm:text-xs text-gray-400 font-semibold tracking-wide">加權指數</span>
-                                <span class="text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">TWSE</span>
-                            </div>
-                            <div id="idx-twii-price" class="text-[13px] sm:text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
-                            <div id="idx-twii-change" class="text-[10px] sm:text-[11px] mt-0.5 font-medium">—</div>
-                        </div>
-
-                        <!-- 費城半導體 SOXX -->
-                        <div onclick="loadStock('SOXX')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-2.5 sm:p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[11px] sm:text-xs text-gray-400 font-semibold tracking-wide">費城半導體</span>
-                                <span class="text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">SOXX</span>
-                            </div>
-                            <div id="idx-soxx-price" class="text-[13px] sm:text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
-                            <div id="idx-soxx-change" class="text-[10px] sm:text-[11px] mt-0.5 font-medium">—</div>
-                        </div>
-
-                        <!-- NASDAQ -->
-                        <div onclick="loadStock('^IXIC')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-2.5 sm:p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[11px] sm:text-xs text-gray-400 font-semibold tracking-wide">NASDAQ</span>
-                                <span class="text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">科技</span>
-                            </div>
-                            <div id="idx-ixic-price" class="text-[13px] sm:text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
-                            <div id="idx-ixic-change" class="text-[10px] sm:text-[11px] mt-0.5 font-medium">—</div>
-                        </div>
-
-                        <!-- S&P 500 -->
-                        <div onclick="loadStock('^GSPC')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-2.5 sm:p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[11px] sm:text-xs text-gray-400 font-semibold tracking-wide">S&P 500</span>
-                                <span class="text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">大盤</span>
-                            </div>
-                            <div id="idx-gspc-price" class="text-[13px] sm:text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
-                            <div id="idx-gspc-change" class="text-[10px] sm:text-[11px] mt-0.5 font-medium">—</div>
-                        </div>
-                    </div>
-
-                    <!-- 右側：現今報價與即時五項行情 -->
-                    <div class="text-left xl:text-right min-w-0 shrink-0 xl:min-w-[280px] pt-3 xl:pt-0 border-t xl:border-t-0 border-white/10">
-                        <div class="flex items-center gap-2 mb-1">
-                            <div class="text-[11px] font-semibold text-gray-500 tracking-wider uppercase">即時行情</div>
-                            <span id="market-state-badge" class="market-state-badge state-unknown">—</span>
-                        </div>
-                        <div class="flex items-baseline gap-3 xl:justify-end">
+                    <!-- 右側：現今報價與五項數據 -->
+                    <div class="flex flex-col md:items-end min-w-0 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-white/5">
+                        <div class="flex items-baseline gap-3">
                             <span id="current-price" class="text-3xl sm:text-4xl font-black text-white tracking-tight leading-none transition-colors duration-300">—</span>
                             <span id="price-change" class="text-xs sm:text-sm font-bold px-2 py-0.5 rounded-lg bg-white/5 border border-white/5 transition-colors duration-300">—</span>
                         </div>
-                        <div class="grid grid-cols-5 gap-1.5 sm:gap-2 mt-3 pt-3 border-t border-white/5 text-[11px]">
-                            <div class="text-center xl:text-right"><div class="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">今開</div><div id="open-price" class="text-gray-200 font-semibold truncate">—</div></div>
-                            <div class="text-center xl:text-right"><div class="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">最高</div><div id="high-price" class="text-gray-200 font-semibold truncate">—</div></div>
-                            <div class="text-center xl:text-right"><div class="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">最低</div><div id="low-price" class="text-gray-200 font-semibold truncate">—</div></div>
-                            <div class="text-center xl:text-right"><div class="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">昨收</div><div id="previous-close" class="text-gray-200 font-semibold truncate">—</div></div>
-                            <div class="text-center xl:text-right"><div class="text-gray-500 text-[9px] sm:text-[10px] mb-0.5">成交量</div><div id="volume" class="text-gray-200 font-semibold truncate">—</div></div>
+                        <div class="grid grid-cols-5 gap-2 sm:gap-3 mt-2.5 text-[11px]">
+                            <div class="text-center md:text-right"><div class="text-gray-500 text-[10px] mb-0.5">今開</div><div id="open-price" class="text-gray-200 font-semibold truncate">—</div></div>
+                            <div class="text-center md:text-right"><div class="text-gray-500 text-[10px] mb-0.5">最高</div><div id="high-price" class="text-gray-200 font-semibold truncate">—</div></div>
+                            <div class="text-center md:text-right"><div class="text-gray-500 text-[10px] mb-0.5">最低</div><div id="low-price" class="text-gray-200 font-semibold truncate">—</div></div>
+                            <div class="text-center md:text-right"><div class="text-gray-500 text-[10px] mb-0.5">昨收</div><div id="previous-close" class="text-gray-200 font-semibold truncate">—</div></div>
+                            <div class="text-center md:text-right"><div class="text-gray-500 text-[10px] mb-0.5">成交量</div><div id="volume" class="text-gray-200 font-semibold truncate">—</div></div>
                         </div>
                     </div>
                 </div>
             </header>
 
-            <nav class="section-nav" aria-label="資料分類">
+            <!-- 頁籤切換導航 -->
+            <nav class="section-nav mb-4" aria-label="資料分類">
                 <button class="section-nav-btn active" onclick="jumpToSection('overview-card', this)">總覽</button>
                 <button class="section-nav-btn" onclick="jumpToSection('chart-card', this)">圖表</button>
                 <button class="section-nav-btn" onclick="jumpToSection('chip-card', this)">籌碼</button>
                 <button class="section-nav-btn" onclick="jumpToSection('fundamentals-card', this)">財報</button>
             </nav>
 
+            <!-- 公司基本資料 -->
             <section id="overview-card" class="company-info-card collapsed glass rounded-2xl p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3">
                     <div class="flex items-center gap-3">
@@ -280,7 +210,7 @@
                             <p class="text-[10px] text-gray-500">Company Information</p>
                         </div>
                     </div>
-                    <button onclick="toggleCompanyInfo()" class="text-[11px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-500 hover:text-white hover:bg-white/10 transition-colors">展開</button>
+                    <button onclick="toggleCompanyInfo()" class="text-[11px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">展開</button>
                 </div>
                 <div id="company-info-body" class="company-info-body mt-4">
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5">
@@ -297,6 +227,7 @@
                 </div>
             </section>
 
+            <!-- K 線圖表區塊 -->
             <div id="chart-card" class="glass rounded-2xl p-3 md:p-4 relative mb-5">
                 <div class="flex items-center justify-between gap-2 px-1 pb-3 shrink-0">
                     <div class="flex items-center gap-1 flex-wrap">
@@ -335,6 +266,7 @@
                 </div>
             </div>
 
+            <!-- 技術評估 -->
             <section id="assessment-card" class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
@@ -353,22 +285,28 @@
 
             <!-- 三竹風格三大法人籌碼分析 (僅台股顯示) -->
             <section id="chip-card" class="section-card p-4 md:p-5 mb-5 hidden">
-                <!-- 頂部標題列 -->
+                <!-- 頂部標題與頁籤 -->
                 <div class="flex items-center justify-between gap-3 mb-3 pb-3 border-b border-white/10">
-                    <div class="flex items-center gap-2">
-                        <span class="text-lg">📊</span>
-                        <div class="section-title theme-text-primary text-base font-bold text-white">三大法人買賣超</div>
-                        <span class="text-[10px] text-gray-400 bg-white/5 px-2 py-0.5 rounded">單位：張</span>
+                    <div class="flex items-center gap-3">
+                        <div class="section-title theme-text-primary text-base font-bold text-white">三大法人</div>
+                        <!-- 三竹切換標籤：進出 / 持股 -->
+                        <div class="flex bg-black/40 p-0.5 rounded-lg border border-white/10 text-xs">
+                            <button class="px-3 py-1 bg-white/15 text-white rounded-md font-medium">進出</button>
+                            <button class="px-3 py-1 text-gray-400 hover:text-white rounded-md font-medium">持股</button>
+                        </div>
                     </div>
-                    <span id="chip-date" class="text-[11px] text-gray-400 font-mono">—</span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] text-gray-400 bg-white/5 px-2 py-0.5 rounded">張</span>
+                        <span id="chip-date" class="text-[11px] text-gray-400 font-mono">—</span>
+                    </div>
                 </div>
 
-                <!-- 三竹風格長條圖與折線圖 (Chart.js) -->
+                <!-- 三竹風格長條圖與走勢圖 -->
                 <div class="relative w-full h-[180px] mb-3">
                     <canvas id="chip-history-chart" class="w-full h-full"></canvas>
                 </div>
 
-                <!-- 三竹風格表頭 -->
+                <!-- 三竹風格表頭圖例 -->
                 <div class="grid grid-cols-5 text-center text-xs font-semibold py-2 px-1 bg-white/[0.04] rounded-lg text-gray-400 mb-1 border border-white/5">
                     <div>日期</div>
                     <div class="text-[#38bdf8] flex items-center justify-center gap-1">
@@ -409,6 +347,7 @@
                 <div id="chip-source-note" class="text-[10px] text-gray-500 mt-2 text-right">資料來源：TWSE 臺灣證券交易所</div>
             </section>
 
+            <!-- 基本面財報 -->
             <section id="fundamentals-card" class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
@@ -434,6 +373,7 @@
                 <div id="fundamentals-note" class="text-[10px] text-gray-500 mt-3">—</div>
             </section>
 
+            <!-- 估值與風險 -->
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="mb-4">
                     <div class="section-title theme-text-primary">🎯 估值與風險</div>
@@ -447,6 +387,7 @@
                 </div>
             </section>
 
+            <!-- 公司詳細 Profile -->
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
@@ -504,7 +445,7 @@
     <div id="profile-modal" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm glass bg-[#18181b]/95 border border-white/10 rounded-2xl z-50 hidden opacity-0 scale-95 transition-all duration-300 p-6 shadow-2xl">
         <div class="flex justify-between items-start mb-2">
             <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-600 to-purple-500 flex items-center justify-center text-2xl text-white font-bold shadow-lg shadow-purple-500/30">
-                子
+                衡
             </div>
             <button onclick="closeModals()" class="text-gray-500 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -530,6 +471,6 @@
         </div>
     </div>
 
-    <script src="./app.js?v=27"></script>
+    <script src="./app.js?v=28"></script>
 </body>
 </html>
