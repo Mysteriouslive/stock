@@ -566,6 +566,7 @@ function removeStock(index) {
 // 圖表初始化與邏輯
 // ============================================================
 let chart = null, candlestickSeries = null, currentChartData = [], chartResizeObserver = null, chartResizeHandler = null, autoRefreshTimer = null, isLoadingStock = false;
+let chartAtRightEdge = true; // 是否停留在「最新」畫面：只有停在最新時，背景自動刷新才會把畫面滾回最新，避免使用者往回看歷史 K 線時被強制拉回而感覺「時間跑掉」
 
 function initChart() {
     const container = document.getElementById('chart-container');
@@ -597,6 +598,12 @@ function initChart() {
     candlestickSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
         upColor: '#ef4444', downColor: '#10b981', borderVisible: true,
         borderUpColor: '#ef4444', borderDownColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
+    });
+
+    chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+        if (!range || !currentChartData.length) { chartAtRightEdge = true; return; }
+        // 容許 1.5 根 K 棒的誤差，只要視野右緣接近最後一筆資料，就視為「停留在最新」
+        chartAtRightEdge = range.to >= currentChartData.length - 1.5;
     });
 
     setupChartResize(container);
@@ -755,8 +762,21 @@ async function loadStock(symbol, isSilent = false) {
         setText('stock-symbol-title', finalDisplayName); setText('stock-name', displaySymbol(symbol));
 
         if (chart && candlestickSeries && chartData.length > 0) {
+            const timeScale = chart.timeScale();
+            // 非靜默刷新（使用者主動切換股票/週期）一律回到最新；靜默背景刷新則只在使用者原本就停留在最新畫面時才跟著滾動，
+            // 否則會在使用者往回查看歷史 K 線時，每隔幾秒就被強制拉回最新，造成「時間軸一直跑掉」的錯覺。
+            const shouldFollowRealTime = !isSilent || chartAtRightEdge;
+            let preservedRange = null;
+            if (!shouldFollowRealTime) { try { preservedRange = timeScale.getVisibleLogicalRange(); } catch {} }
+
             currentChartData = chartData; candlestickSeries.setData(chartData);
-            try { chart.timeScale().scrollToRealTime(); } catch {}
+
+            if (shouldFollowRealTime) {
+                chartAtRightEdge = true;
+                try { timeScale.scrollToRealTime(); } catch {}
+            } else if (preservedRange) {
+                try { timeScale.setVisibleLogicalRange(preservedRange); } catch {}
+            }
             setText('chart-status', `${currentPeriod.label} · ${chartData.length} 根`);
         } else {
             if (candlestickSeries && currentChartData.length > 0) {
