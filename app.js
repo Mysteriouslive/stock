@@ -272,7 +272,7 @@ function parseCandles(result) {
         if ([open, high, low, close].some(v => v == null || !Number.isFinite(Number(v)))) continue;
         chartData.push({
             time: ['1d', '1wk', '1mo'].includes(currentPeriod.interval) ? new Date(timestamps[i] * 1000).toISOString().split('T')[0] : timestamps[i],
-            open: Number(open), high: Number(high), low: Number(low), close: Number(close)
+            open: Number(open), high: Number(high), low: Number(low), close: Number(close), volume: Number(quote.volume?.[i]) || 0
         });
     }
     return chartData;
@@ -606,7 +606,8 @@ function removeStock(index) {
 // ============================================================
 // 圖表初始化與邏輯
 // ============================================================
-let chart = null, candlestickSeries = null, sessionMarkers = null, currentChartData = [], chartResizeObserver = null, chartResizeHandler = null, autoRefreshTimer = null, isLoadingStock = false;
+let chart = null, candlestickSeries = null, volumeSeries = null, ma20Series = null, ma60Series = null, upperBandSeries = null, lowerBandSeries = null, sessionMarkers = null, currentChartData = [], chartResizeObserver = null, chartResizeHandler = null, autoRefreshTimer = null, isLoadingStock = false;
+const chartIndicators = { volume: true, ma20: false, ma60: false, bollinger: false };
 let chartAtRightEdge = true; // 是否停留在「最新」畫面：只有停在最新時，背景自動刷新才會把畫面滾回最新，避免使用者往回看歷史 K 線時被強制拉回而感覺「時間跑掉」
 
 function getChartDate(time) {
@@ -657,6 +658,94 @@ function updateSessionMarkers(data) {
     }
 }
 
+function calculateIndicatorData(data, period, valueGetter, mapper) {
+    const result = [], values = [];
+    data.forEach(item => {
+        values.push(valueGetter(item));
+        if (values.length < period) return;
+        const window = values.slice(-period), average = window.reduce((sum, value) => sum + value, 0) / period;
+        result.push(mapper(item, average, window));
+    });
+    return result;
+}
+
+function updateChartIndicators(data) {
+    if (!data.length) return;
+    const close = item => item.close;
+    ma20Series?.setData(chartIndicators.ma20 ? calculateIndicatorData(data, 20, close, (item, average) => ({ time: item.time, value: average })) : []);
+    ma60Series?.setData(chartIndicators.ma60 ? calculateIndicatorData(data, 60, close, (item, average) => ({ time: item.time, value: average })) : []);
+    if (chartIndicators.bollinger) {
+        upperBandSeries?.setData(calculateIndicatorData(data, 20, close, (item, average, values) => ({ time: item.time, value: average + Math.sqrt(values.reduce((sum, value) => sum + (value - average) ** 2, 0) / 20) * 2 })));
+        lowerBandSeries?.setData(calculateIndicatorData(data, 20, close, (item, average, values) => ({ time: item.time, value: average - Math.sqrt(values.reduce((sum, value) => sum + (value - average) ** 2, 0) / 20) * 2 })));
+    } else {
+        upperBandSeries?.setData([]); lowerBandSeries?.setData([]);
+    }
+    volumeSeries?.setData(chartIndicators.volume ? data.map(item => ({ time: item.time, value: item.volume || 0, color: item.close >= item.open ? 'rgba(239,68,68,0.45)' : 'rgba(16,185,129,0.45)' })) : []);
+}
+
+function calculateAssessment(data) {
+    const closes = data.map(item => item.close), horizon = 5, signals = [], emaSeries = period => {
+        const values = [], alpha = 2 / (period + 1); let value = closes[0];
+        closes.forEach((close, index) => { value = index === 0 ? close : close * alpha + value * (1 - alpha); values.push(value); });
+        return values;
+    };
+    const ema12 = emaSeries(12), ema26 = emaSeries(26), macdValues = closes.map((_, index) => ema12[index] - ema26[index]);
+    const macdSignal = [], signalAlpha = 2 / 10; let signalValue = macdValues[0];
+    macdValues.forEach((value, index) => { signalValue = index === 0 ? value : value * signalAlpha + signalValue * (1 - signalAlpha); macdSignal.push(signalValue); });
+    const metricsAt = index => {
+        if (index < 60) return null;
+        const slice20 = closes.slice(index - 19, index + 1), slice60 = closes.slice(index - 59, index + 1);
+        const ma20 = slice20.reduce((sum, value) => sum + value, 0) / 20, ma60 = slice60.reduce((sum, value) => sum + value, 0) / 60;
+        const changes = closes.slice(index - 14, index + 1).slice(1).map((value, i) => value - closes[index - 14 + i]);
+        const gains = changes.map(value => Math.max(value, 0)), losses = changes.map(value => Math.max(-value, 0));
+        const averageGain = gains.reduce((sum, value) => sum + value, 0) / 14, averageLoss = losses.reduce((sum, value) => sum + value, 0) / 14;
+        const rsi = averageLoss === 0 ? 100 : 100 - (100 / (1 + averageGain / averageLoss));
+        const macd = macdValues[index], signal = macdSignal[index];
+        const deviation = Math.sqrt(slice20.reduce((sum, value) => sum + (value - ma20) ** 2, 0) / 20), close = closes[index], upperBand = ma20 + deviation * 2, lowerBand = ma20 - deviation * 2;
+        const longPoints = [close > ma20, ma20 > ma60, macd > signal, rsi >= 50 && rsi <= 70, close > upperBand].filter(Boolean).length;
+        const shortPoints = [close < ma20, ma20 < ma60, macd < signal, rsi >= 30 && rsi < 50, close < lowerBand].filter(Boolean).length;
+        return { ma20, ma60, rsi, macd, signal, longPoints, shortPoints, close };
+    };
+    for (let i = 60; i < data.length - horizon; i++) {
+        const metrics = metricsAt(i); if (!metrics) continue;
+        const futureReturn = closes[i + horizon] - closes[i];
+        if (metrics.longPoints >= 3) signals.push({ type: 'long', win: futureReturn > 0 });
+        if (metrics.shortPoints >= 3) signals.push({ type: 'short', win: futureReturn < 0 });
+    }
+    const current = metricsAt(data.length - 1); if (!current) return null;
+    const longSignals = signals.filter(signal => signal.type === 'long'), shortSignals = signals.filter(signal => signal.type === 'short');
+    const rate = list => list.length ? Math.round(list.filter(signal => signal.win).length / list.length * 100) : null;
+    const score = Math.round((current.longPoints - current.shortPoints) / 5 * 50 + 50);
+    const signal = current.longPoints >= 3 && current.longPoints > current.shortPoints ? '偏多' : current.shortPoints >= 3 && current.shortPoints > current.longPoints ? '偏空' : '中性';
+    const reasons = [`MA20 ${current.close > current.ma20 ? '上方' : '下方'}`, `MA 趨勢 ${current.ma20 > current.ma60 ? '偏多' : '偏空'}`, `RSI ${current.rsi.toFixed(1)}`, `MACD ${current.macd > current.signal ? '正向' : '負向'}`];
+    return { score, signal, longRate: rate(longSignals), shortRate: rate(shortSignals), longCount: longSignals.length, shortCount: shortSignals.length, reasons };
+}
+
+function renderAssessment(data) {
+    const result = calculateAssessment(data);
+    if (!result) return;
+    setText('assessment-score', `${result.score}`); setText('assessment-signal', result.signal);
+    setText('long-win-rate', result.longRate == null ? '—' : `${result.longRate}%`); setText('short-win-rate', result.shortRate == null ? '—' : `${result.shortRate}%`);
+    setText('long-sample', `回測 ${result.longCount} 次`); setText('short-sample', `回測 ${result.shortCount} 次`);
+    setText('assessment-reasons', `${result.reasons.join(' · ')} · 勝率為過去 ${currentPeriod.label} 訊號往後 ${5} 根 K 線的回測結果`); setText('assessment-period', currentPeriod.label);
+}
+
+function toggleChartIndicator(name, button) {
+    if (!(name in chartIndicators)) return;
+    chartIndicators[name] = !chartIndicators[name];
+    button?.classList.toggle('active', chartIndicators[name]);
+    updateChartIndicators(currentChartData);
+}
+
+function resetChartView() { if (chart) chart.timeScale().fitContent(); }
+async function toggleChartFullscreen() {
+    const card = document.getElementById('chart-card');
+    if (!card) return;
+    if (!document.fullscreenElement) await card.requestFullscreen?.();
+    else await document.exitFullscreen?.();
+    setTimeout(() => chart?.timeScale().fitContent(), 120);
+}
+
 function initChart() {
     const container = document.getElementById('chart-container');
     if (!container || typeof LightweightCharts === 'undefined' || chart) return false;
@@ -704,6 +793,12 @@ function initChart() {
         upColor: '#ef4444', downColor: '#10b981', borderVisible: true,
         borderUpColor: '#ef4444', borderDownColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
     });
+    volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'volume', color: 'rgba(96,165,250,0.35)' });
+    chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    ma20Series = chart.addSeries(LightweightCharts.LineSeries, { color: '#f59e0b', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+    ma60Series = chart.addSeries(LightweightCharts.LineSeries, { color: '#38bdf8', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+    upperBandSeries = chart.addSeries(LightweightCharts.LineSeries, { color: 'rgba(168,85,247,0.7)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+    lowerBandSeries = chart.addSeries(LightweightCharts.LineSeries, { color: 'rgba(168,85,247,0.7)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
 
     chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
         if (!range || !currentChartData.length) { chartAtRightEdge = true; return; }
@@ -874,7 +969,7 @@ async function loadStock(symbol, isSilent = false) {
             let preservedRange = null;
             if (!shouldFollowRealTime) { try { preservedRange = timeScale.getVisibleLogicalRange(); } catch {} }
 
-            currentChartData = chartData; candlestickSeries.setData(chartData); updateSessionMarkers(chartData);
+            currentChartData = chartData; candlestickSeries.setData(chartData); updateChartIndicators(chartData); updateSessionMarkers(chartData); renderAssessment(chartData);
 
             if (shouldFollowRealTime) {
                 chartAtRightEdge = true;
@@ -885,7 +980,7 @@ async function loadStock(symbol, isSilent = false) {
             setText('chart-status', `${currentPeriod.label} · ${chartData.length} 根`);
         } else {
             if (candlestickSeries && currentChartData.length > 0) {
-                candlestickSeries.setData(currentChartData); updateSessionMarkers(currentChartData); setText('chart-status', `${currentPeriod.label} · 保留上一筆 K 線`);
+                candlestickSeries.setData(currentChartData); updateChartIndicators(currentChartData); updateSessionMarkers(currentChartData); renderAssessment(currentChartData); setText('chart-status', `${currentPeriod.label} · 保留上一筆 K 線`);
             } else { setText('chart-status', yahooError ? 'K線資料暫時無法取得' : '目前週期沒有 K 線資料'); }
         }
 
@@ -1166,3 +1261,6 @@ window.toggleCompanyInfo = toggleCompanyInfo;
 window.changeThemeColor = changeThemeColor;
 window.applySettings = applySettings;
 window.toggleDarkMode = toggleDarkMode;
+window.toggleChartIndicator = toggleChartIndicator;
+window.resetChartView = resetChartView;
+window.toggleChartFullscreen = toggleChartFullscreen;

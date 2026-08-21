@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <link rel="stylesheet" href="./styles.css?v=11">
+    <link rel="stylesheet" href="./styles.css?v=13">
 </head>
 <body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
@@ -292,8 +292,18 @@
                         <button class="period-btn" data-interval="30m" data-range="1mo" onclick="changePeriod(this)">30分K</button>
                         <button class="period-btn" data-interval="60m" data-range="3mo" onclick="changePeriod(this)">60分K</button>
                         <button class="period-btn" data-interval="1d" data-range="6mo" onclick="changePeriod(this)">日K</button>
+                        <button class="period-btn" data-interval="1wk" data-range="2y" onclick="changePeriod(this)">週K</button>
+                        <button class="period-btn" data-interval="1mo" data-range="max" onclick="changePeriod(this)">月K</button>
                         <span class="session-legend session-pre">盤前</span>
                         <span class="session-legend session-post">盤後</span>
+                    </div>
+                    <div class="chart-tools" aria-label="圖表工具">
+                        <button type="button" class="chart-tool-btn active" data-indicator="volume" onclick="toggleChartIndicator('volume', this)" title="成交量">VOL</button>
+                        <button type="button" class="chart-tool-btn" data-indicator="ma20" onclick="toggleChartIndicator('ma20', this)" title="20 日均線">MA20</button>
+                        <button type="button" class="chart-tool-btn" data-indicator="ma60" onclick="toggleChartIndicator('ma60', this)" title="60 日均線">MA60</button>
+                        <button type="button" class="chart-tool-btn" data-indicator="bollinger" onclick="toggleChartIndicator('bollinger', this)" title="布林通道">BB</button>
+                        <button type="button" class="chart-tool-btn" onclick="resetChartView()" title="重置縮放">↺</button>
+                        <button type="button" class="chart-tool-btn" onclick="toggleChartFullscreen()" title="全螢幕">⛶</button>
                     </div>
                     <span id="chart-status" class="text-[10px] text-gray-500">提示: 可用 [+] [-] 鍵縮放圖表</span>
                 </div>
@@ -305,6 +315,22 @@
                     </div>
                 </div>
             </div>
+
+            <section id="assessment-card" class="section-card p-4 md:p-5 mb-5">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <div>
+                        <div class="section-title theme-text-primary">🧭 技術評估</div>
+                        <div class="section-subtitle">基於目前週期的歷史訊號回測，不代表未來報酬</div>
+                    </div>
+                    <span id="assessment-period" class="text-[10px] text-gray-500">—</span>
+                </div>
+                <div class="assessment-grid">
+                    <div class="assessment-score"><div class="fundamental-label">評估分數</div><div id="assessment-score" class="assessment-score-value">—</div><div id="assessment-signal" class="assessment-caption">等待資料</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">做多勝率</div><div id="long-win-rate" class="fundamental-value price-up">—</div><div id="long-sample" class="assessment-caption">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">做空勝率</div><div id="short-win-rate" class="fundamental-value price-down">—</div><div id="short-sample" class="assessment-caption">—</div></div>
+                </div>
+                <div id="assessment-reasons" class="assessment-reasons">—</div>
+            </section>
 
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
@@ -427,6 +453,6 @@
         </div>
     </div>
 
-    <script src="./app.js?v=11"></script>
+    <script src="./app.js?v=13"></script>
 </body>
 </html>

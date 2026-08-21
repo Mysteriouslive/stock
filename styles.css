@@ -46,6 +46,12 @@ body {
 .fundamental-label { font-size: 11px; color: #a1a1aa; margin-bottom: 4px; font-weight: 500; }
 .fundamental-value { font-size: 14px; font-weight: 700; color: #f4f4f5; }
 .fundamentals-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.assessment-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 10px; }
+.assessment-score { padding: 12px; border: 1px solid rgba(96,165,250,0.24); border-radius: 10px; background: rgba(59,130,246,0.08); }
+.assessment-score-value { font-size: 26px; line-height: 1.1; font-weight: 800; color: #60a5fa; }
+.assessment-caption { margin-top: 3px; font-size: 10px; color: #71717a; }
+.assessment-reasons { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); color: #a1a1aa; font-size: 11px; line-height: 1.6; }
+@media (max-width: 520px) { .assessment-grid { grid-template-columns: 1fr 1fr; } .assessment-score { grid-column: 1 / -1; } }
 
 .period-btn {
     font-size: 11px;
@@ -149,6 +155,23 @@ body {
 }
 .session-pre { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
 .session-post { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
+.chart-tools { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.chart-tool-btn {
+    min-width: 28px;
+    height: 26px;
+    padding: 0 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    color: #71717a;
+    background: rgba(255,255,255,0.035);
+    font-size: 9px;
+    font-weight: 700;
+    transition: all 0.18s ease;
+}
+.chart-tool-btn:hover { color: #dbeafe; border-color: rgba(96,165,250,0.5); background: rgba(59,130,246,0.12); }
+.chart-tool-btn.active { color: #60a5fa; border-color: rgba(96,165,250,0.6); background: rgba(59,130,246,0.16); }
+#chart-card:fullscreen { width: 100vw; height: 100vh; margin: 0; border-radius: 0; padding: 24px; background: #09090b; }
+#chart-card:fullscreen #chart-container { height: calc(100vh - 100px) !important; min-height: 0; }
 .market-state-badge {
     display: inline-flex;
     align-items: center;
@@ -208,13 +231,15 @@ body {
         font-size: 10px; 
     }
     
-    #chart-card { min-height: 0; height: auto !important; flex: 0 0 auto; }
+    #chart-card { min-height: 500px; height: 500px !important; flex: 0 0 500px !important; }
     #chart-container {
         flex: 0 0 340px !important;
         height: 340px !important;
         min-height: 340px;
         margin-bottom: 0;
     }
+    #chart-card > .flex.items-center.justify-between { flex-wrap: wrap; }
+    .chart-tools { order: 3; width: 100%; margin-left: 0; justify-content: flex-end; }
     
     #sidebar { position: fixed; left: -100%; top: 0; height: 100%; z-index: 50; transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     #sidebar.open { left: 0; }
@@ -349,6 +374,9 @@ body.light-mode .sort-menu button { color: #687873; }
 body.light-mode .sort-menu button:hover,
 body.light-mode .sort-menu button[aria-selected="true"] { color: #087f62; background: #e2f0ea; }
 body.light-mode .sort-menu button[aria-selected="true"]::after { color: #159a78; }
+body.light-mode .chart-tool-btn { color: #687873; background: #edf4f1; border-color: #d1e0da; }
+body.light-mode .chart-tool-btn:hover, body.light-mode .chart-tool-btn.active { color: #087f62; background: #e2f0ea; border-color: #159a78; }
+body.light-mode #chart-card:fullscreen { background: #f1f6f4; }
 
 body.light-mode .company-info-item,
 body.light-mode .fundamental-card {
@@ -359,6 +387,9 @@ body.light-mode .fundamental-card:hover {
     background: #edf6f2 !important;
     border-color: #b9d5ca !important;
 }
+body.light-mode .assessment-score { background: #edf6f2; border-color: #b9d5ca; }
+body.light-mode .assessment-score-value { color: #087f62; }
+body.light-mode .assessment-reasons { border-color: #dbe7e2; color: #687873; }
 
 /* 中間大盤指數小卡 */
 body.light-mode header .grid > div {
