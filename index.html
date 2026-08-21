@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>股票觀測站</title>
-    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImIiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxODE4MWIiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiMwOTA5MGIiLz48L2xpbmVhckdyYWRpZW50PjxsaW5lYXJHcmFkaWVudCBpZD0idCIgeDE9IjAlIiB5MT0iMTAwJSIgeDI9IjEwMCUiIHkyPSIwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2VmNDQ0NCIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2E4NTVmNyIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI1MDAiIGhlaWdodD0iNTAwIiByeD0iMTEwIiBmaWxsPSJ1cmwoI2IpIi8+PGcgZmlsbD0iIzMzNDE1NSIgb3BhY2l0eT0iMC41Ij48cmVjdCB4PSIxMzAiIHk9IjI4MCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjEyMCIgcng9IjEwIi8+PHJlY3QgeD0iMjMwIiB5PSIyMjAiIHdpZHRoPSI0MCIgaGVpZ2h0PSIxODAiIHJ4PSIxMCIvPjxyZWN0IHg9IjMzMCIgeT0iMTIwIiB3aWR0aD0iNDAiIGhlaWdodD0iMjgwIiByeD0iMTAiLz48L2c+PGcgcGF0aCBkPSJNMTAwIDM1MGwxMjAtMTIwIDYwIDQwIDEwMC0xMzAiIGZpbGw9Im5vbmUiIHN0cm9rZT0idXJsKCN0KSIgc3Ryb2tlLXdpZHRoPSIzNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PHBhdGggZD0iTTMxMCAxNDBoNzd2NzAiIGZpbGw9Im5vbmUiIHN0cm9rZT0idXJsKCN0KSIgc3Ryb2tlLXdpZHRoPSIzNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+" type="image/svg+xml">
+    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImIiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxODE4MWIiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiMwOTA5MGIiLz48L2xpbmVhckdyYWRpZW50PjxsaW5lYXJHcmFkaWVudCBpZD0idCIgeDE9IjAlIiB5MT0iMTAwJSIgeDI9IjEwMCUiIHkyPSIwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2VmNDQ0NCIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2E4NTVmNyIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI1MDAiIGhlaWdodD0iNTAwIiByeD0iMTEwIiBmaWxsPSJ1cmwoI2IpIi8+PGcgZmlsbD0iIzMzNDE1NSIgb3BhY2l0eT0iMC41Ij48cmVjdCB4PSIxMzAiIHk9IjI4MCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjEyMCIgcng9IjEwIi8+PHJlY3QgeD0iMjMwIiB5PSIyMjAiIHdpZHRoPSI0MCIgaGVpZ2h0PSIxODAiIHJ4PSIxMCIvPjxyZWN0IHg9IjMzMCIgeT0iMTIwIiB3aWR0aD0iNDAiIGhlaWdodD0iMjgwIiByeD0iMTAiLz48L2c+PHBhdGggZD0iTTEwMCAzNTBsMTIwLTEyMCA2MCA0MCAxMDAtMTMwIiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjdCkiIHN0cm9rZS13aWR0aD0iMzUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik0zMTAgMTQwaDcwdjcwIiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjdCkiIHN0cm9rZS13aWR0aD0iMzUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==" type="image/svg+xml">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <link rel="stylesheet" href="./styles.css?v=5">
+    <link rel="stylesheet" href="./styles.css?v=4">
 </head>
 <body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
@@ -60,15 +60,15 @@
                     id="stock-input" 
                     name="stockInput"
                     type="text" 
-                    placeholder="代碼 (例: 2330 / USDTWD / BTC)" 
-                    class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 min-w-0"
+                    placeholder="代碼 (例: 2330 / SOXX / BTC)" 
+                    class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
                     onkeydown="if(event.key==='Enter') addStock()"
                     maxlength="12"
                 >
                 <button onclick="addStock()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-sm font-medium transition-colors shrink-0">新增</button>
             </div>
             <div class="flex items-center justify-between mt-2 gap-2">
-                <p class="text-[10px] text-gray-600">支援台美股、外匯、加密貨幣</p>
+                <p class="text-[10px] text-gray-600">支援上市/上櫃、美股、外匯、加密貨幣</p>
                 <select id="sort-select" name="sortSelect" onchange="changeSort(this.value)" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-gray-400 focus:outline-none">
                     <option value="manual">自訂順序</option>
                     <option value="symbol-asc">代碼 ↑</option><option value="symbol-desc">代碼 ↓</option>
@@ -80,20 +80,28 @@
         </div>
         <div class="flex-1 overflow-y-auto p-3 space-y-1" id="stock-list"></div>
         
-        <!-- 側邊欄底部 (頭像、日夜切換、設定鍵) -->
+        <!-- 側邊欄底部 (頭像、日夜模式與設定) -->
         <div class="mt-auto border-t border-white/5 p-3 flex items-center justify-between bg-black/20 shrink-0">
             <button onclick="openProfileModal()" class="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-white/5 transition-colors text-left group">
                 <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md group-hover:shadow-purple-500/20 transition-all">
                     衡
                 </div>
                 <div class="hidden sm:block">
-                    <div class="text-[13px] font-bold text-gray-200">陳逸鍇</div>
+                    <div class="text-[13px] font-bold text-gray-200 theme-text-primary">子衡</div>
                     <div class="text-[10px] text-gray-500">@Mo-yun-sheng</div>
                 </div>
             </button>
             <div class="flex items-center gap-1">
-                <button onclick="toggleDarkMode()" id="dark-mode-btn" class="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors" title="切換日夜模式">
-                    🌙
+                <!-- 日夜模式切換按鈕 -->
+                <button id="theme-toggle-btn" onclick="toggleDarkMode()" class="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors" title="切換深淺模式">
+                    <!-- 月亮 (深色模式) -->
+                    <svg id="theme-moon-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                    <!-- 太陽 (淺色模式) -->
+                    <svg id="theme-sun-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 hidden text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
                 </button>
                 <button onclick="openSettingsModal()" class="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors" title="系統設定">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -141,40 +149,90 @@
                             <path d="M 310 140 L 380 140 L 380 210" fill="none" stroke="url(#trend-mobile)" stroke-width="35" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow-mobile)"/>
                         </svg>
                     </div>
-                    <span class="font-semibold tracking-wide text-white">股票觀測站</span>
+                    <span class="font-semibold tracking-wide text-white theme-text-primary">股票觀測站</span>
                 </div>
             </div>
         </div>
 
         <div class="flex-1 min-w-0 flex flex-col p-3 sm:p-4 md:p-6 overflow-y-auto relative z-10">
-            <header class="glass rounded-2xl p-5 md:p-6 mb-5 relative overflow-visible shrink-0">
-                <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-blue-500 via-purple-500 to-transparent opacity-60"></div>
-                <div class="flex flex-col md:flex-row md:items-end justify-between gap-5 min-w-0">
-                    <div>
+            <!-- 頂部資訊看板 (美化升級版) -->
+            <header class="glass rounded-2xl p-5 md:p-6 mb-5 relative overflow-visible shrink-0 border border-white/10 shadow-2xl">
+                <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-blue-500 via-purple-500 to-transparent opacity-80"></div>
+                
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6 min-w-0">
+                    <!-- 左側：標的資訊 -->
+                    <div class="shrink-0 flex flex-col justify-center min-w-[220px] max-w-[340px]">
                         <div class="flex items-center gap-3">
-                            <h2 id="stock-symbol-title" class="text-3xl md:text-4xl font-black tracking-wider text-white">—</h2>
-                            <span id="loading-badge" class="hidden text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 loading-pulse">
+                            <h2 id="stock-symbol-title" class="text-2xl sm:text-3xl lg:text-[32px] font-black tracking-tight text-white leading-tight break-words">—</h2>
+                            <span id="loading-badge" class="hidden text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 loading-pulse shrink-0">
                                 載入中
                             </span>
-                            <span id="auto-refresh-indicator" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> 即時觀測中
+                            <span id="auto-refresh-indicator" class="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5 shrink-0 shadow-sm shadow-emerald-500/10">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> 即時
                             </span>
                         </div>
-                        <p id="stock-name" class="text-gray-400 text-sm mt-1">選擇或新增股票以查看詳情</p>
-                        <p id="last-update" class="text-[11px] text-gray-600 mt-2">—</p>
-                    </div>
-                    <div class="text-left md:text-right min-w-0 w-full md:w-auto md:min-w-[330px]">
-                        <p class="text-xs text-gray-500 mb-1 tracking-wide">現今報價</p>
-                        <div class="flex items-baseline gap-3 md:justify-end">
-                            <span id="current-price" class="text-4xl md:text-5xl font-extrabold text-white tracking-tight transition-colors duration-300">—</span>
-                            <span id="price-change" class="text-base md:text-lg font-semibold px-2.5 py-1 rounded-lg bg-white/5 transition-colors duration-300">—</span>
+                        <div class="flex items-center gap-2 mt-1.5">
+                            <span id="stock-name" class="text-xs font-semibold px-2 py-0.5 rounded-md bg-white/5 text-gray-400 tracking-wider">代碼</span>
+                            <span id="last-update" class="text-[11px] text-gray-500">—</span>
                         </div>
-                        <div class="grid grid-cols-5 gap-2 mt-4 text-[11px] md:text-xs">
-                            <div><div class="text-gray-600 mb-1">今開</div><div id="open-price" class="text-gray-300 font-medium">—</div></div>
-                            <div><div class="text-gray-600 mb-1">最高</div><div id="high-price" class="text-gray-300 font-medium">—</div></div>
-                            <div><div class="text-gray-600 mb-1">最低</div><div id="low-price" class="text-gray-300 font-medium">—</div></div>
-                            <div><div class="text-gray-600 mb-1">昨收</div><div id="previous-close" class="text-gray-300 font-medium">—</div></div>
-                            <div><div class="text-gray-600 mb-1">成交量</div><div id="volume" class="text-gray-300 font-medium">—</div></div>
+                    </div>
+
+                    <!-- 中間：核心大盤指數行情小卡 -->
+                    <div class="flex-1 min-w-0 hidden sm:grid grid-cols-2 xl:grid-cols-4 gap-3 px-1">
+                        <!-- 加權指數 -->
+                        <div onclick="loadStock('^TWII')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-400 font-semibold tracking-wide">加權指數</span>
+                                <span class="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">TWSE</span>
+                            </div>
+                            <div id="idx-twii-price" class="text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
+                            <div id="idx-twii-change" class="text-[11px] mt-0.5 font-medium">—</div>
+                        </div>
+
+                        <!-- 費城半導體 SOXX -->
+                        <div onclick="loadStock('SOXX')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-400 font-semibold tracking-wide">費城半導體</span>
+                                <span class="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">SOXX</span>
+                            </div>
+                            <div id="idx-soxx-price" class="text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
+                            <div id="idx-soxx-change" class="text-[11px] mt-0.5 font-medium">—</div>
+                        </div>
+
+                        <!-- NASDAQ -->
+                        <div onclick="loadStock('^IXIC')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-400 font-semibold tracking-wide">NASDAQ</span>
+                                <span class="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">科技</span>
+                            </div>
+                            <div id="idx-ixic-price" class="text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
+                            <div id="idx-ixic-change" class="text-[11px] mt-0.5 font-medium">—</div>
+                        </div>
+
+                        <!-- S&P 500 -->
+                        <div onclick="loadStock('^GSPC')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-400 font-semibold tracking-wide">S&P 500</span>
+                                <span class="text-[10px] px-1.5 py-0.2 rounded bg-white/5 text-gray-400 group-hover:text-blue-400 transition-colors">大盤</span>
+                            </div>
+                            <div id="idx-gspc-price" class="text-[15px] font-extrabold text-white mt-1 tracking-tight">—</div>
+                            <div id="idx-gspc-change" class="text-[11px] mt-0.5 font-medium">—</div>
+                        </div>
+                    </div>
+
+                    <!-- 右側：現今報價與即時五項行情 -->
+                    <div class="text-left lg:text-right min-w-0 shrink-0 lg:min-w-[310px]">
+                        <div class="text-[11px] font-semibold text-gray-500 mb-1 tracking-wider uppercase">即時行情</div>
+                        <div class="flex items-baseline gap-3 lg:justify-end">
+                            <span id="current-price" class="text-4xl sm:text-5xl font-black text-white tracking-tight leading-none transition-colors duration-300">—</span>
+                            <span id="price-change" class="text-sm sm:text-base font-bold px-2.5 py-1 rounded-lg bg-white/5 border border-white/5 transition-colors duration-300">—</span>
+                        </div>
+                        <div class="grid grid-cols-5 gap-2 mt-3 pt-3 border-t border-white/5 text-[11px]">
+                            <div class="text-center lg:text-right"><div class="text-gray-500 text-[10px] mb-0.5">今開</div><div id="open-price" class="text-gray-200 font-semibold truncate">—</div></div>
+                            <div class="text-center lg:text-right"><div class="text-gray-500 text-[10px] mb-0.5">最高</div><div id="high-price" class="text-gray-200 font-semibold truncate">—</div></div>
+                            <div class="text-center lg:text-right"><div class="text-gray-500 text-[10px] mb-0.5">最低</div><div id="low-price" class="text-gray-200 font-semibold truncate">—</div></div>
+                            <div class="text-center lg:text-right"><div class="text-gray-500 text-[10px] mb-0.5">昨收</div><div id="previous-close" class="text-gray-200 font-semibold truncate">—</div></div>
+                            <div class="text-center lg:text-right"><div class="text-gray-500 text-[10px] mb-0.5">成交量</div><div id="volume" class="text-gray-200 font-semibold truncate">—</div></div>
                         </div>
                     </div>
                 </div>
@@ -185,24 +243,24 @@
                     <div class="flex items-center gap-3">
                         <div class="w-9 h-9 rounded-xl bg-purple-500/15 text-purple-300 flex items-center justify-center text-lg">🏢</div>
                         <div>
-                            <h3 class="font-semibold text-white">公司資訊</h3>
-                            <p class="text-[10px] text-gray-600">Company Information</p>
+                            <h3 class="font-semibold text-white theme-text-primary">公司資訊</h3>
+                            <p class="text-[10px] text-gray-500">Company Information</p>
                         </div>
                     </div>
-                    <button onclick="toggleCompanyInfo()" class="text-[11px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">收合</button>
+                    <button onclick="toggleCompanyInfo()" class="text-[11px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-500 hover:text-white hover:bg-white/10 transition-colors">收合</button>
                 </div>
                 <div id="company-info-body" class="company-info-body mt-4">
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">公司名稱</div><div id="company-long-name" class="text-sm text-gray-200 font-medium truncate">—</div></div>
-                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">交易所</div><div id="company-exchange" class="text-sm text-gray-200 font-medium truncate">—</div></div>
-                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">市場</div><div id="company-market" class="text-sm text-gray-200 font-medium truncate">—</div></div>
-                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">幣別</div><div id="company-currency" class="text-sm text-gray-200 font-medium">—</div></div>
-                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">股票類型</div><div id="company-type" class="text-sm text-gray-200 font-medium truncate">—</div></div>
-                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">市場狀態</div><div id="company-market-state" class="text-sm text-gray-200 font-medium">—</div></div>
-                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">Yahoo 代碼</div><div id="company-symbol" class="text-sm text-gray-200 font-medium">—</div></div>
-                        <div class="company-info-item"><div class="text-[10px] text-gray-600 mb-1">目前價格</div><div id="company-price" class="text-sm text-gray-200 font-medium">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-500 mb-1">公司名稱</div><div id="company-long-name" class="text-sm text-gray-200 font-medium truncate">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-500 mb-1">交易所</div><div id="company-exchange" class="text-sm text-gray-200 font-medium truncate">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-500 mb-1">市場</div><div id="company-market" class="text-sm text-gray-200 font-medium truncate">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-500 mb-1">幣別</div><div id="company-currency" class="text-sm text-gray-200 font-medium">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-500 mb-1">股票類型</div><div id="company-type" class="text-sm text-gray-200 font-medium truncate">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-500 mb-1">市場狀態</div><div id="company-market-state" class="text-sm text-gray-200 font-medium">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-500 mb-1">Yahoo 代碼</div><div id="company-symbol" class="text-sm text-gray-200 font-medium">—</div></div>
+                        <div class="company-info-item"><div class="text-[10px] text-gray-500 mb-1">目前價格</div><div id="company-price" class="text-sm text-gray-200 font-medium">—</div></div>
                     </div>
-                    <div id="company-info-note" class="text-[10px] text-gray-600 mt-3">選擇股票後會自動載入公司基本資訊。</div>
+                    <div id="company-info-note" class="text-[10px] text-gray-500 mt-3">選擇股票後會自動載入公司基本資訊。</div>
                 </div>
             </section>
 
@@ -217,7 +275,7 @@
                         <button class="period-btn" data-interval="60m" data-range="3mo" onclick="changePeriod(this)">60分K</button>
                         <button class="period-btn" data-interval="1d" data-range="6mo" onclick="changePeriod(this)">日K</button>
                     </div>
-                    <span id="chart-status" class="text-[10px] text-gray-600">提示: 可用 [+] [-] 鍵縮放圖表</span>
+                    <span id="chart-status" class="text-[10px] text-gray-500">提示: 可用 [+] [-] 鍵縮放圖表</span>
                 </div>
                 <div id="chart-container" class="w-full h-full min-h-[330px]"></div>
                 <div id="empty-state" class="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -231,10 +289,10 @@
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
-                        <div class="section-title">📊 基本面</div>
+                        <div class="section-title theme-text-primary">📊 基本面</div>
                         <div class="section-subtitle" id="fundamentals-subtitle">Finnhub · Fundamental Metrics</div>
                     </div>
-                    <span id="fundamentals-status" class="text-[10px] text-gray-600">—</span>
+                    <span id="fundamentals-status" class="text-[10px] text-gray-500">—</span>
                 </div>
                 <div class="fundamentals-grid">
                     <div class="fundamental-card"><div class="fundamental-label">本益比 P/E</div><div id="metric-pe" class="fundamental-value">—</div></div>
@@ -250,12 +308,12 @@
                     <div class="fundamental-card"><div class="fundamental-label">淨利率</div><div id="metric-net-margin" class="fundamental-value">—</div></div>
                     <div class="fundamental-card"><div class="fundamental-label">營收成長</div><div id="metric-revenue-growth" class="fundamental-value">—</div></div>
                 </div>
-                <div id="fundamentals-note" class="text-[10px] text-gray-600 mt-3">—</div>
+                <div id="fundamentals-note" class="text-[10px] text-gray-500 mt-3">—</div>
             </section>
 
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="mb-4">
-                    <div class="section-title">🎯 估值與風險</div>
+                    <div class="section-title theme-text-primary">🎯 估值與風險</div>
                     <div class="section-subtitle">Valuation & Risk</div>
                 </div>
                 <div class="fundamentals-grid">
@@ -269,11 +327,11 @@
             <section class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
-                        <div class="section-title">🏢 公司詳細資訊</div>
+                        <div class="section-title theme-text-primary">🏢 公司詳細資訊</div>
                         <div class="section-subtitle">Company Profile</div>
                     </div>
                     <a id="company-web-link" href="#" target="_blank" rel="noopener noreferrer"
-                       class="hidden text-[10px] px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-500/20 hover:bg-blue-500/20">
+                       class="hidden text-[10px] px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-500 border border-blue-500/20 hover:bg-blue-500/20">
                         公司網站 ↗
                     </a>
                 </div>
@@ -283,8 +341,8 @@
                     <div class="fundamental-card"><div class="fundamental-label">IPO</div><div id="profile-ipo" class="fundamental-value">—</div></div>
                     <div class="fundamental-card"><div class="fundamental-label">貨幣</div><div id="profile-currency" class="fundamental-value">—</div></div>
                 </div>
-                <div id="profile-description" class="text-xs text-gray-400 leading-6 mt-4 hidden"></div>
-                <div id="profile-note" class="text-[10px] text-gray-600 mt-3">—</div>
+                <div id="profile-description" class="text-xs text-gray-500 leading-6 mt-4 hidden"></div>
+                <div id="profile-note" class="text-[10px] text-gray-500 mt-3">—</div>
             </section>
         </div>
     </main>
@@ -295,14 +353,14 @@
     <!-- 設定視窗 -->
     <div id="settings-modal" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md glass bg-[#18181b]/95 border border-white/10 rounded-2xl z-50 hidden opacity-0 scale-95 transition-all duration-300 p-6 shadow-2xl">
         <div class="flex justify-between items-center mb-6">
-            <h2 class="text-xl font-bold text-white flex items-center gap-2">⚙️ 系統設定</h2>
-            <button onclick="closeModals()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2 theme-text-primary">⚙️ 系統設定</h2>
+            <button onclick="closeModals()" class="text-gray-500 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
         </div>
         <div class="space-y-5">
             <div class="setting-item">
-                <div class="block text-sm text-gray-400 mb-3">主題色系偏好</div>
+                <div class="block text-sm text-gray-500 mb-3">主題色系偏好</div>
                 <div class="flex gap-4">
                     <button id="theme-btn-blue" class="theme-btn w-8 h-8 rounded-full bg-blue-500 hover:scale-110 transition-transform" onclick="changeThemeColor('blue')"></button>
                     <button id="theme-btn-emerald" class="theme-btn w-8 h-8 rounded-full bg-emerald-500 hover:scale-110 transition-transform" onclick="changeThemeColor('emerald')"></button>
@@ -311,14 +369,14 @@
                 </div>
             </div>
             <div class="setting-item pt-4 border-t border-white/5">
-                <label for="kline-color" class="block text-sm text-gray-400 mb-2">K 線顏色習慣</label>
+                <label for="kline-color" class="block text-sm text-gray-500 mb-2">K 線顏色習慣</label>
                 <select id="kline-color" name="klineColor" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
                     <option value="red-green">紅漲綠跌 (台灣習慣)</option>
                     <option value="green-red">綠漲紅跌 (國際習慣)</option>
                 </select>
             </div>
             <div class="setting-item pt-4 border-t border-white/5">
-                <label for="refresh-rate" class="block text-sm text-gray-400 mb-2">資料更新頻率</label>
+                <label for="refresh-rate" class="block text-sm text-gray-500 mb-2">資料更新頻率</label>
                 <select id="refresh-rate" name="refreshRate" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500/50">
                     <option value="10000">10 秒 (預設)</option>
                     <option value="30000">30 秒</option>
@@ -334,31 +392,30 @@
             <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-600 to-purple-500 flex items-center justify-center text-2xl text-white font-bold shadow-lg shadow-purple-500/30">
                 子
             </div>
-            <button onclick="closeModals()" class="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
+            <button onclick="closeModals()" class="text-gray-500 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
         </div>
         <div class="mt-3">
-            <h2 class="text-2xl font-bold text-white tracking-wide">陳逸鍇 (子衡)</h2>
-            <p class="text-sm text-gray-400 mt-0.5">@Mo-yun-sheng (墨雲生)</p>
+            <h2 class="text-2xl font-bold text-white tracking-wide theme-text-primary">子衡</h2>
+            <p class="text-sm text-gray-500 mt-0.5">@Mo-yun-sheng</p>
         </div>
         <div class="mt-6 space-y-3">
             <div class="bg-white/5 rounded-xl p-3.5 border border-white/5 flex items-center justify-between">
                 <div class="text-xs text-gray-500">主修學系</div>
-                <div class="text-sm font-medium text-gray-200">FCU 通訊工程學系</div>
+                <div class="text-sm font-medium text-gray-200">FCU CE</div>
             </div>
             <div class="bg-white/5 rounded-xl p-3.5 border border-white/5 flex items-center justify-between">
                 <div class="text-xs text-gray-500">系統權限</div>
-                <div class="text-sm font-medium text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-md">Pro 觀測者</div>
+                <div class="text-sm font-medium text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md">Pro 觀測者</div>
             </div>
             <div class="bg-white/5 rounded-xl p-3.5 border border-white/5 flex items-center justify-between">
                 <div class="text-xs text-gray-500">觀測站版本</div>
-                <div class="text-sm font-medium text-gray-200">v3.0.0 Hybrid</div>
+                <div class="text-sm font-medium text-gray-200">v4.0.0 Ultimate</div>
             </div>
         </div>
     </div>
 
-    <!-- 載入外部 JS -->
-    <script src="./app.js?v=5"></script>
+    <script src="./app.js?v=4"></script>
 </body>
 </html>

@@ -1,3997 +1,1042 @@
-/*
-========================================
-股票觀測站 v5
-========================================
+const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
 
-如果你部署了自己的 Cloudflare Worker：
+let AUTO_REFRESH_INTERVAL = Number(localStorage.getItem('stockRefreshRate')) || 10000;
 
-請修改下面這一行。
-
-例如：
-
-const WORKER_URL =
-  "https://your-worker.workers.dev";
-
-========================================
-*/
-
-const WORKER_URL =
-  "https://stock-proxy.stu-108042.workers.dev";
-
-
-/* ======================================
-   SETTINGS
-====================================== */
-
-let AUTO_REFRESH_INTERVAL =
-  Number(
-    localStorage.getItem("stockRefreshRate") ||
-    10000
-  );
-
-
-/* ======================================
-   WATCHLIST
-====================================== */
-
-let watchlist =
-  JSON.parse(
-    localStorage.getItem("stockWatchlistV5") ||
-    "null"
-  ) ||
-  [
-    {
-      symbol: "2330.TW",
-      name: "台積電"
-    },
-    {
-      symbol: "2454.TW",
-      name: "聯發科"
-    },
-    {
-      symbol: "AAPL",
-      name: "Apple"
-    },
-    {
-      symbol: "NVDA",
-      name: "NVIDIA"
-    }
-  ];
-
-
-let currentSymbol =
-  localStorage.getItem(
-    "stockCurrentSymbolV5"
-  ) ||
-  watchlist[0]?.symbol ||
-  null;
-
-
-let sortMode =
-  localStorage.getItem(
-    "stockSortV5"
-  ) ||
-  "manual";
-
-
-let alerts =
-  JSON.parse(
-    localStorage.getItem(
-      "stockAlertsV5"
-    ) ||
-    "[]"
-  );
-
-
-let quoteCache = {};
-
-let autoRefreshTimer = null;
-
-
-/* ======================================
-   CHART
-====================================== */
-
-let currentPeriod = {
-  interval: "5m",
-  range: "5d",
-  label: "5分"
-};
-
-
-let chart = null;
-
-let candleSeries = null;
-
-let ma5Series = null;
-
-let ma20Series = null;
-
-let ma60Series = null;
-
-
-/* ======================================
-   SYMBOL HELPERS
-====================================== */
+// ============================================================
+// Symbol 工具
+// ============================================================
+function isIndexSymbol(symbol) {
+    return String(symbol || '').trim().toUpperCase().startsWith('^');
+}
 
 function isForexSymbol(symbol) {
-
-  return [
-    "USDTWD",
-    "USD/TWD",
-    "USDTWD=X"
-  ].includes(
-    symbol.toUpperCase()
-  );
-
+    const s = String(symbol || '').toUpperCase().trim();
+    return s === 'USDTWD' || s === 'USD/TWD' || s === 'USDTWD=X';
 }
-
 
 function isCryptoSymbol(symbol) {
-
-  return [
-    "BTC",
-    "ETH",
-    "SOL",
-    "XRP",
-    "ADA",
-    "DOGE",
-    "BNB"
-  ].includes(
-    symbol
-      .toUpperCase()
-      .replace("-USD", "")
-  );
-
+    const s = String(symbol || '').toUpperCase().replace('-USD', '').trim();
+    return ['BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE', 'BNB'].includes(s);
 }
-
 
 function isTaiwanSymbol(symbol) {
-
-  return /^\d{4,6}(\.TW|\.TWO)?$/i.test(
-    symbol
-  );
-
+    const s = String(symbol || '').toUpperCase().trim();
+    return /^\d{4,6}(\.(TW|TWO))?$/i.test(s);
 }
-
-
-function displaySymbol(symbol) {
-
-  return String(symbol)
-    .replace(
-      /\.(TW|TWO)$/i,
-      ""
-    )
-    .replace(
-      /=X$/i,
-      ""
-    )
-    .replace(
-      /-USD$/i,
-      ""
-    );
-
-}
-
 
 function toYahooSymbol(symbol) {
-
-  symbol =
-    symbol
-      .trim()
-      .toUpperCase();
-
-
-  if (
-    isForexSymbol(symbol)
-  ) {
-
-    return "USDTWD=X";
-
-  }
-
-
-  if (
-    isCryptoSymbol(symbol)
-  ) {
-
-    return (
-      symbol
-        .replace("-USD", "") +
-      "-USD"
-    );
-
-  }
-
-
-  if (
-    /^\d{4,6}\.(TW|TWO)$/i.test(
-      symbol
-    )
-  ) {
-
-    return symbol;
-
-  }
-
-
-  if (
-    /^\d{4,6}$/.test(symbol)
-  ) {
-
-    return `${symbol}.TW`;
-
-  }
-
-
-  return symbol;
+    let s = String(symbol || '').trim().toUpperCase();
+    if (isForexSymbol(s)) return 'USDTWD=X';
+    if (isCryptoSymbol(s)) return `${s.replace('-USD', '')}-USD`;
+    if (isIndexSymbol(s)) return s;
+    if (/^\d{4,6}\.(TW|TWO)$/i.test(s)) return s;
+    if (/^\d{4,6}$/.test(s)) return `${s}.TW`;
+    return s;
 }
 
-
-/* ======================================
-   API
-====================================== */
-
-async function api(url) {
-
-  const response =
-    await fetch(
-      url,
-      {
-        cache: "no-store"
-      }
-    );
-
-
-  if (!response.ok) {
-
-    throw new Error(
-      `HTTP_${response.status}`
-    );
-
-  }
-
-
-  return response.json();
+function displaySymbol(symbol) {
+    return String(symbol || '').replace(/\.(TW|TWO)$/i, '').replace(/=X$/i, '').replace(/-USD$/i, '');
 }
 
-
-async function worker(
-  source,
-  params = {}
-) {
-
-  const query =
-    new URLSearchParams({
-      source,
-      ...params
-    });
-
-
-  return api(
-    `${WORKER_URL}/?${query}`
-  );
+function finnhubSymbol(symbol) {
+    const displayed = displaySymbol(symbol);
+    return isTaiwanSymbol(symbol) ? `${displayed}.TW` : displayed;
 }
 
-
-async function yahoo(symbol) {
-
-  return worker(
-    "",
-    {
-      symbol:
-        toYahooSymbol(symbol),
-
-      interval:
-        currentPeriod.interval,
-
-      range:
-        currentPeriod.range
-    }
-  );
+// ============================================================
+// APIs
+// ============================================================
+async function fetchTwseName(code) {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=twse_name&symbol=${encodeURIComponent(displaySymbol(code))}`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        return (await res.json())?.name || null;
+    } catch { return null; }
 }
 
-
-/* ======================================
-   UTILITIES
-====================================== */
-
-function esc(value) {
-
-  return String(
-    value ?? ""
-  ).replace(
-    /[&<>"']/g,
-    match => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;"
-    }[match])
-  );
-
+async function fetchTwseMetrics(symbol) {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=twse_metrics&symbol=${encodeURIComponent(displaySymbol(symbol))}`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch { return null; }
 }
 
-
-function set(
-  id,
-  value
-) {
-
-  const element =
-    document.getElementById(id);
-
-  if (element) {
-
-    element.textContent =
-      value ?? "—";
-
-  }
-
+async function fetchFinnhubWorker(symbol, endpoint, params = {}) {
+    const query = new URLSearchParams({ source: 'finnhub', symbol: finnhubSymbol(symbol), endpoint, ...params });
+    const res = await fetch(`${WORKER_URL}/?${query.toString()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`FINNHUB_PROXY_${res.status}`);
+    return await res.json();
 }
 
-
-function fmt(value) {
-
-  if (
-    value == null ||
-    !Number.isFinite(
-      Number(value)
-    )
-  ) {
-
-    return "—";
-
-  }
-
-
-  return Number(value)
-    .toLocaleString(
-      "en-US",
-      {
-        maximumFractionDigits: 4
-      }
-    );
-
+async function fetchFinnhubQuote(symbol) {
+    const data = await fetchFinnhubWorker(symbol, 'quote');
+    if (data?.c == null || Number(data.c) <= 0) throw new Error('FINNHUB_NO_QUOTE');
+    const current = Number(data.c), previous = Number(data.pc);
+    if (!Number.isFinite(previous) || previous <= 0) throw new Error('FINNHUB_NO_PREVIOUS_CLOSE');
+    const change = current - previous;
+    return {
+        latestPrice: formatPrice(current, symbol),
+        change: change.toFixed(isForexSymbol(symbol) ? 4 : 2),
+        changePercent: ((change / previous) * 100).toFixed(2),
+        isUp: change > 0, isFlat: change === 0,
+        open: formatPrice(data.o, symbol), high: formatPrice(data.h, symbol),
+        low: formatPrice(data.l, symbol), previousClose: formatPrice(previous, symbol), volume: '—'
+    };
 }
 
+async function fetchFinnhubCompanyProfile(symbol) { return await fetchFinnhubWorker(symbol, 'profile2').catch(() => null); }
+async function fetchFinnhubMetrics(symbol) { return await fetchFinnhubWorker(symbol, 'metric', { metric: 'all' }).catch(() => null); }
 
-function pct(value) {
-
-  if (
-    value == null ||
-    !Number.isFinite(
-      Number(value)
-    )
-  ) {
-
-    return "—";
-
-  }
-
-
-  return `${Number(value).toFixed(2)}%`;
-
+async function fetchForexData() {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=forex`, { cache: 'no-store' });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data) throw new Error(data?.error || `FOREX_HTTP_${res.status}`);
+        const rate = Number(data.rate ?? data.rates?.TWD);
+        if (!Number.isFinite(rate) || rate <= 0) throw new Error('FOREX_NO_RATE');
+        return { rate, changePercent: Number(data.changePercent ?? data.change_percent ?? data.percentChange ?? NaN), source: data.source || 'Frankfurter' };
+    } catch { return null; }
 }
 
-
-function vol(value) {
-
-  if (
-    value == null ||
-    !Number.isFinite(
-      Number(value)
-    )
-  ) {
-
-    return "—";
-
-  }
-
-
-  value =
-    Number(value);
-
-
-  if (value >= 1e8) {
-
-    return (
-      (value / 1e8).toFixed(2) +
-      "億"
-    );
-
-  }
-
-
-  if (value >= 1e4) {
-
-    return (
-      (value / 1e4).toFixed(2) +
-      "萬"
-    );
-
-  }
-
-
-  return value.toLocaleString();
-
+async function fetchCryptoData() {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=crypto`, { cache: 'no-store' });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || data.error) throw new Error(data?.error || `CRYPTO_HTTP_${res.status}`);
+        return data;
+    } catch { return null; }
 }
 
-
-/* ======================================
-   TECHNICAL INDICATORS
-====================================== */
-
-function sma(
-  values,
-  period
-) {
-
-  return values.map(
-    (_, index) => {
-
-      if (
-        index <
-        period - 1
-      ) {
-
-        return null;
-
-      }
-
-
-      return values
-        .slice(
-          index - period + 1,
-          index + 1
-        )
-        .reduce(
-          (sum, value) =>
-            sum + value,
-          0
-        ) / period;
-
-    }
-  );
-
-}
-
-
-function ema(
-  values,
-  period
-) {
-
-  const result =
-    Array(values.length)
-      .fill(null);
-
-
-  let previous = null;
-
-  const multiplier =
-    2 / (period + 1);
-
-
-  values.forEach(
-    (value, index) => {
-
-      if (
-        index ===
-        period - 1
-      ) {
-
-        previous =
-          values
-            .slice(
-              0,
-              period
-            )
-            .reduce(
-              (a, b) =>
-                a + b,
-              0
-            ) /
-          period;
-
-        result[index] =
-          previous;
-
-      }
-      else if (
-        index >= period
-      ) {
-
-        previous =
-          value *
-            multiplier +
-          previous *
-            (1 - multiplier);
-
-        result[index] =
-          previous;
-
-      }
-
-    }
-  );
-
-
-  return result;
-}
-
-
-function RSI(
-  values,
-  period = 14
-) {
-
-  const result =
-    Array(values.length)
-      .fill(null);
-
-
-  if (
-    values.length <= period
-  ) {
-
-    return result;
-
-  }
-
-
-  let gain = 0;
-
-  let loss = 0;
-
-
-  for (
-    let i = 1;
-    i <= period;
-    i++
-  ) {
-
-    const difference =
-      values[i] -
-      values[i - 1];
-
-
-    gain +=
-      Math.max(
-        difference,
-        0
-      );
-
-
-    loss +=
-      Math.max(
-        -difference,
-        0
-      );
-
-  }
-
-
-  let averageGain =
-    gain / period;
-
-  let averageLoss =
-    loss / period;
-
-
-  result[period] =
-    averageLoss
-      ? 100 -
-        100 /
-          (
-            1 +
-            averageGain /
-              averageLoss
-          )
-      : 100;
-
-
-  for (
-    let i = period + 1;
-    i < values.length;
-    i++
-  ) {
-
-    const difference =
-      values[i] -
-      values[i - 1];
-
-
-    averageGain =
-      (
-        averageGain *
-          (period - 1) +
-        Math.max(
-          difference,
-          0
-        )
-      ) / period;
-
-
-    averageLoss =
-      (
-        averageLoss *
-          (period - 1) +
-        Math.max(
-          -difference,
-          0
-        )
-      ) / period;
-
-
-    result[i] =
-      averageLoss
-        ? 100 -
-          100 /
-            (
-              1 +
-              averageGain /
-                averageLoss
-            )
-        : 100;
-
-  }
-
-
-  return result;
-}
-
-
-function MACD(values) {
-
-  const fast =
-    ema(
-      values,
-      12
-    );
-
-
-  const slow =
-    ema(
-      values,
-      26
-    );
-
-
-  const macd =
-    values.map(
-      (_, index) => {
-
-        if (
-          fast[index] == null ||
-          slow[index] == null
-        ) {
-
-          return null;
-
+async function fetchYahooData(symbol, interval = currentPeriod.interval, range = currentPeriod.range) {
+    let yahooSymbol = toYahooSymbol(symbol);
+    const callApi = async (sym) => {
+        const url = `${WORKER_URL}/?symbol=${encodeURIComponent(sym)}&interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}`;
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error('YAHOO_FAILED');
+        const json = await res.json();
+        if (json?.error) throw new Error(json.error);
+        const result = json.chart?.result?.[0];
+        if (!result) throw new Error(json.chart?.error?.description || 'NO_YAHOO_DATA');
+        return result;
+    };
+
+    try {
+        return await callApi(yahooSymbol);
+    } catch (err) {
+        if (/^\d{4,6}\.TW$/i.test(yahooSymbol)) {
+            const fallbackSym = yahooSymbol.replace(/\.TW$/i, '.TWO');
+            try {
+                const res = await callApi(fallbackSym);
+                const item = watchlist.find(s => s.symbol === symbol);
+                if (item) { item.symbol = fallbackSym; saveWatchlist(); }
+                if (currentSymbol === symbol) currentSymbol = fallbackSym;
+                return res;
+            } catch {}
+        } else if (/^\d{4,6}\.TWO$/i.test(yahooSymbol)) {
+            const fallbackSym = yahooSymbol.replace(/\.TWO$/i, '.TW');
+            try {
+                const res = await callApi(fallbackSym);
+                const item = watchlist.find(s => s.symbol === symbol);
+                if (item) { item.symbol = fallbackSym; saveWatchlist(); }
+                if (currentSymbol === symbol) currentSymbol = fallbackSym;
+                return res;
+            } catch {}
         }
-
-
-        return (
-          fast[index] -
-          slow[index]
-        );
-
-      }
-    );
-
-
-  const signal =
-    ema(
-      macd.map(
-        value =>
-          value ?? 0
-      ),
-      9
-    );
-
-
-  return {
-    macd,
-    signal
-  };
-
-}
-
-
-/* ======================================
-   YAHOO DATA
-====================================== */
-
-function quoteFrom(result) {
-
-  const meta =
-    result.meta || {};
-
-
-  const quote =
-    result
-      .indicators
-      ?.quote?.[0] ||
-    {};
-
-
-  let index =
-    (
-      quote.close ||
-      []
-    ).length - 1;
-
-
-  while (
-    index >= 0 &&
-    quote.close?.[index] == null
-  ) {
-
-    index--;
-
-  }
-
-
-  const price =
-    Number(
-      meta.regularMarketPrice ??
-      quote.close?.[index]
-    );
-
-
-  const previous =
-    Number(
-      meta.regularMarketPreviousClose ??
-      meta.previousClose ??
-      meta.chartPreviousClose
-    );
-
-
-  return {
-
-    price,
-
-    previous,
-
-    change:
-      price - previous,
-
-    changePercent:
-      previous
-        ? (
-            (price - previous) /
-            previous
-          ) *
-          100
-        : 0,
-
-    open:
-      meta.regularMarketOpen ??
-      quote.open?.[index],
-
-    high:
-      meta.regularMarketDayHigh ??
-      quote.high?.[index],
-
-    low:
-      meta.regularMarketDayLow ??
-      quote.low?.[index],
-
-    volume:
-      meta.regularMarketVolume ??
-      quote.volume?.[index],
-
-    marketState:
-      meta.marketState
-
-  };
-
-}
-
-
-function candlesFrom(result) {
-
-  const timestamps =
-    result.timestamp ||
-    [];
-
-
-  const quote =
-    result
-      .indicators
-      ?.quote?.[0] ||
-    {};
-
-
-  const candles = [];
-
-
-  for (
-    let index = 0;
-    index < timestamps.length;
-    index++
-  ) {
-
-    if (
-      [
-        quote.open?.[index],
-        quote.high?.[index],
-        quote.low?.[index],
-        quote.close?.[index]
-      ].some(
-        value => value == null
-      )
-    ) {
-
-      continue;
-
+        throw err;
     }
-
-
-    candles.push({
-
-      time:
-        currentPeriod.interval ===
-        "1d"
-
-          ? new Date(
-              timestamps[index] *
-                1000
-            )
-              .toISOString()
-              .slice(0, 10)
-
-          : timestamps[index],
-
-      open:
-        Number(
-          quote.open[index]
-        ),
-
-      high:
-        Number(
-          quote.high[index]
-        ),
-
-      low:
-        Number(
-          quote.low[index]
-        ),
-
-      close:
-        Number(
-          quote.close[index]
-        ),
-
-      volume:
-        Number(
-          quote.volume?.[index] ||
-          0
-        )
-
-    });
-
-  }
-
-
-  return candles;
 }
 
-
-/* ======================================
-   TECHNICAL RENDER
-====================================== */
-
-function renderTechnical(
-  candles,
-  quote
-) {
-
-  const closes =
-    candles.map(
-      candle =>
-        candle.close
-    );
-
-
-  const ma5 =
-    sma(
-      closes,
-      5
-    );
-
-
-  const ma20 =
-    sma(
-      closes,
-      20
-    );
-
-
-  const ma60 =
-    sma(
-      closes,
-      60
-    );
-
-
-  const rsi =
-    RSI(
-      closes
-    );
-
-
-  const macd =
-    MACD(
-      closes
-    );
-
-
-  const index =
-    closes.length - 1;
-
-
-  let score = 0;
-
-
-  if (
-    ma20[index] &&
-    quote.price >
-      ma20[index]
-  ) {
-
-    score += 25;
-
-  }
-
-
-  if (
-    ma60[index] &&
-    quote.price >
-      ma60[index]
-  ) {
-
-    score += 25;
-
-  }
-
-
-  if (
-    rsi[index] >= 50
-  ) {
-
-    score += 20;
-
-  }
-
-
-  if (
-    macd.macd[index] >
-    macd.signal[index]
-  ) {
-
-    score += 20;
-
-  }
-
-
-  if (
-    ma20[index] &&
-    ma60[index] &&
-    ma20[index] >
-      ma60[index]
-  ) {
-
-    score += 10;
-
-  }
-
-
-  if (
-    score >= 70
-  ) {
-
-    set(
-      "trend-value",
-      "強勢多頭"
-    );
-
-  }
-  else if (
-    score >= 50
-  ) {
-
-    set(
-      "trend-value",
-      "偏多"
-    );
-
-  }
-  else if (
-    score >= 35
-  ) {
-
-    set(
-      "trend-value",
-      "震盪"
-    );
-
-  }
-  else {
-
-    set(
-      "trend-value",
-      "偏弱"
-    );
-
-  }
-
-
-  set(
-    "trend-note",
-    `技術評分 ${score}/100`
-  );
-
-
-  set(
-    "rsi-value",
-    rsi[index]?.toFixed(1) ||
-    "—"
-  );
-
-
-  set(
-    "rsi-note",
-
-    rsi[index] >= 70
-      ? "偏熱"
-
-      : rsi[index] <= 30
-        ? "超賣"
-
-        : "中性"
-  );
-
-
-  set(
-    "ma20-value",
-    ma20[index]
-      ? fmt(ma20[index])
-      : "—"
-  );
-
-
-  set(
-    "ma20-note",
-
-    ma20[index]
-      ? quote.price >=
-        ma20[index]
-        ? "價格在 MA20 上方"
-        : "價格在 MA20 下方"
-      : "—"
-  );
-
-
-  set(
-    "tech-ma5",
-    fmt(ma5[index])
-  );
-
-
-  set(
-    "tech-ma20",
-    fmt(ma20[index])
-  );
-
-
-  set(
-    "tech-ma60",
-    fmt(ma60[index])
-  );
-
-
-  set(
-    "tech-rsi",
-    rsi[index]?.toFixed(1) ||
-    "—"
-  );
-
-
-  set(
-    "tech-macd",
-    fmt(
-      macd.macd[index]
-    )
-  );
-
-
-  set(
-    "tech-signal",
-    fmt(
-      macd.signal[index]
-    )
-  );
-
-
-  set(
-    "tech-volume",
-    vol(
-      candles[index]
-        ?.volume
-    )
-  );
-
-
-  set(
-    "tech-score",
-    `${score}/100`
-  );
-
-
-  set(
-    "technical-status",
-    `${candles.length} 根 K 線`
-  );
-
-
-  /* Chart */
-
-  if (candleSeries) {
-
-    candleSeries.setData(
-      candles.map(
-        candle => ({
-          time:
-            candle.time,
-
-          open:
-            candle.open,
-
-          high:
-            candle.high,
-
-          low:
-            candle.low,
-
-          close:
-            candle.close
-        })
-      )
-    );
-
-  }
-
-
-  if (ma5Series) {
-
-    ma5Series.setData(
-      candles
-        .map(
-          (candle, index) => {
-
-            if (
-              ma5[index] == null
-            ) {
-
-              return null;
-
+// ============================================================
+// 資料格式化
+// ============================================================
+function firstFinite(obj, keys) {
+    for (const key of keys) {
+        const value = obj?.[key], number = Number(value);
+        if (value !== null && value !== undefined && value !== '' && Number.isFinite(number)) return number;
+    }
+    return null;
+}
+function formatMetric(value, suffix = '', decimals = 2) { return Number.isFinite(Number(value)) ? `${Number(value).toFixed(decimals)}${suffix}` : '—'; }
+function formatPercentMetric(value) { return Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}%` : '—'; }
+function formatCompactNumber(value) {
+    if (!Number.isFinite(Number(value)) || value === '') return '—';
+    const n = Number(value), a = Math.abs(n);
+    if (a >= 1e12) return `${(n / 1e12).toFixed(2)} 兆`;
+    if (a >= 1e9) return `${(n / 1e9).toFixed(2)} 十億`;
+    if (a >= 1e6) return `${(n / 1e6).toFixed(2)} 百萬`;
+    if (a >= 1e3) return `${(n / 1e3).toFixed(2)} 千`;
+    return n.toFixed(2);
+}
+function formatVolume(value) {
+    if (!Number.isFinite(Number(value)) || value === '') return '—';
+    const n = Number(value);
+    if (n >= 100000000) return `${(n / 100000000).toFixed(2)} 億`;
+    if (n >= 10000) return `${(n / 10000).toFixed(2)} 萬`;
+    return n.toLocaleString('zh-TW');
+}
+function formatPrice(value, symbol = '') {
+    if (!Number.isFinite(Number(value)) || value === '') return '—';
+    const n = Number(value);
+    if (isForexSymbol(symbol)) return n.toFixed(4);
+    if (isCryptoSymbol(symbol)) return n >= 1 ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 });
+    return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+}
+
+// 修正：嚴格取得當日昨收價，防止多日K線昨收抓錯
+function parseQuote(result, symbol = '') {
+    const meta = result?.meta || {}, quote = result?.indicators?.quote?.[0] || {};
+    let lastClose = null, lastOpen = null, lastHigh = null, lastLow = null, lastVol = null;
+
+    if (Array.isArray(quote.close) && quote.close.length > 0) {
+        for (let i = quote.close.length - 1; i >= 0; i--) {
+            if (quote.close[i] != null) {
+                lastClose = quote.close[i];
+                lastOpen = quote.open?.[i];
+                lastHigh = quote.high?.[i];
+                lastLow = quote.low?.[i];
+                lastVol = quote.volume?.[i];
+                break;
             }
-
-
-            return {
-
-              time:
-                candle.time,
-
-              value:
-                ma5[index]
-
-            };
-
-          }
-        )
-        .filter(Boolean)
-    );
-
-  }
-
-
-  if (ma20Series) {
-
-    ma20Series.setData(
-      candles
-        .map(
-          (candle, index) => {
-
-            if (
-              ma20[index] == null
-            ) {
-
-              return null;
-
-            }
-
-
-            return {
-
-              time:
-                candle.time,
-
-              value:
-                ma20[index]
-
-            };
-
-          }
-        )
-        .filter(Boolean)
-    );
-
-  }
-
-
-  if (ma60Series) {
-
-    ma60Series.setData(
-      candles
-        .map(
-          (candle, index) => {
-
-            if (
-              ma60[index] == null
-            ) {
-
-              return null;
-
-            }
-
-
-            return {
-
-              time:
-                candle.time,
-
-              value:
-                ma60[index]
-
-            };
-
-          }
-        )
-        .filter(Boolean)
-    );
-
-  }
-
-
-  if (chart) {
-
-    chart
-      .timeScale()
-      .fitContent();
-
-  }
-
-}
-
-
-/* ======================================
-   QUOTE RENDER
-====================================== */
-
-function renderQuote(
-  quote
-) {
-
-  set(
-    "current-price",
-    fmt(quote.price)
-  );
-
-
-  set(
-    "open-price",
-    fmt(quote.open)
-  );
-
-
-  set(
-    "high-price",
-    fmt(quote.high)
-  );
-
-
-  set(
-    "low-price",
-    fmt(quote.low)
-  );
-
-
-  set(
-    "previous-close",
-    fmt(quote.previous)
-  );
-
-
-  set(
-    "volume",
-    vol(quote.volume)
-  );
-
-
-  const change =
-    document.getElementById(
-      "price-change"
-    );
-
-
-  const className =
-    quote.change > 0
-
-      ? "price-up"
-
-      : quote.change < 0
-
-        ? "price-down"
-
-        : "price-flat";
-
-
-  change.className =
-    className;
-
-
-  change.textContent =
-    `${quote.change >= 0 ? "+" : ""}` +
-    `${quote.change.toFixed(2)} ` +
-    `(${quote.change >= 0 ? "+" : ""}` +
-    `${quote.changePercent.toFixed(2)}%)`;
-
-
-  set(
-    "market-state",
-    quote.marketState ||
-    "—"
-  );
-
-}
-
-
-/* ======================================
-   WATCHLIST
-====================================== */
-
-function renderWatchlist() {
-
-  const element =
-    document.getElementById(
-      "stock-list"
-    );
-
-
-  element.innerHTML = "";
-
-
-  set(
-    "watch-count",
-    `${watchlist.length} 支自選`
-  );
-
-
-  let list =
-    [...watchlist];
-
-
-  if (
-    sortMode !== "manual"
-  ) {
-
-    list.sort(
-      (a, b) => {
-
-        const qa =
-          quoteCache[a.symbol];
-
-        const qb =
-          quoteCache[b.symbol];
-
-
-        if (
-          sortMode ===
-          "change-desc"
-        ) {
-
-          return (
-            (qb?.changePercent || 0) -
-            (qa?.changePercent || 0)
-          );
-
         }
-
-
-        if (
-          sortMode ===
-          "change-asc"
-        ) {
-
-          return (
-            (qa?.changePercent || 0) -
-            (qb?.changePercent || 0)
-          );
-
-        }
-
-
-        if (
-          sortMode ===
-          "price-desc"
-        ) {
-
-          return (
-            (qb?.price || 0) -
-            (qa?.price || 0)
-          );
-
-        }
-
-
-        if (
-          sortMode ===
-          "price-asc"
-        ) {
-
-          return (
-            (qa?.price || 0) -
-            (qb?.price || 0)
-          );
-
-        }
-
-
-        if (
-          sortMode ===
-          "symbol-asc"
-        ) {
-
-          return a.symbol.localeCompare(
-            b.symbol
-          );
-
-        }
-
-
-        return 0;
-
-      }
-    );
-
-  }
-
-
-  list.forEach(
-    stock => {
-
-      const quote =
-        quoteCache[
-          stock.symbol
-        ];
-
-
-      const item =
-        document.createElement(
-          "div"
-        );
-
-
-      item.className =
-        `stock-item ${
-          stock.symbol ===
-          currentSymbol
-            ? "active"
-            : ""
-        }`;
-
-
-      item.dataset.symbol =
-        stock.symbol;
-
-
-      item.innerHTML = `
-
-        <span class="drag">
-          ⋮⋮
-        </span>
-
-        <span class="stock-logo">
-          ${esc(
-            displaySymbol(
-              stock.symbol
-            ).slice(0, 5)
-          )}
-        </span>
-
-        <button
-          style="
-            all:unset;
-            display:flex;
-            flex:1;
-            align-items:center;
-            gap:8px
-          "
-          onclick="
-            loadStock(
-              '${esc(stock.symbol)}'
-            )
-          "
-        >
-
-          <span class="stock-main">
-
-            <span class="stock-name">
-              ${esc(
-                stock.name ||
-                displaySymbol(
-                  stock.symbol
-                )
-              )}
-            </span>
-
-            <span class="stock-sub">
-              ${esc(
-                displaySymbol(
-                  stock.symbol
-                )
-              )}
-            </span>
-
-          </span>
-
-
-          <span class="stock-right">
-
-            <span class="stock-price">
-              ${
-                quote
-                  ? fmt(
-                      quote.price
-                    )
-                  : "—"
-              }
-            </span>
-
-            <span
-              class="${
-                quote?.change >= 0
-                  ? "price-up"
-                  : "price-down"
-              } stock-change"
-            >
-
-              ${
-                quote
-                  ? `${
-                      quote.change >= 0
-                        ? "+"
-                        : ""
-                    }${quote.changePercent.toFixed(
-                      2
-                    )}%`
-                  : ""
-              }
-
-            </span>
-
-          </span>
-
-        </button>
-
-
-        <button
-          class="delete"
-          onclick="
-            event.stopPropagation();
-            removeStock(
-              '${esc(stock.symbol)}'
-            )
-          "
-        >
-          ×
-        </button>
-
-      `;
-
-
-      element.appendChild(
-        item
-      );
-
     }
-  );
 
+    // 優先使用正規市場昨收價，避免被 chartPreviousClose (5天前) 污染
+    let previousClose = Number(meta.regularMarketPreviousClose ?? meta.previousClose);
+    const currentPrice = Number(meta.regularMarketPrice ?? lastClose);
 
-  renderOverview();
-
-}
-
-
-/* ======================================
-   DASHBOARD
-====================================== */
-
-function renderOverview() {
-
-  const element =
-    document.getElementById(
-      "watch-overview"
-    );
-
-
-  const items =
-    watchlist.filter(
-      stock =>
-        quoteCache[
-          stock.symbol
-        ]
-    );
-
-
-  if (!items.length) {
-
-    element.innerHTML =
-      `<div class="note">
-        正在載入自選股行情…
-      </div>`;
-
-  }
-  else {
-
-    element.innerHTML =
-      items
-        .map(
-          stock => {
-
-            const quote =
-              quoteCache[
-                stock.symbol
-              ];
-
-
-            return `
-
-              <div
-                class="watch-overview-item"
-                onclick="
-                  loadStock(
-                    '${esc(
-                      stock.symbol
-                    )}'
-                  )
-                "
-              >
-
-                <div class="watch-line">
-
-                  <b>
-                    ${esc(
-                      displaySymbol(
-                        stock.symbol
-                      )
-                    )}
-                  </b>
-
-                  <span
-                    class="${
-                      quote.change >= 0
-                        ? "price-up"
-                        : "price-down"
-                    }"
-                  >
-                    ${
-                      quote.change >= 0
-                        ? "+"
-                        : ""
-                    }${quote.changePercent.toFixed(
-                      2
-                    )}%
-                  </span>
-
-                </div>
-
-
-                <div class="watch-line">
-
-                  <span>
-                    ${esc(
-                      stock.name ||
-                      ""
-                    )}
-                  </span>
-
-                  <b>
-                    ${fmt(
-                      quote.price
-                    )}
-                  </b>
-
-                </div>
-
-              </div>
-
-            `;
-
-          }
-        )
-        .join("");
-
-  }
-
-
-  set(
-    "watch-summary",
-    `${items.length}/${watchlist.length} 已更新`
-  );
-
-
-  const movers =
-    [...items].sort(
-      (a, b) =>
-        quoteCache[
-          b.symbol
-        ].changePercent -
-        quoteCache[
-          a.symbol
-        ].changePercent
-    );
-
-
-  document.getElementById(
-    "movers-list"
-  ).innerHTML =
-
-    movers.length
-
-      ? movers
-          .slice(0, 6)
-          .map(
-            stock => {
-
-              const quote =
-                quoteCache[
-                  stock.symbol
-                ];
-
-
-              return `
-
-                <div class="mover">
-
-                  <b>
-                    ${esc(
-                      displaySymbol(
-                        stock.symbol
-                      )
-                    )}
-                  </b>
-
-                  <span
-                    class="${
-                      quote.change >= 0
-                        ? "price-up"
-                        : "price-down"
-                    }"
-                  >
-                    ${
-                      quote.change >= 0
-                        ? "+"
-                        : ""
-                    }${quote.changePercent.toFixed(
-                      2
-                    )}%
-                  </span>
-
-                </div>
-
-              `;
-
+    if (!Number.isFinite(previousClose) || previousClose <= 0) {
+        // 如果沒有昨收，嘗試用倒數第二根非空的 close 作為基準
+        if (Array.isArray(quote.close)) {
+            const validCloses = quote.close.filter(v => v != null && Number.isFinite(Number(v)));
+            if (validCloses.length >= 2) {
+                previousClose = Number(validCloses[validCloses.length - 2]);
             }
-          )
-          .join("")
+        }
+    }
 
-      : `<div class="note">
-          —
-        </div>`;
+    if (!Number.isFinite(previousClose)) {
+        previousClose = Number(meta.chartPreviousClose);
+    }
 
+    if (!Number.isFinite(currentPrice)) throw new Error('NO_QUOTE_DATA');
+
+    const change = Number.isFinite(previousClose) ? currentPrice - previousClose : 0;
+    const changePercent = Number.isFinite(previousClose) && previousClose > 0 ? (change / previousClose) * 100 : 0;
+    const decimals = isForexSymbol(symbol) ? 4 : (isCryptoSymbol(symbol) && currentPrice < 1 ? 6 : 2);
+
+    return {
+        latestPrice: formatPrice(currentPrice, symbol),
+        change: change.toFixed(decimals),
+        changePercent: changePercent.toFixed(2),
+        isUp: change > 0,
+        isFlat: change === 0,
+        open: formatPrice(meta.regularMarketOpen ?? lastOpen, symbol),
+        high: formatPrice(meta.regularMarketDayHigh ?? lastHigh, symbol),
+        low: formatPrice(meta.regularMarketDayLow ?? lastLow, symbol),
+        previousClose: formatPrice(previousClose, symbol),
+        volume: formatVolume(meta.regularMarketVolume ?? lastVol)
+    };
 }
 
+function parseCandles(result) {
+    const timestamps = result?.timestamp || [], quote = result?.indicators?.quote?.[0];
+    if (!timestamps.length || !quote) throw new Error('NO_CANDLE_DATA');
 
-/* ======================================
-   MARKET INDEX
-====================================== */
+    const chartData = [];
+    for (let i = 0; i < timestamps.length; i++) {
+        const open = quote.open?.[i], high = quote.high?.[i], low = quote.low?.[i], close = quote.close?.[i];
+        if ([open, high, low, close].some(v => v == null || !Number.isFinite(Number(v)))) continue;
+        chartData.push({
+            time: ['1d', '1wk', '1mo'].includes(currentPeriod.interval) ? new Date(timestamps[i] * 1000).toISOString().split('T')[0] : timestamps[i],
+            open: Number(open), high: Number(high), low: Number(low), close: Number(close)
+        });
+    }
+    return chartData;
+}
 
-async function loadMarkets() {
+function applyCurrentPriceToQuote(quote, currentPrice, previousClose, symbol, fallbackChangePercent = NaN) {
+    if (!quote) quote = { open: '—', high: '—', low: '—', previousClose: '—', volume: '—' };
+    const current = Number(currentPrice), previous = Number(previousClose);
+    if (!Number.isFinite(current) || current <= 0) return quote;
 
-  const symbols = [
+    let change = 0, percent = 0;
+    if (Number.isFinite(previous) && previous > 0) {
+        change = current - previous;
+        percent = (change / previous) * 100;
+    } else if (Number.isFinite(Number(fallbackChangePercent))) {
+        percent = Number(fallbackChangePercent);
+        const estPrev = current / (1 + percent / 100);
+        if (Number.isFinite(estPrev) && estPrev > 0) { change = current - estPrev; quote.previousClose = formatPrice(estPrev, symbol); }
+    }
 
-    [
-      "台灣加權",
-      "^TWII"
-    ],
+    const decimals = isForexSymbol(symbol) ? 4 : (isCryptoSymbol(symbol) && current < 1 ? 6 : 2);
+    quote.latestPrice = formatPrice(current, symbol);
+    quote.change = change.toFixed(decimals);
+    quote.changePercent = percent.toFixed(2);
+    quote.isUp = change > 0; quote.isFlat = change === 0;
+    return quote;
+}
 
-    [
-      "S&P 500",
-      "^GSPC"
-    ],
+// ============================================================
+// UI Render Helpers
+// ============================================================
+function setText(id, value) { const el = document.getElementById(id); if (el) el.textContent = value; }
+function setMetric(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
+function escapeHtmlAttribute(value) { return String(value).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-    [
-      "NASDAQ",
-      "^IXIC"
-    ],
+function resetFundamentals() {
+    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth', 'metric-forward-pe', 'metric-peg', 'metric-ev-ebitda', 'metric-shares', 'profile-country', 'profile-industry', 'profile-ipo', 'profile-currency'].forEach(id => setMetric(id, '—'));
+    setMetric('fundamentals-status', '—'); setMetric('fundamentals-note', '—'); setMetric('profile-note', '—');
+    const subtitle = document.getElementById('fundamentals-subtitle'); if (subtitle) subtitle.textContent = 'Finnhub · Fundamental Metrics';
+    const desc = document.getElementById('profile-description'); if (desc) { desc.textContent = ''; desc.classList.add('hidden'); }
+    const link = document.getElementById('company-web-link'); if (link) { link.href = '#'; link.classList.add('hidden'); }
+}
 
-    [
-      "費城半導體",
-      "^SOX"
-    ]
+function renderFinnhubMetrics(result, profile, symbol) {
+    const m = result?.metric || {}, p = profile || {};
+    setMetric('metric-pe', formatMetric(firstFinite(m, ['peNormalizedAnnual', 'peTTM', 'peBasicExclExtraTTM', 'peExclExtraTTM'])));
+    setMetric('metric-eps', formatMetric(firstFinite(m, ['epsNormalizedAnnual', 'epsTTM', 'epsBasicExclExtraItemsTTM'])));
+    setMetric('metric-marketcap', formatCompactNumber(firstFinite(m, ['marketCapitalization'])));
+    setMetric('metric-beta', formatMetric(firstFinite(m, ['beta'])));
+    setMetric('metric-52high', formatMetric(firstFinite(m, ['52WeekHigh'])));
+    setMetric('metric-52low', formatMetric(firstFinite(m, ['52WeekLow'])));
+    setMetric('metric-dividend', formatPercentMetric(firstFinite(m, ['dividendYieldIndicatedAnnual', 'dividendYieldTTM', 'currentDividendYieldTTM'])));
+    setMetric('metric-roe', formatPercentMetric(firstFinite(m, ['roeTTM', 'roeRfy'])));
+    setMetric('metric-gross-margin', formatPercentMetric(firstFinite(m, ['grossMarginTTM', 'grossMargin5Y'])));
+    setMetric('metric-op-margin', formatPercentMetric(firstFinite(m, ['operatingMarginTTM', 'operatingMargin5Y'])));
+    setMetric('metric-net-margin', formatPercentMetric(firstFinite(m, ['netProfitMarginTTM', 'netProfitMargin5Y'])));
+    setMetric('metric-revenue-growth', formatPercentMetric(firstFinite(m, ['revenueGrowthTTMYoy', 'revenueGrowth5Y'])));
+    setMetric('metric-forward-pe', formatMetric(firstFinite(m, ['forwardPE', 'peForwardAnnual'])));
+    setMetric('metric-peg', formatMetric(firstFinite(m, ['pegRatio', 'peRatio', 'PEG'])));
+    setMetric('metric-ev-ebitda', formatMetric(firstFinite(m, ['enterpriseValueEbitdaTTM', 'evToEbitda', 'evEbitda'])));
+    setMetric('metric-shares', formatCompactNumber(firstFinite(m, ['shareOutstanding'])));
+    setMetric('fundamentals-status', 'Finnhub 已載入'); setMetric('fundamentals-note', `資料來源：Finnhub · ${displaySymbol(symbol)}`);
+    setMetric('profile-country', p.country || '—'); setMetric('profile-industry', p.finnhubIndustry || '—'); setMetric('profile-ipo', p.ipo || '—'); setMetric('profile-currency', p.currency || '—');
+    const desc = document.getElementById('profile-description'); if (desc && p.name) { desc.textContent = `${p.name}${p.finnhubIndustry ? ` · ${p.finnhubIndustry}` : ''}`; desc.classList.add('hidden'); }
+    const link = document.getElementById('company-web-link'); if (link && p.weburl) { link.href = p.weburl; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.classList.remove('hidden'); }
+    setMetric('profile-note', `公司：${p.name || displaySymbol(symbol)} · 交易所：${p.exchange || '—'}`);
+}
 
-  ];
+function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
+    resetFundamentals();
+    const isOtc = String(symbol).toUpperCase().includes('.TWO'), marketName = isOtc ? '櫃買中心 (TPEx)' : '證交所 (TWSE)';
+    const subtitle = document.getElementById('fundamentals-subtitle'); if (subtitle) subtitle.textContent = `台灣在地市場 · ${twseData?.source || marketName}`;
+    const peVal = Number(twseData?.pe), priceVal = Number(String(currentPrice).replace(/,/g, ''));
+    setMetric('metric-pe', twseData?.pe !== '0' && twseData?.pe ? twseData.pe : '—');
+    if (Number.isFinite(priceVal) && Number.isFinite(peVal) && peVal > 0) setMetric('metric-eps', (priceVal / peVal).toFixed(2));
+    setMetric('metric-dividend', twseData?.dividendYield || '—'); setMetric('metric-shares', twseData?.pb || '—');
+    const meta = quoteResult?.meta || {}, quotes = quoteResult?.indicators?.quote?.[0] || {};
+    let high52 = meta.fiftyTwoWeekHigh, low52 = meta.fiftyTwoWeekLow;
+    if (!high52 && Array.isArray(quotes.high)) { const values = quotes.high.filter(v => v != null && Number.isFinite(Number(v))); if (values.length) high52 = Math.max(...values); }
+    if (!low52 && Array.isArray(quotes.low)) { const values = quotes.low.filter(v => v != null && Number.isFinite(Number(v))); if (values.length) low52 = Math.min(...values); }
+    setMetric('metric-52high', formatPrice(high52, symbol)); setMetric('metric-52low', formatPrice(low52, symbol));
+    if (meta.marketCap) setMetric('metric-marketcap', formatCompactNumber(meta.marketCap));
+    setMetric('fundamentals-status', `${twseData?.source || marketName} 已載入`); setMetric('fundamentals-note', `資料來源：${twseData?.source || marketName} + Yahoo Finance · 代碼 ${displaySymbol(symbol)}`);
+    setMetric('profile-country', '台灣'); setMetric('profile-industry', meta.fullExchangeName || (isOtc ? '上櫃股票' : '上市股票')); setMetric('profile-currency', meta.currency || 'TWD');
+    const desc = document.getElementById('profile-description'); if (desc) { desc.textContent = `${meta.longName || displaySymbol(symbol)} - 台灣在地公開資訊（包含本益比、殖利率、股價淨值比，EPS 由股價與本益比推算）。`; desc.classList.add('hidden'); }
+    setMetric('profile-note', `市場別：${marketName} · 代碼：${displaySymbol(symbol)}`);
+}
 
+function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
+    const meta = result?.meta || {}, isOtc = String(symbol).toUpperCase().includes('.TWO');
+    const mapMarketState = { REGULAR: '正常交易', PRE: '盤前交易', POST: '盤後交易', PREPRE: '盤前', POSTPOST: '盤後', CLOSED: '休市' };
+    const mapType = { EQUITY: '股票', ETF: 'ETF', MUTUALFUND: '共同基金', INDEX: '指數', CURRENCY: '外匯', FUTURE: '期貨', CRYPTOCURRENCY: '加密貨幣' };
+    
+    if (isForexSymbol(symbol)) {
+        setCompanyField('company-long-name', '美元/台幣 (USD/TWD)'); setCompanyField('company-exchange', '外匯市場 (Forex)'); setCompanyField('company-market', 'Forex');
+        setCompanyField('company-currency', 'TWD'); setCompanyField('company-type', '外匯'); setCompanyField('company-market-state', mapMarketState[meta.marketState] || '全球外匯市場');
+        setCompanyField('company-symbol', 'USD/TWD');
+    } else if (isCryptoSymbol(symbol)) {
+        const nameMap = { BTC: '比特幣', ETH: '以太幣', SOL: 'Solana', XRP: 'XRP', ADA: 'Cardano', DOGE: 'Dogecoin', BNB: 'BNB' };
+        setCompanyField('company-long-name', nameMap[displaySymbol(symbol)] || displaySymbol(symbol)); setCompanyField('company-exchange', '加密貨幣'); setCompanyField('company-market', 'Crypto');
+        setCompanyField('company-currency', 'USD'); setCompanyField('company-type', '加密貨幣'); setCompanyField('company-market-state', '24 小時市場');
+        setCompanyField('company-symbol', displaySymbol(symbol));
+    } else {
+        const companyName = SPECIAL_NAME_MAP[symbol] || meta.longName || meta.shortName || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol);
+        setCompanyField('company-long-name', companyName); setCompanyField('company-exchange', meta.fullExchangeName || meta.exchangeName || (isOtc ? '櫃買中心 (TPEx)' : '證交所 (TWSE)'));
+        setCompanyField('company-market', meta.market || meta.exchangeName || '—'); setCompanyField('company-currency', meta.currency || meta.currencyCode || '—');
+        setCompanyField('company-type', mapType[meta.instrumentType || meta.quoteType] || meta.instrumentType || meta.quoteType || '—'); setCompanyField('company-market-state', mapMarketState[meta.marketState] || meta.marketState || '—');
+        setCompanyField('company-symbol', displaySymbol(symbol));
+    }
+    setCompanyField('company-price', quote?.latestPrice || '—');
+    const note = document.getElementById('company-info-note'); if (note) note.textContent = `資料來源：${source} · ${meta.fullExchangeName || meta.exchangeName || '交易市場'} · 代碼 ${displaySymbol(symbol)}`;
+}
 
-  const element =
-    document.getElementById(
-      "market-grid"
-    );
+function renderFinnhubCompanyInfo(profile, symbol, quote) {
+    const p = profile || {};
+    setCompanyField('company-long-name', p.name || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol));
+    setCompanyField('company-exchange', p.exchange || '—'); setCompanyField('company-market', p.finnhubIndustry || '—'); setCompanyField('company-currency', p.currency || '—');
+    setCompanyField('company-type', p.shareClassFIGI ? '股票' : '—'); setCompanyField('company-market-state', 'Finnhub 即時資料');
+    setCompanyField('company-symbol', displaySymbol(symbol)); setCompanyField('company-price', quote?.latestPrice || '—');
+    const note = document.getElementById('company-info-note');
+    if (note) {
+        const extra = [p.country ? `國家 ${p.country}` : '', p.marketCapitalization ? `市值 ${Number(p.marketCapitalization).toLocaleString('zh-TW')} 百萬` : '', p.ipo ? `IPO ${p.ipo}` : ''].filter(Boolean).join(' · ');
+        note.textContent = `資料來源：Finnhub · ${p.exchange || '交易市場'} · ${displaySymbol(symbol)}` + (extra ? ` · ${extra}` : '');
+    }
+}
 
+function setCompanyField(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
+function clearCompanyInfo() {
+    ['company-long-name', 'company-exchange', 'company-market', 'company-currency', 'company-type', 'company-market-state', 'company-symbol', 'company-price'].forEach(id => setCompanyField(id, '—'));
+    const note = document.getElementById('company-info-note'); if (note) note.textContent = '選擇股票後會自動載入公司基本資訊。';
+}
+function toggleCompanyInfo() {
+    const card = document.getElementById('company-info-card'); if (!card) return;
+    const button = card.querySelector('button'); card.classList.toggle('collapsed');
+    if (button) button.textContent = card.classList.contains('collapsed') ? '展開' : '收合';
+}
 
-  element.innerHTML =
-    `
-      <div class="market-card glass">
-        載入大盤…
-      </div>
-    `.repeat(4);
+// ============================================================
+// 大盤核心指數看板配置
+// ============================================================
+const INDICES_CONFIG = [
+    { id: 'twii', symbol: '^TWII', name: '加權指數' },
+    { id: 'soxx', symbol: 'SOXX', name: '費城半導體 (SOXX)' },
+    { id: 'ixic', symbol: '^IXIC', name: 'NASDAQ' },
+    { id: 'gspc', symbol: '^GSPC', name: 'S&P 500' }
+];
 
+const SPECIAL_NAME_MAP = {
+    '^TWII': '加權指數',
+    '^TWOII': '櫃買指數',
+    'SOXX': '費城半導體 ETF',
+    '^IXIC': '那斯達克綜合指數',
+    '^GSPC': '標普 500 指數',
+    '^DJI': '道瓊工業指數',
+    '^SOX': '費城半導體指數'
+};
 
-  const data =
-    await Promise.all(
-
-      symbols.map(
-        async pair => {
-
-          try {
-
-            const result =
-              await worker(
-                "",
-                {
-                  symbol:
-                    pair[1],
-
-                  interval:
-                    "1d",
-
-                  range:
-                    "5d"
+async function fetchMarketIndices() {
+    for (const idx of INDICES_CONFIG) {
+        try {
+            const data = await fetchYahooData(idx.symbol, '1d', '5d');
+            if (data) {
+                const quote = parseQuote(data, idx.symbol);
+                const priceEl = document.getElementById(`idx-${idx.id}-price`);
+                const changeEl = document.getElementById(`idx-${idx.id}-change`);
+                if (priceEl) priceEl.textContent = quote.latestPrice;
+                if (changeEl) {
+                    const sign = quote.isUp ? '+' : '';
+                    changeEl.textContent = `${sign}${quote.change} (${sign}${quote.changePercent}%)`;
+                    changeEl.className = `text-[11px] mt-0.5 font-medium ${quote.isFlat ? 'text-gray-500' : (quote.isUp ? 'price-up' : 'price-down')}`;
                 }
-              );
+            }
+        } catch (e) {}
+    }
+}
 
+// ============================================================
+// Watchlist Management
+// ============================================================
+let watchlist = JSON.parse(localStorage.getItem('stockWatchlist') || 'null') || [
+    { symbol: 'AMD', name: '超微', color: 'orange' },
+    { symbol: 'USDTWD', name: '美元/台幣匯率', color: 'blue' },
+    { symbol: 'BTC', name: '比特幣', color: 'yellow' },
+    { symbol: '2330.TW', name: '台積電', color: 'cyan' }
+];
+let quoteCache = JSON.parse(localStorage.getItem('stockQuoteCache') || '{}');
+let sortMode = localStorage.getItem('stockSortMode') || 'manual';
+let currentSymbol = localStorage.getItem('stockCurrentSymbol') || (watchlist.length > 0 ? watchlist[0].symbol : null);
+let currentPeriod = { interval: '5m', range: '5d', label: '5分K' };
+const COLOR_KEYS = ['orange', 'blue', 'green', 'cyan', 'purple', 'pink', 'yellow', 'red', 'indigo', 'teal'];
+const COLOR_MAP = { orange: 'bg-orange-500/20 text-orange-400', blue: 'bg-blue-500/20 text-blue-400', green: 'bg-green-500/20 text-green-400', cyan: 'bg-cyan-500/20 text-cyan-400', purple: 'bg-purple-500/20 text-purple-400', pink: 'bg-pink-500/20 text-pink-400', yellow: 'bg-yellow-500/20 text-yellow-400', red: 'bg-red-500/20 text-red-400', indigo: 'bg-indigo-500/20 text-indigo-400', teal: 'bg-teal-500/20 text-teal-400' };
 
-            return [
-              pair[0],
-              quoteFrom(result)
-            ];
+function saveWatchlist() {
+    localStorage.setItem('stockWatchlist', JSON.stringify(watchlist));
+    localStorage.setItem('stockSortMode', sortMode);
+    localStorage.setItem('stockQuoteCache', JSON.stringify(quoteCache));
+    if (currentSymbol) localStorage.setItem('stockCurrentSymbol', currentSymbol);
+}
 
-          }
-          catch {
+function changeSort(value) { sortMode = value; saveWatchlist(); renderWatchlist(); }
 
-            return [
-              pair[0],
-              null
-            ];
-
-          }
-
+function sortedWatchlist() {
+    const arr = [...watchlist];
+    if (sortMode === 'manual') return arr;
+    const getNumber = stock => Number(String(quoteCache[stock.symbol]?.latestPrice ?? '').replace(/,/g, ''));
+    const getChange = stock => Number(quoteCache[stock.symbol]?.changePercent ?? NaN);
+    arr.sort((a, b) => {
+        let av, bv;
+        switch (sortMode) {
+            case 'symbol-asc': return a.symbol.localeCompare(b.symbol, undefined, { numeric: true });
+            case 'symbol-desc': return b.symbol.localeCompare(a.symbol, undefined, { numeric: true });
+            case 'name-asc': return (a.name || a.symbol).localeCompare(b.name || b.symbol, 'zh-Hant');
+            case 'name-desc': return (b.name || b.symbol).localeCompare(a.name || a.symbol, 'zh-Hant');
+            case 'price-asc': av = getNumber(a); bv = getNumber(b); return (Number.isNaN(av) ? Infinity : av) - (Number.isNaN(bv) ? Infinity : bv);
+            case 'price-desc': av = getNumber(a); bv = getNumber(b); return (Number.isNaN(bv) ? -Infinity : bv) - (Number.isNaN(av) ? -Infinity : av);
+            case 'change-asc': av = getChange(a); bv = getChange(b); return (Number.isNaN(av) ? Infinity : av) - (Number.isNaN(bv) ? Infinity : bv);
+            case 'change-desc': av = getChange(a); bv = getChange(b); return (Number.isNaN(bv) ? -Infinity : bv) - (Number.isNaN(av) ? -Infinity : av);
+            default: return 0;
         }
-      )
+    });
+    return arr;
+}
 
-    );
+let sortableInstance = null;
+function renderWatchlist() {
+    const listEl = document.getElementById('stock-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    const sorted = sortedWatchlist();
+    if (sorted.length === 0) { listEl.innerHTML = `<p class="text-center text-gray-600 text-sm py-8">尚未新增任何股票</p>`; return; }
 
-
-  element.innerHTML =
-    data
-      .map(
-        ([name, quote]) => `
-
-          <div class="market-card glass">
-
-            <div class="market-top">
-
-              <span>
-                ${name}
-              </span>
-
-              <span>
-                指數
-              </span>
-
+    sorted.forEach(stock => {
+        const colorClass = COLOR_MAP[stock.color] || COLOR_MAP.blue, quote = quoteCache[stock.symbol], btn = document.createElement('button');
+        btn.className = `stock-btn w-full text-left px-3 py-2.5 rounded-xl text-gray-400 flex items-center gap-2 group ${currentSymbol === stock.symbol ? 'bg-white/10 text-white' : ''}`;
+        btn.dataset.symbol = stock.symbol; btn.onclick = () => loadStock(stock.symbol);
+        const priceText = quote?.latestPrice ? `<span class="text-[10px] text-gray-400">${quote.latestPrice}</span>` : '';
+        const changeNumber = Number(quote?.changePercent);
+        const changeText = quote?.changePercent != null && Number.isFinite(changeNumber) ? `<span class="text-[10px] ${changeNumber >= 0 ? 'price-up' : 'price-down'}">${changeNumber >= 0 ? '+' : ''}${changeNumber.toFixed(2)}%</span>` : '';
+        btn.innerHTML = `
+            <span class="drag-handle text-lg px-2 py-1 ${sortMode === 'manual' ? 'cursor-grab hover:text-white' : 'opacity-30'}" title="${sortMode === 'manual' ? '拖曳排序' : '切換到自訂順序後可拖曳'}">⋮</span>
+            <span class="w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center text-[10px] font-bold shrink-0">${displaySymbol(stock.symbol).slice(0, 4)}</span>
+            <div class="flex-1 min-w-0">
+                <div class="font-medium text-sm truncate">${stock.name || displaySymbol(stock.symbol)}</div>
+                <div class="text-[11px] text-gray-500 flex items-center gap-2"><span>${displaySymbol(stock.symbol)}</span>${priceText}${changeText}</div>
             </div>
+            <button class="delete-btn text-gray-600 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10" onclick="event.stopPropagation(); removeStockBySymbol('${escapeHtmlAttribute(stock.symbol)}')" title="移除">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        `;
+        listEl.appendChild(btn);
+    });
 
-
-            <div class="market-price">
-
-              ${
-                quote
-                  ? fmt(
-                      quote.price
-                    )
-                  : "—"
-              }
-
-            </div>
-
-
-            <div
-              class="market-change ${
-                quote?.change >= 0
-                  ? "price-up"
-                  : "price-down"
-              }"
-            >
-
-              ${
-                quote
-                  ? `${
-                      quote.change >= 0
-                        ? "+"
-                        : ""
-                    }${quote.change.toFixed(
-                      2
-                    )} (${
-                      quote.change >= 0
-                        ? "+"
-                        : ""
-                    }${quote.changePercent.toFixed(
-                      2
-                    )}%)`
-                  : "暫無資料"
-              }
-
-            </div>
-
-
-            <div class="market-meta">
-
-              ${
-                quote?.marketState ||
-                "Market Index"
-              }
-
-            </div>
-
-          </div>
-
-        `
-      )
-      .join("");
-
-}
-
-
-/* ======================================
-   NEWS
-====================================== */
-
-async function loadNews(
-  symbol
-) {
-
-  const element =
-    document.getElementById(
-      "news-list"
-    );
-
-
-  if (!symbol) {
-
-    element.innerHTML =
-      `<div class="note">
-        —
-      </div>`;
-
-    return;
-
-  }
-
-
-  element.innerHTML =
-    `<div class="note">
-      新聞載入中…
-    </div>`;
-
-
-  try {
-
-    const result =
-      await worker(
-        "news",
-        {
-          symbol:
-            displaySymbol(symbol)
-        }
-      );
-
-
-    const news =
-      result.news ||
-      result.results ||
-      result ||
-      [];
-
-
-    if (
-      !Array.isArray(news) ||
-      !news.length
-    ) {
-
-      throw new Error(
-        "NO_NEWS"
-      );
-
+    if (!sortableInstance && typeof Sortable !== 'undefined') {
+        sortableInstance = new Sortable(listEl, {
+            animation: 150, handle: '.drag-handle', disabled: sortMode !== 'manual',
+            onEnd(evt) {
+                if (evt.oldIndex == null || evt.newIndex == null) return;
+                const item = watchlist.splice(evt.oldIndex, 1)[0];
+                if (!item) return;
+                watchlist.splice(evt.newIndex, 0, item);
+                saveWatchlist();
+            }
+        });
+    } else if (sortableInstance) {
+        sortableInstance.option('disabled', sortMode !== 'manual');
     }
-
-
-    element.innerHTML =
-      news
-        .slice(0, 10)
-        .map(
-          item => {
-
-            const url =
-              item.url ||
-              item.link ||
-              "#";
-
-
-            const timestamp =
-              item.providerPublishTime;
-
-
-            const date =
-              timestamp
-                ? new Date(
-                    timestamp * 1000
-                  ).toLocaleString(
-                    "zh-TW",
-                    {
-                      hour12: false
-                    }
-                  )
-                : (
-                    item.datetime ||
-                    ""
-                  );
-
-
-            return `
-
-              <a
-                class="news-item"
-                href="${esc(url)}"
-                target="_blank"
-                rel="noopener"
-              >
-
-                <div class="news-title">
-
-                  <span class="news-badge">
-                    ${esc(
-                      item.publisher ||
-                      item.source ||
-                      "NEWS"
-                    )}
-                  </span>
-
-                  ${esc(
-                    item.title ||
-                    "未命名新聞"
-                  )}
-
-                </div>
-
-
-                <div class="news-meta">
-                  ${esc(date)}
-                </div>
-
-              </a>
-
-            `;
-
-          }
-        )
-        .join("");
-
-  }
-  catch {
-
-    element.innerHTML =
-      `<div class="note">
-        目前沒有可取得的新聞資料。
-      </div>`;
-
-  }
-
 }
-
-
-/* ======================================
-   CHIP DATA
-====================================== */
-
-async function loadChips(
-  symbol
-) {
-
-  const summary =
-    document.getElementById(
-      "chip-summary"
-    );
-
-
-  const table =
-    document.getElementById(
-      "chip-table"
-    );
-
-
-  summary.innerHTML = "";
-
-  table.innerHTML = "";
-
-
-  if (
-    !isTaiwanSymbol(symbol)
-  ) {
-
-    set(
-      "chip-status",
-      "非台股"
-    );
-
-
-    set(
-      "chip-note",
-      "目前籌碼面以台股三大法人為主；美股與加密貨幣不強行捏造籌碼數據。"
-    );
-
-
-    return;
-
-  }
-
-
-  try {
-
-    const result =
-      await worker(
-        "chips",
-        {
-          symbol:
-            displaySymbol(symbol)
-        }
-      );
-
-
-    const rows =
-      result.rows ||
-      [];
-
-
-    set(
-      "chip-status",
-      result.date
-        ? `${result.date} · 三大法人`
-        : "已載入"
-    );
-
-
-    const latest =
-      rows[
-        rows.length - 1
-      ];
-
-
-    if (latest) {
-
-      const values = [
-
-        [
-          "外資",
-          latest.foreign
-        ],
-
-        [
-          "投信",
-          latest.trust
-        ],
-
-        [
-          "自營商",
-          latest.dealer
-        ]
-
-      ];
-
-
-      summary.innerHTML =
-        values
-          .map(
-            item => `
-
-              <div class="chip-box">
-
-                <span>
-                  ${item[0]}
-                </span>
-
-                <b
-                  class="${
-                    Number(item[1]) >= 0
-                      ? "chip-up"
-                      : "chip-down"
-                  }"
-                >
-                  ${fmt(
-                    Number(
-                      item[1]
-                    )
-                  )}
-                </b>
-
-                <small>
-                  張
-                </small>
-
-              </div>
-
-            `
-          )
-          .join("");
-
-    }
-
-
-    table.innerHTML = `
-
-      <table>
-
-        <thead>
-
-          <tr>
-
-            <th>
-              日期
-            </th>
-
-            <th>
-              外資
-            </th>
-
-            <th>
-              投信
-            </th>
-
-            <th>
-              自營商
-            </th>
-
-            <th>
-              合計
-            </th>
-
-          </tr>
-
-        </thead>
-
-
-        <tbody>
-
-          ${rows
-            .slice(-8)
-            .reverse()
-            .map(
-              row => `
-
-                <tr>
-
-                  <td>
-                    ${esc(
-                      row.date
-                    )}
-                  </td>
-
-                  <td
-                    class="${
-                      row.foreign >= 0
-                        ? "chip-up"
-                        : "chip-down"
-                    }"
-                  >
-                    ${fmt(
-                      row.foreign
-                    )}
-                  </td>
-
-                  <td
-                    class="${
-                      row.trust >= 0
-                        ? "chip-up"
-                        : "chip-down"
-                    }"
-                  >
-                    ${fmt(
-                      row.trust
-                    )}
-                  </td>
-
-                  <td
-                    class="${
-                      row.dealer >= 0
-                        ? "chip-up"
-                        : "chip-down"
-                    }"
-                  >
-                    ${fmt(
-                      row.dealer
-                    )}
-                  </td>
-
-                  <td
-                    class="${
-                      row.total >= 0
-                        ? "chip-up"
-                        : "chip-down"
-                    }"
-                  >
-                    ${fmt(
-                      row.total
-                    )}
-                  </td>
-
-                </tr>
-
-              `
-            )
-            .join("")}
-
-        </tbody>
-
-      </table>
-
-    `;
-
-  }
-  catch {
-
-    set(
-      "chip-status",
-      "暫無資料"
-    );
-
-
-    set(
-      "chip-note",
-      "籌碼資料需要 Cloudflare Worker 的 chips endpoint。"
-    );
-
-  }
-
-}
-
-
-/* ======================================
-   LOAD STOCK
-====================================== */
-
-async function loadStock(
-  symbol,
-  silent = false
-) {
-
-  currentSymbol =
-    symbol;
-
-
-  localStorage.setItem(
-    "stockCurrentSymbolV5",
-    symbol
-  );
-
-
-  renderWatchlist();
-
-
-  if (!silent) {
-
-    set(
-      "stock-symbol-title",
-      displaySymbol(symbol)
-    );
-
-
-    set(
-      "stock-name",
-      watchlist.find(
-        stock =>
-          stock.symbol ===
-          symbol
-      )?.name ||
-      displaySymbol(symbol)
-    );
-
-
-    set(
-      "chart-status",
-      "載入中…"
-    );
-
-
-    loadNews(symbol);
-
-    loadChips(symbol);
-
-  }
-
-
-  try {
-
-    const result =
-      await yahoo(symbol);
-
-
-    const quote =
-      quoteFrom(result);
-
-
-    const candles =
-      candlesFrom(result);
-
-
-    quoteCache[
-      symbol
-    ] =
-      quote;
-
-
-    renderQuote(
-      quote
-    );
-
-
-    renderTechnical(
-      candles,
-      quote
-    );
-
-
-    set(
-      "stock-symbol-title",
-      displaySymbol(symbol)
-    );
-
-
-    set(
-      "stock-name",
-
-      watchlist.find(
-        stock =>
-          stock.symbol ===
-          symbol
-      )?.name ||
-
-      result.meta
-        ?.longName ||
-
-      displaySymbol(symbol)
-    );
-
-
-    set(
-      "last-update",
-      `最後更新 ${new Date().toLocaleString(
-        "zh-TW",
-        {
-          hour12: false
-        }
-      )}`
-    );
-
-
-    set(
-      "chart-status",
-      `${currentPeriod.label} · ${candles.length} 根`
-    );
-
-
-    set(
-      "range-value",
-      "—"
-    );
-
-
-    checkAlerts(
-      quote
-    );
-
-
-    renderWatchlist();
-
-    updateFavorite();
-
-
-    if (!silent) {
-
-      loadFundamentals(
-        symbol
-      );
-
-      loadNews(
-        symbol
-      );
-
-      loadChips(
-        symbol
-      );
-
-    }
-
-  }
-  catch (error) {
-
-    console.error(
-      error
-    );
-
-
-    set(
-      "chart-status",
-      "資料取得失敗"
-    );
-
-  }
-
-
-  restartAutoRefresh();
-
-}
-
-
-/* ======================================
-   FUNDAMENTALS
-====================================== */
-
-async function loadFundamentals(
-  symbol
-) {
-
-  const fields = [
-
-    "metric-pe",
-
-    "metric-eps",
-
-    "metric-marketcap",
-
-    "metric-beta",
-
-    "metric-52high",
-
-    "metric-52low",
-
-    "metric-dividend",
-
-    "metric-roe",
-
-    "metric-gross-margin",
-
-    "metric-op-margin",
-
-    "metric-net-margin",
-
-    "metric-revenue-growth"
-
-  ];
-
-
-  fields.forEach(
-    field =>
-      set(
-        field,
-        "—"
-      )
-  );
-
-
-  try {
-
-    if (
-      isTaiwanSymbol(
-        symbol
-      )
-    ) {
-
-      const result =
-        await worker(
-          "twse_metrics",
-          {
-            symbol:
-              displaySymbol(
-                symbol
-              )
-          }
-        );
-
-
-      set(
-        "metric-pe",
-        result.pe
-      );
-
-
-      set(
-        "metric-eps",
-        result.eps
-      );
-
-
-      set(
-        "metric-52high",
-        result.high52
-      );
-
-
-      set(
-        "metric-52low",
-        result.low52
-      );
-
-
-      set(
-        "metric-dividend",
-        result.dividendYield !=
-        null
-          ? `${result.dividendYield}%`
-          : "—"
-      );
-
-
-      set(
-        "fundamentals-status",
-        "TWSE/TPEX"
-      );
-
-
-      set(
-        "fundamentals-note",
-        result.source ||
-        "官方資料"
-      );
-
-    }
-    else {
-
-      const result =
-        await worker(
-          "finnhub",
-          {
-            symbol:
-              displaySymbol(
-                symbol
-              ),
-
-            endpoint:
-              "metric",
-
-            metric:
-              "all"
-          }
-        );
-
-
-      const metric =
-        result.metric ||
-        {};
-
-
-      set(
-        "metric-pe",
-        metric.peTTM ??
-        metric.peNormalizedAnnual
-      );
-
-
-      set(
-        "metric-eps",
-        metric.epsTTM
-      );
-
-
-      set(
-        "metric-marketcap",
-        metric.marketCapitalization
-      );
-
-
-      set(
-        "metric-beta",
-        metric.beta
-      );
-
-
-      set(
-        "metric-52high",
-        metric["52WeekHigh"]
-      );
-
-
-      set(
-        "metric-52low",
-        metric["52WeekLow"]
-      );
-
-
-      set(
-        "metric-dividend",
-        metric.dividendYieldIndicatedAnnual
-          ? `${metric.dividendYieldIndicatedAnnual}%`
-          : "—"
-      );
-
-
-      set(
-        "metric-roe",
-        metric.roeTTM
-          ? `${metric.roeTTM}%`
-          : "—"
-      );
-
-
-      set(
-        "fundamentals-status",
-        "Finnhub"
-      );
-
-    }
-
-  }
-  catch {
-
-    set(
-      "fundamentals-status",
-      "暫無資料"
-    );
-
-  }
-
-}
-
-
-/* ======================================
-   ADD STOCK
-====================================== */
 
 async function addStock() {
-
-  const input =
-    document.getElementById(
-      "stock-input"
-    );
-
-
-  const raw =
-    input.value
-      .trim()
-      .toUpperCase();
-
-
-  if (!raw) {
-
-    return;
-
-  }
-
-
-  const symbol =
-    /^\d{4,6}$/.test(raw)
-      ? `${raw}.TW`
-      : raw;
-
-
-  if (
-    !watchlist.some(
-      stock =>
-        stock.symbol ===
-        symbol
-    )
-  ) {
-
-    watchlist.push({
-
-      symbol,
-
-      name:
-        displaySymbol(
-          symbol
-        )
-
-    });
-
-  }
-
-
-  input.value = "";
-
-
-  save();
-
-
-  await loadStock(
-    symbol
-  );
-
-}
-
-
-function quickAdd(
-  symbol
-) {
-
-  document.getElementById(
-    "stock-input"
-  ).value =
-    symbol;
-
-
-  addStock();
-
-}
-
-
-/* ======================================
-   REMOVE
-====================================== */
-
-function removeStock(
-  symbol
-) {
-
-  watchlist =
-    watchlist.filter(
-      stock =>
-        stock.symbol !==
-        symbol
-    );
-
-
-  if (
-    currentSymbol ===
-    symbol
-  ) {
-
-    currentSymbol =
-      watchlist[0]
-        ?.symbol ||
-      null;
-
-  }
-
-
-  save();
-
-  renderWatchlist();
-
-
-  if (
-    currentSymbol
-  ) {
-
-    loadStock(
-      currentSymbol
-    );
-
-  }
-
-}
-
-
-/* ======================================
-   FAVORITE
-====================================== */
-
-function toggleFavorite() {
-
-  if (!currentSymbol) {
-
-    return;
-
-  }
-
-
-  if (
-    watchlist.some(
-      stock =>
-        stock.symbol ===
-        currentSymbol
-    )
-  ) {
-
-    removeStock(
-      currentSymbol
-    );
-
-  }
-  else {
-
-    watchlist.push({
-
-      symbol:
-        currentSymbol,
-
-      name:
-        displaySymbol(
-          currentSymbol
-        )
-
-    });
-
-
-    save();
-
-    renderWatchlist();
-
-  }
-
-
-  updateFavorite();
-
-}
-
-
-function updateFavorite() {
-
-  const button =
-    document.getElementById(
-      "favorite-btn"
-    );
-
-
-  const active =
-    watchlist.some(
-      stock =>
-        stock.symbol ===
-        currentSymbol
-    );
-
-
-  button.classList.toggle(
-    "active",
-    active
-  );
-
-
-  button.textContent =
-    active
-      ? "★"
-      : "☆";
-
-}
-
-
-/* ======================================
-   SORT
-====================================== */
-
-function changeSort(
-  value
-) {
-
-  sortMode =
-    value;
-
-
-  localStorage.setItem(
-    "stockSortV5",
-    value
-  );
-
-
-  renderWatchlist();
-
-}
-
-
-/* ======================================
-   PERIOD
-====================================== */
-
-async function changePeriod(
-  button
-) {
-
-  document
-    .querySelectorAll(
-      ".period-btn"
-    )
-    .forEach(
-      element =>
-        element.classList.remove(
-          "active"
-        )
-    );
-
-
-  button.classList.add(
-    "active"
-  );
-
-
-  currentPeriod = {
-
-    interval:
-      button.dataset.interval,
-
-    range:
-      button.dataset.range,
-
-    label:
-      button.textContent.trim()
-
-  };
-
-
-  if (
-    currentSymbol
-  ) {
-
-    await loadStock(
-      currentSymbol
-    );
-
-  }
-
-}
-
-
-/* ======================================
-   ALERT
-====================================== */
-
-function checkAlerts(
-  quote
-) {
-
-  alerts.forEach(
-    alert => {
-
-      if (
-        alert.symbol !==
-        currentSymbol
-      ) {
-
-        return;
-
-      }
-
-
-      if (
-        alert.triggered
-      ) {
-
-        return;
-
-      }
-
-
-      const hit =
-        alert.direction ===
-        "above"
-
-          ? quote.price >=
-            alert.target
-
-          : quote.price <=
-            alert.target;
-
-
-      if (hit) {
-
-        alert.triggered =
-          true;
-
-
-        notify(
-
-          `價格警報 ${displaySymbol(
-            alert.symbol
-          )}`,
-
-          `${fmt(
-            quote.price
-          )} 已${
-            alert.direction ===
-            "above"
-              ? "突破"
-              : "跌破"
-          } ${alert.target}`
-
-        );
-
-
-        save();
-
-      }
-
+    const input = document.getElementById('stock-input');
+    if (!input) return;
+    const raw = input.value.trim().toUpperCase();
+    if (!raw) { input.focus(); return; }
+    if (!/^[A-Z0-9.\-=\/^]+$/.test(raw)) { alert('請輸入有效的代碼，例如 2330、SOXX、USDTWD、BTC、^TWII'); return; }
+
+    let symbol = raw;
+    if (isForexSymbol(raw)) symbol = 'USDTWD';
+    else if (isCryptoSymbol(raw)) symbol = raw.replace('-USD', '');
+    else if (isIndexSymbol(raw)) symbol = raw;
+    else if (/^\d{4,6}$/.test(raw)) {
+        try { const twRes = await fetchYahooData(`${raw}.TW`, '1d', '5d'); if (twRes) symbol = `${raw}.TW`; }
+        catch { try { const twoRes = await fetchYahooData(`${raw}.TWO`, '1d', '5d'); if (twoRes) symbol = `${raw}.TWO`; } catch { symbol = `${raw}.TW`; } }
     }
-  );
 
+    if (watchlist.some(s => s.symbol === symbol || displaySymbol(s.symbol) === displaySymbol(symbol))) { alert(`${displaySymbol(symbol)} 已經在清單中了`); input.value = ''; return; }
 
-  renderAlerts();
+    const color = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
+    let name = SPECIAL_NAME_MAP[symbol] || displaySymbol(symbol);
+    if (isForexSymbol(symbol)) name = '美元/台幣匯率';
+    else if (isCryptoSymbol(symbol)) { const cryptoNames = { BTC: '比特幣', ETH: '以太幣', SOL: 'Solana', XRP: 'XRP', ADA: 'Cardano', DOGE: 'Dogecoin', BNB: 'BNB' }; name = cryptoNames[symbol] || symbol; }
+    else if (isTaiwanSymbol(symbol)) name = (await fetchTwseName(displaySymbol(symbol))) || displaySymbol(symbol);
 
+    watchlist.push({ symbol, name, color }); saveWatchlist(); renderWatchlist(); input.value = ''; await loadStock(symbol);
 }
 
-
-function renderAlerts() {
-
-  const element =
-    document.getElementById(
-      "alert-list"
-    );
-
-
-  const currentAlerts =
-    alerts.filter(
-      alert =>
-        alert.symbol ===
-        currentSymbol
-    );
-
-
-  if (
-    !currentAlerts.length
-  ) {
-
-    element.innerHTML =
-      `<div class="note">
-        目前沒有此標的的價格警報。
-      </div>`;
-
-    return;
-
-  }
-
-
-  element.innerHTML =
-    currentAlerts
-      .map(
-        alert => `
-
-          <div class="alert-item">
-
-            <span>
-
-              ${displaySymbol(
-                alert.symbol
-              )}
-
-              ${
-                alert.direction ===
-                "above"
-                  ? "突破"
-                  : "跌破"
-              }
-
-              <b>
-                ${alert.target}
-              </b>
-
-              ${
-                alert.triggered
-                  ? " · 已觸發"
-                  : ""
-              }
-
-            </span>
-
-
-            <span class="alert-actions">
-
-              <button
-                onclick="
-                  deleteAlert(
-                    ${alert.id}
-                  )
-                "
-              >
-                刪除
-              </button>
-
-            </span>
-
-          </div>
-
-        `
-      )
-      .join("");
-
-}
-
-
-function addAlert() {
-
-  if (!currentSymbol) {
-
-    return;
-
-  }
-
-
-  const target =
-    Number(
-      prompt(
-        "目標價格："
-      )
-    );
-
-
-  if (
-    !Number.isFinite(
-      target
-    )
-  ) {
-
-    return;
-
-  }
-
-
-  const direction =
-    prompt(
-      "above = 突破、below = 跌破",
-      "above"
-    );
-
-
-  if (
-    ![
-      "above",
-      "below"
-    ].includes(
-      direction
-    )
-  ) {
-
-    return;
-
-  }
-
-
-  alerts.push({
-
-    id:
-      Date.now(),
-
-    symbol:
-      currentSymbol,
-
-    target,
-
-    direction,
-
-    triggered:
-      false
-
-  });
-
-
-  save();
-
-  renderAlerts();
-
-}
-
-
-function deleteAlert(
-  id
-) {
-
-  alerts =
-    alerts.filter(
-      alert =>
-        alert.id !==
-        id
-    );
-
-
-  save();
-
-  renderAlerts();
-
-}
-
-
-/* ======================================
-   NOTIFICATION
-====================================== */
-
-function notify(
-  title,
-  body
-) {
-
-  if (
-    "Notification" in window &&
-    Notification.permission ===
-      "granted"
-  ) {
-
-    new Notification(
-      title,
-      {
-        body
-      }
-    );
-
-  }
-  else {
-
-    alert(
-      `${title}\n${body}`
-    );
-
-  }
-
-}
-
-
-async function requestNotifications() {
-
-  if (
-    "Notification" in window
-  ) {
-
-    await Notification.requestPermission();
-
-  }
-
-}
-
-
-/* ======================================
-   SIDEBAR
-====================================== */
-
-function toggleSidebar() {
-
-  document
-    .getElementById(
-      "sidebar"
-    )
-    .classList.toggle(
-      "open"
-    );
-
-
-  document
-    .getElementById(
-      "sidebar-overlay"
-    )
-    .classList.toggle(
-      "show"
-    );
-
-}
-
-
-/* ======================================
-   SETTINGS
-====================================== */
-
-function openSettingsModal() {
-
-  document
-    .getElementById(
-      "modal-overlay"
-    )
-    .classList.remove(
-      "hidden"
-    );
-
-
-  document
-    .getElementById(
-      "settings-modal"
-    )
-    .classList.remove(
-      "hidden"
-    );
-
-}
-
-
-function closeModals() {
-
-  document
-    .getElementById(
-      "modal-overlay"
-    )
-    .classList.add(
-      "hidden"
-    );
-
-
-  document
-    .getElementById(
-      "settings-modal"
-    )
-    .classList.add(
-      "hidden"
-    );
-
-}
-
-
-/* ======================================
-   THEME
-====================================== */
-
-function toggleDarkMode() {
-
-  document.body.classList.toggle(
-    "light-mode"
-  );
-
-
-  localStorage.setItem(
-    "stockThemeModeV5",
-
-    document.body.classList.contains(
-      "light-mode"
-    )
-      ? "light"
-      : "dark"
-  );
-
-}
-
-
-function changeThemeColor(
-  name
-) {
-
-  const colors = {
-
-    blue: [
-      "#3b82f6",
-      "#8b5cf6"
-    ],
-
-    emerald: [
-      "#10b981",
-      "#06b6d4"
-    ],
-
-    purple: [
-      "#a855f7",
-      "#ec4899"
-    ],
-
-    orange: [
-      "#f97316",
-      "#facc15"
-    ]
-
-  };
-
-
-  const color =
-    colors[name] ||
-    colors.blue;
-
-
-  document.documentElement
-    .style
-    .setProperty(
-      "--primary",
-      color[0]
-    );
-
-
-  document.documentElement
-    .style
-    .setProperty(
-      "--secondary",
-      color[1]
-    );
-
-
-  localStorage.setItem(
-    "stockThemeColorV5",
-    name
-  );
-
-}
-
-
-function applySettings() {
-
-  AUTO_REFRESH_INTERVAL =
-    Number(
-      document.getElementById(
-        "refresh-rate"
-      ).value
-    );
-
-
-  localStorage.setItem(
-    "stockRefreshRate",
-    AUTO_REFRESH_INTERVAL
-  );
-
-
-  const mode =
-    document.getElementById(
-      "kline-color"
-    ).value;
-
-
-  updateChartColors(
-    mode
-  );
-
-
-  restartAutoRefresh();
-
-}
-
-
-/* ======================================
-   CHART COLORS
-====================================== */
-
-function updateChartColors(
-  mode
-) {
-
-  const up =
-    mode ===
-    "green-red"
-
-      ? "#10b981"
-
-      : "#ef4444";
-
-
-  const down =
-    mode ===
-    "green-red"
-
-      ? "#ef4444"
-
-      : "#10b981";
-
-
-  if (
-    candleSeries
-  ) {
-
-    candleSeries.applyOptions({
-
-      upColor:
-        up,
-
-      downColor:
-        down,
-
-      borderUpColor:
-        up,
-
-      borderDownColor:
-        down,
-
-      wickUpColor:
-        up,
-
-      wickDownColor:
-        down
-
-    });
-
-  }
-
-}
-
-
-/* ======================================
-   AUTO REFRESH
-====================================== */
-
-function startAutoRefresh() {
-
-  clearInterval(
-    autoRefreshTimer
-  );
-
-
-  autoRefreshTimer =
-    setInterval(
-      () => {
-
-        if (
-          document.hidden
-        ) {
-
-          return;
-
+function removeStockBySymbol(symbol) { const index = watchlist.findIndex(s => s.symbol === symbol); if (index >= 0) removeStock(index); }
+function removeStock(index) {
+    const removed = watchlist[index]; if (!removed) return;
+    if (!confirm(`確定要移除 ${displaySymbol(removed.symbol)} 嗎？`)) return;
+    watchlist.splice(index, 1); delete quoteCache[removed.symbol]; saveWatchlist(); renderWatchlist();
+    if (currentSymbol === removed.symbol) {
+        currentSymbol = watchlist.length > 0 ? watchlist[0].symbol : null; currentChartData = []; saveWatchlist(); stopAutoRefresh();
+        if (currentSymbol) loadStock(currentSymbol);
+        else {
+            setText('stock-symbol-title', '—'); setText('stock-name', '選擇或新增股票以查看詳情');
+            ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume', 'last-update'].forEach(id => setText(id, '—'));
+            const emptyState = document.getElementById('empty-state'); if (emptyState) emptyState.style.display = 'flex';
+            if (candlestickSeries) candlestickSeries.setData([]); clearCompanyInfo(); resetFundamentals();
         }
-
-
-        watchlist.forEach(
-          stock =>
-            loadStock(
-              stock.symbol,
-              true
-            )
-        );
-
-
-        loadMarkets();
-
-      },
-
-      AUTO_REFRESH_INTERVAL
-    );
-
+    }
 }
 
-
-function restartAutoRefresh() {
-
-  startAutoRefresh();
-
-}
-
-
-/* ======================================
-   CHART INIT
-====================================== */
+// ============================================================
+// 圖表初始化與邏輯
+// ============================================================
+let chart = null, candlestickSeries = null, currentChartData = [], chartResizeObserver = null, chartResizeHandler = null, autoRefreshTimer = null, isLoadingStock = false;
 
 function initChart() {
+    const container = document.getElementById('chart-container');
+    if (!container || typeof LightweightCharts === 'undefined' || chart) return false;
+    if (container.clientHeight <= 0) container.style.minHeight = window.innerWidth < 768 ? '330px' : '400px';
 
-  const container =
-    document.getElementById(
-      "chart-container"
-    );
+    const isMobile = window.innerWidth < 768;
+    const gridColor = isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+    const scaleBorderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+    const textColor = isDarkMode ? '#9ca3af' : '#52525b';
 
-
-  chart =
-    LightweightCharts
-      .createChart(
-        container,
-        {
-
-          layout: {
-
-            background: {
-              type: "solid",
-
-              color:
-                "transparent"
-            },
-
-            textColor:
-              "#8d96a5"
-
-          },
-
-
-          grid: {
-
-            vertLines: {
-
-              color:
-                "rgba(255,255,255,.035)"
-
-            },
-
-            horzLines: {
-
-              color:
-                "rgba(255,255,255,.035)"
-
+    chart = LightweightCharts.createChart(container, {
+        layout: { textColor: textColor, background: { type: 'solid', color: 'transparent' }, fontSize: 12 },
+        grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 }, horzLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 } },
+        timeScale: {
+            borderColor: scaleBorderColor, timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true,
+            tickMarkFormatter: (time) => {
+                const date = new Date(time * 1000), hours = String(date.getHours()).padStart(2, '0'), minutes = String(date.getMinutes()).padStart(2, '0'), month = date.getMonth() + 1, day = date.getDate();
+                if (['1d', '1wk', '1mo'].includes(currentPeriod.interval)) return `${month}月${day}日`;
+                return `${hours}:${minutes}`;
             }
+        },
+        rightPriceScale: { borderColor: scaleBorderColor },
+        handleScroll: { mouseWheel: false, pressedMouseMove: !isMobile, horzTouchDrag: true, vertTouchDrag: true },
+        handleScale: { axisPressedMouseMove: !isMobile, mouseWheel: false, pinch: true }
+    });
 
-          },
+    candlestickSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
+        upColor: '#ef4444', downColor: '#10b981', borderVisible: true,
+        borderUpColor: '#ef4444', borderDownColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
+    });
 
+    setupChartResize(container);
+    return true;
+}
 
-          rightPriceScale: {
+function setupChartResize(container) {
+    if (!chart || !container) return;
+    if (chartResizeObserver) { try { chartResizeObserver.disconnect(); } catch {} }
+    if (chartResizeHandler) window.removeEventListener('resize', chartResizeHandler);
 
-            borderColor:
-              "rgba(255,255,255,.08)"
+    let lastWidth = 0, lastHeight = 0;
+    const resizeChart = () => {
+        if (!chart || !container) return;
+        let width = container.clientWidth, height = container.clientHeight;
+        if (width <= 0) return;
+        if (height <= 0) height = window.innerWidth < 768 ? 330 : 400;
+        if (width === lastWidth && height === lastHeight) return;
+        lastWidth = width; lastHeight = height; chart.applyOptions({ width, height });
+    };
 
-          },
+    chartResizeHandler = resizeChart;
+    chartResizeObserver = new ResizeObserver(() => requestAnimationFrame(resizeChart));
+    chartResizeObserver.observe(container);
+    window.addEventListener('resize', chartResizeHandler);
 
+    requestAnimationFrame(resizeChart); setTimeout(resizeChart, 100); setTimeout(resizeChart, 500);
+}
 
-          timeScale: {
-
-            borderColor:
-              "rgba(255,255,255,.08)",
-
-            timeVisible:
-              true,
-
-            secondsVisible:
-              false
-
-          }
-
+function setupChartKeyboard() {
+    window.addEventListener('keydown', event => {
+        if (document.activeElement?.tagName === 'INPUT' || !chart) return;
+        const timeScale = chart.timeScale(), visibleRange = timeScale.getVisibleLogicalRange();
+        if (!visibleRange) return;
+        const span = visibleRange.to - visibleRange.from, zoomFactor = 0.2;
+        if (event.key === '+' || event.key === '=') {
+            const newSpan = Math.max(5, span * (1 - zoomFactor)), center = (visibleRange.from + visibleRange.to) / 2;
+            timeScale.setVisibleLogicalRange({ from: center - newSpan / 2, to: center + newSpan / 2 });
+            event.preventDefault();
+        } else if (event.key === '-' || event.key === '_') {
+            const newSpan = span * (1 + zoomFactor), center = (visibleRange.from + visibleRange.to) / 2;
+            timeScale.setVisibleLogicalRange({ from: center - newSpan / 2, to: center + newSpan / 2 });
+            event.preventDefault();
         }
-      );
+    });
+}
 
+// ============================================================
+// Load Stock 主流程
+// ============================================================
+async function loadStock(symbol, isSilent = false) {
+    if (!symbol || (isLoadingStock && !isSilent)) return;
+    currentSymbol = symbol; saveWatchlist();
 
-  candleSeries =
-    chart.addSeries(
-      LightweightCharts.CandlestickSeries,
-      {
+    if (!isSilent) {
+        document.querySelectorAll('.stock-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.symbol === symbol));
+        const stockItem = watchlist.find(s => s.symbol === symbol);
+        const finalDisplayName = SPECIAL_NAME_MAP[symbol] || stockItem?.name || displaySymbol(symbol);
+        setText('stock-symbol-title', finalDisplayName); setText('stock-name', displaySymbol(symbol));
+        const loadingBadge = document.getElementById('loading-badge'); if (loadingBadge) loadingBadge.classList.remove('hidden');
+        const emptyState = document.getElementById('empty-state'); if (emptyState) emptyState.style.display = 'none';
+        ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—'));
+        const priceChange = document.getElementById('price-change'); if (priceChange) priceChange.className = 'text-sm sm:text-base font-bold px-2.5 py-1 rounded-lg bg-white/5 border border-white/5';
+        const currentPrice = document.getElementById('current-price'); if (currentPrice) currentPrice.className = 'text-4xl sm:text-5xl font-black text-white tracking-tight leading-none transition-colors duration-300';
+        setText('chart-status', `${currentPeriod.label} · 載入中`); resetFundamentals();
+    }
 
-        upColor:
-          "#ef4444",
+    isLoadingStock = true;
+    try {
+        let quote = null, chartData = [], yahooResult = null, yahooError = null;
 
-        downColor:
-          "#10b981",
+        try {
+            yahooResult = await fetchYahooData(symbol);
+            if (yahooResult) {
+                try { quote = parseQuote(yahooResult, symbol); } catch {}
+                try { chartData = parseCandles(yahooResult); } catch {}
+            }
+        } catch (error) { yahooError = error; }
 
-        borderUpColor:
-          "#ef4444",
+        if (isForexSymbol(symbol)) {
+            try {
+                const forex = await fetchForexData();
+                if (forex?.rate) {
+                    const prevClose = yahooResult?.meta?.regularMarketPreviousClose ?? yahooResult?.meta?.previousClose ?? yahooResult?.meta?.chartPreviousClose;
+                    quote = applyCurrentPriceToQuote(quote, forex.rate, prevClose, symbol, forex.changePercent);
+                    if (!isSilent) renderCompanyInfo(yahooResult, symbol, quote, yahooResult ? 'Frankfurter 現價 + Yahoo Finance K線' : 'Frankfurter');
+                }
+            } catch {}
+            if (!quote && quoteCache[symbol]) quote = quoteCache[symbol];
+        } else if (isCryptoSymbol(symbol)) {
+            try {
+                const cryptoJson = await fetchCryptoData(), cryptoSymbol = displaySymbol(symbol).toUpperCase(), crypto = cryptoJson?.[cryptoSymbol];
+                if (crypto) {
+                    const currentPrice = Number(crypto.usd ?? crypto.price), cryptoChange = Number(crypto.usd_24h_change ?? crypto.changePercent ?? crypto.change_24h ?? NaN);
+                    const previous = yahooResult?.meta?.regularMarketPreviousClose ?? yahooResult?.meta?.previousClose ?? yahooResult?.meta?.chartPreviousClose;
+                    quote = applyCurrentPriceToQuote(quote, currentPrice, previous, symbol, cryptoChange);
+                    if (!isSilent) renderCompanyInfo(yahooResult, symbol, quote, yahooResult ? 'CoinGecko 現價 + Yahoo Finance K線' : 'CoinGecko');
+                }
+            } catch {}
+            if (!quote && quoteCache[symbol]) quote = quoteCache[symbol];
+        } else if (isTaiwanSymbol(symbol)) {
+            let twseMetricsData = null;
+            try { twseMetricsData = await fetchTwseMetrics(symbol); } catch {}
+            if (twseMetricsData && !isSilent) {
+                const rawPrice = quote?.latestPrice ? Number(quote.latestPrice.replace(/,/g, '')) : NaN;
+                renderTwseMetrics(twseMetricsData, symbol, yahooResult, rawPrice);
+            }
+            if (!isSilent && yahooResult) {
+                renderCompanyInfo(yahooResult, symbol, quote, `Yahoo Finance + ${String(symbol).toUpperCase().includes('.TWO') ? '櫃買中心' : '證交所'}`);
+                const stockItem = watchlist.find(s => s.symbol === symbol);
+                if (stockItem && (stockItem.name === displaySymbol(symbol) || !stockItem.name)) {
+                    const longName = yahooResult.meta?.longName || yahooResult.meta?.shortName;
+                    if (longName) { stockItem.name = longName; saveWatchlist(); renderWatchlist(); setText('stock-symbol-title', longName); }
+                }
+            }
+        } else {
+            if (!quote && !isIndexSymbol(symbol)) { try { quote = await fetchFinnhubQuote(symbol); } catch {} }
+            if (!isSilent) {
+                if (isIndexSymbol(symbol)) renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
+                else {
+                    const companyProfile = await fetchFinnhubCompanyProfile(symbol).catch(() => null), metricResult = await fetchFinnhubMetrics(symbol).catch(() => null);
+                    if (companyProfile) renderFinnhubCompanyInfo(companyProfile, symbol, quote);
+                    else if (yahooResult) renderCompanyInfo(yahooResult, symbol, quote);
+                    if (metricResult) renderFinnhubMetrics(metricResult, companyProfile, symbol);
+                }
+            }
+        }
 
-        borderDownColor:
-          "#10b981",
+        if (!quote && quoteCache[symbol]) quote = quoteCache[symbol];
+        if (!quote) throw (yahooError || new Error('NO_QUOTE_DATA'));
 
-        wickUpColor:
-          "#ef4444",
+        quoteCache[symbol] = quote; saveWatchlist();
 
-        wickDownColor:
-          "#10b981"
+        setText('current-price', quote.latestPrice); setText('open-price', quote.open); setText('high-price', quote.high); setText('low-price', quote.low); setText('previous-close', quote.previousClose); setText('volume', quote.volume);
 
-      }
-    );
+        const changeEl = document.getElementById('price-change'), changeNumber = Number(quote.change), changePercent = Number(quote.changePercent);
+        const isUp = Number.isFinite(changeNumber) && changeNumber > 0, isDown = Number.isFinite(changeNumber) && changeNumber < 0, isFlat = !isUp && !isDown, sign = isUp ? '+' : '';
+        if (changeEl) changeEl.textContent = `${sign}${quote.change} (${sign}${Number.isFinite(changePercent) ? changePercent.toFixed(2) : '0.00'}%)`;
 
+        const currentPriceEl = document.getElementById('current-price');
+        const baseChangeClass = 'text-sm sm:text-base font-bold px-2.5 py-1 rounded-lg border transition-colors duration-300';
+        const basePriceClass = 'text-4xl sm:text-5xl font-black tracking-tight leading-none transition-colors duration-300';
+        if (isFlat) {
+            if (changeEl) changeEl.className = `${baseChangeClass} bg-white/5 border-white/5 text-gray-400`;
+            if (currentPriceEl) currentPriceEl.className = `${basePriceClass} text-gray-300`;
+        } else if (isUp) {
+            if (changeEl) changeEl.className = `${baseChangeClass} bg-white/5 border-white/5 price-up`;
+            if (currentPriceEl) currentPriceEl.className = `${basePriceClass} price-up`;
+        } else {
+            if (changeEl) changeEl.className = `${baseChangeClass} bg-white/5 border-white/5 price-down`;
+            if (currentPriceEl) currentPriceEl.className = `${basePriceClass} price-down`;
+        }
 
-  ma5Series =
-    chart.addSeries(
-      LightweightCharts.LineSeries,
-      {
+        const stockItem = watchlist.find(s => s.symbol === symbol);
+        const finalDisplayName = SPECIAL_NAME_MAP[symbol] || stockItem?.name || yahooResult?.meta?.longName || displaySymbol(symbol);
+        setText('stock-symbol-title', finalDisplayName); setText('stock-name', displaySymbol(symbol));
 
-        color:
-          "#f59e0b",
+        if (chart && candlestickSeries && chartData.length > 0) {
+            currentChartData = chartData; candlestickSeries.setData(chartData);
+            try { chart.timeScale().scrollToRealTime(); } catch {}
+            setText('chart-status', `${currentPeriod.label} · ${chartData.length} 根`);
+        } else {
+            if (candlestickSeries && currentChartData.length > 0) {
+                candlestickSeries.setData(currentChartData); setText('chart-status', `${currentPeriod.label} · 保留上一筆 K 線`);
+            } else { setText('chart-status', yahooError ? 'K線資料暫時無法取得' : '目前週期沒有 K 線資料'); }
+        }
 
-        lineWidth:
-          1
+        const now = new Date(); setText('last-update', `最後更新：${now.toLocaleString('zh-TW', { hour12: false })}`); renderWatchlist();
 
-      }
-    );
+    } catch (error) {
+        console.error('loadStock error:', error);
+        if (!isSilent) {
+            setText('chart-status', '資料取得失敗'); setText('stock-name', `找不到 ${displaySymbol(symbol)} 的資料，請確認代碼`); setText('price-change', '載入失敗');
+        }
+    } finally {
+        isLoadingStock = false;
+        if (!isSilent) { const loadingBadge = document.getElementById('loading-badge'); if (loadingBadge) loadingBadge.classList.add('hidden'); }
+    }
 
+    if (!isSilent && window.innerWidth < 768) {
+        const sidebar = document.getElementById('sidebar'), overlay = document.getElementById('overlay');
+        if (sidebar) sidebar.classList.remove('open'); if (overlay) overlay.classList.remove('show');
+    }
 
-  ma20Series =
-    chart.addSeries(
-      LightweightCharts.LineSeries,
-      {
+    restartAutoRefresh();
+}
 
-        color:
-          "#60a5fa",
+function startAutoRefresh() {
+    stopAutoRefresh(); if (!currentSymbol) return;
+    autoRefreshTimer = setInterval(() => {
+        if (!document.hidden) {
+            if (currentSymbol) loadStock(currentSymbol, true);
+            fetchMarketIndices();
+        }
+    }, Math.max(AUTO_REFRESH_INTERVAL, 3000));
+}
+function stopAutoRefresh() { if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; } }
+function restartAutoRefresh() { stopAutoRefresh(); if (currentSymbol) startAutoRefresh(); }
 
-        lineWidth:
-          1
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopAutoRefresh();
+    else if (currentSymbol) { loadStock(currentSymbol, true); fetchMarketIndices(); startAutoRefresh(); }
+});
 
-      }
-    );
+async function changePeriod(button) {
+    if (!button) return;
+    document.querySelectorAll('.period-btn').forEach(btn => btn.classList.remove('active')); button.classList.add('active');
+    currentPeriod = { interval: button.dataset.interval, range: button.dataset.range, label: button.textContent.trim() };
+    setText('chart-status', `${currentPeriod.label} · 載入中`);
+    if (currentSymbol) await loadStock(currentSymbol);
+}
 
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar'), overlay = document.getElementById('overlay');
+    if (sidebar) sidebar.classList.toggle('open'); if (overlay) overlay.classList.toggle('show');
+}
 
-  ma60Series =
-    chart.addSeries(
-      LightweightCharts.LineSeries,
-      {
+// ============================================================
+// 日夜模式 (Dark / Light Mode) 修正版
+// ============================================================
+let isDarkMode = localStorage.getItem('stockThemeMode') !== 'light';
 
-        color:
-          "#c084fc",
+function toggleDarkMode() {
+    isDarkMode = !isDarkMode;
+    localStorage.setItem('stockThemeMode', isDarkMode ? 'dark' : 'light');
+    applyDarkModeUI();
+}
 
-        lineWidth:
-          1
+function applyDarkModeUI() {
+    const sunIcon = document.getElementById('theme-sun-icon');
+    const moonIcon = document.getElementById('theme-moon-icon');
+    
+    if (isDarkMode) {
+        document.body.classList.remove('light-mode');
+        if (sunIcon) sunIcon.classList.add('hidden');
+        if (moonIcon) moonIcon.classList.remove('hidden');
+    } else {
+        document.body.classList.add('light-mode');
+        if (sunIcon) sunIcon.classList.remove('hidden');
+        if (moonIcon) moonIcon.classList.add('hidden');
+    }
 
-      }
-    );
-
-
-  const observer =
-    new ResizeObserver(
-      () => {
-
+    if (chart) {
         chart.applyOptions({
-
-          width:
-            container.clientWidth,
-
-          height:
-            container.clientHeight
-
+            layout: { 
+                textColor: isDarkMode ? '#9ca3af' : '#52525b', 
+                background: { type: 'solid', color: 'transparent' } 
+            },
+            grid: { 
+                vertLines: { color: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }, 
+                horzLines: { color: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' } 
+            },
+            timeScale: { 
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' 
+            },
+            rightPriceScale: { 
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' 
+            }
         });
-
-      }
-    );
-
-
-  observer.observe(
-    container
-  );
-
-}
-
-
-/* ======================================
-   SAVE
-====================================== */
-
-function save() {
-
-  localStorage.setItem(
-    "stockWatchlistV5",
-    JSON.stringify(
-      watchlist
-    )
-  );
-
-
-  localStorage.setItem(
-    "stockAlertsV5",
-    JSON.stringify(
-      alerts
-    )
-  );
-
-}
-
-
-/* ======================================
-   DRAG SORT
-====================================== */
-
-function enableDragSort() {
-
-  const element =
-    document.getElementById(
-      "stock-list"
-    );
-
-
-  if (
-    typeof Sortable ===
-    "undefined"
-  ) {
-
-    return;
-
-  }
-
-
-  new Sortable(
-    element,
-    {
-
-      animation: 150,
-
-      handle: ".drag",
-
-      onEnd: event => {
-
-        if (
-          sortMode !==
-          "manual"
-        ) {
-
-          return;
-
-        }
-
-
-        const item =
-          watchlist.splice(
-            event.oldIndex,
-            1
-          )[0];
-
-
-        watchlist.splice(
-          event.newIndex,
-          0,
-          item
-        );
-
-
-        save();
-
-      }
-
     }
-  );
-
 }
 
-
-/* ======================================
-   INIT
-====================================== */
-
-window.addEventListener(
-  "DOMContentLoaded",
-  async () => {
-
-    if (
-      localStorage.getItem(
-        "stockThemeModeV5"
-      ) === "light"
-    ) {
-
-      document.body.classList.add(
-        "light-mode"
-      );
-
-    }
-
-
-    changeThemeColor(
-      localStorage.getItem(
-        "stockThemeColorV5"
-      ) ||
-      "blue"
-    );
-
-
-    document.getElementById(
-      "refresh-rate"
-    ).value =
-      String(
-        AUTO_REFRESH_INTERVAL
-      );
-
-
-    document.getElementById(
-      "sort-select"
-    ).value =
-      sortMode;
-
-
+// ============================================================
+// 初始化與事件綁定
+// ============================================================
+window.addEventListener('DOMContentLoaded', async () => {
     initChart();
-
+    setupChartKeyboard();
+    
+    const sortSelect = document.getElementById('sort-select'); 
+    if (sortSelect) sortSelect.value = sortMode;
+    
+    loadUserPreferences(); 
+    renderWatchlist(); 
+    fetchMarketIndices();
+    
+    for (const stock of watchlist) {
+        if (isTaiwanSymbol(stock.symbol)) {
+            const code = displaySymbol(stock.symbol);
+            if (stock.name === code || !stock.name || /^\d+$/.test(stock.name)) {
+                const fetchedName = await fetchTwseName(code); 
+                if (fetchedName) stock.name = fetchedName;
+            }
+        }
+    }
+    saveWatchlist(); 
     renderWatchlist();
 
-    renderAlerts();
+    if (currentSymbol && watchlist.some(stock => stock.symbol === currentSymbol)) await loadStock(currentSymbol);
+    else if (watchlist.length > 0) { currentSymbol = watchlist[0].symbol; await loadStock(currentSymbol); }
+    startAutoRefresh();
+});
 
-    enableDragSort();
+// ============================================================
+// Modal
+// ============================================================
+function toggleModal(modalId, show) {
+    const overlay = document.getElementById('modal-overlay'), modal = document.getElementById(modalId);
+    if (!overlay || !modal) return;
+    if (show) {
+        if (window.innerWidth < 768) { const sidebar = document.getElementById('sidebar'); if (sidebar) sidebar.classList.remove('open'); }
+        overlay.classList.remove('hidden'); modal.classList.remove('hidden');
+        setTimeout(() => { overlay.classList.remove('opacity-0'); modal.classList.remove('opacity-0', 'scale-95'); }, 10);
+    } else {
+        overlay.classList.add('opacity-0'); modal.classList.add('opacity-0', 'scale-95');
+        setTimeout(() => { overlay.classList.add('hidden'); modal.classList.add('hidden'); }, 300);
+    }
+}
+function openSettingsModal() { toggleModal('settings-modal', true); }
+function openProfileModal() { toggleModal('profile-modal', true); }
+function closeModals() { toggleModal('settings-modal', false); toggleModal('profile-modal', false); }
+window.addEventListener('keydown', event => { if (event.key === 'Escape') closeModals(); });
 
+// ============================================================
+// 主題色與偏好設定
+// ============================================================
+const THEMES = {
+    blue: { primary: '#3b82f6', secondary: '#8b5cf6', bg1: 'rgba(59, 130, 246, 0.1)', bg2: 'rgba(139, 92, 246, 0.1)' },
+    emerald: { primary: '#10b981', secondary: '#06b6d4', bg1: 'rgba(16, 185, 129, 0.1)', bg2: 'rgba(6, 182, 212, 0.1)' },
+    purple: { primary: '#a855f7', secondary: '#ec4899', bg1: 'rgba(168, 85, 247, 0.1)', bg2: 'rgba(236, 72, 153, 0.1)' },
+    orange: { primary: '#f97316', secondary: '#facc15', bg1: 'rgba(249, 115, 22, 0.1)', bg2: 'rgba(250, 204, 21, 0.1)' }
+};
 
-    await loadMarkets();
+function loadUserPreferences() {
+    const savedColorMode = localStorage.getItem('stockKlineColor') || 'red-green';
+    const savedRefreshRate = localStorage.getItem('stockRefreshRate') || '10000';
+    const savedTheme = localStorage.getItem('stockTheme') || 'blue';
 
+    const colorSelect = document.getElementById('kline-color'), refreshSelect = document.getElementById('refresh-rate');
+    if (colorSelect) { colorSelect.value = savedColorMode; colorSelect.onchange = applySettings; }
+    if (refreshSelect) { refreshSelect.value = savedRefreshRate; refreshSelect.onchange = applySettings; }
 
-    if (
-      currentSymbol
-    ) {
+    applyDarkModeUI();
+    updateChartColors(savedColorMode);
+    AUTO_REFRESH_INTERVAL = Math.max(Number(savedRefreshRate) || 10000, 3000);
+    changeThemeColor(savedTheme, false);
+}
 
-      await loadStock(
-        currentSymbol
-      );
+function changeThemeColor(themeName, save = true) {
+    const theme = THEMES[themeName] || THEMES.blue;
+    if (save) localStorage.setItem('stockTheme', themeName);
 
+    document.querySelectorAll('.theme-btn').forEach(btn => { btn.classList.remove('ring-2', 'ring-offset-2', 'ring-offset-[#18181b]'); btn.style.boxShadow = ''; });
+    const activeBtn = document.getElementById(`theme-btn-${themeName}`);
+    if (activeBtn) { activeBtn.classList.add('ring-2', 'ring-offset-2', 'ring-offset-[#18181b]'); activeBtn.style.setProperty('--tw-ring-color', theme.primary); }
+
+    document.documentElement.style.setProperty('--theme-color-1', theme.bg1);
+    document.documentElement.style.setProperty('--theme-color-2', theme.bg2);
+
+    let themeStyleTag = document.getElementById('dynamic-theme-vars');
+    if (!themeStyleTag) { themeStyleTag = document.createElement('style'); themeStyleTag.id = 'dynamic-theme-vars'; document.head.appendChild(themeStyleTag); }
+
+    themeStyleTag.innerHTML = `
+        :root { --theme-primary: ${theme.primary}; --theme-secondary: ${theme.secondary}; }
+        .from-blue-400 { --tw-gradient-from: ${theme.primary} !important; }
+        .to-purple-400 { --tw-gradient-to: ${theme.secondary} !important; }
+        .bg-blue-500\\/20 { background-color: ${theme.primary}33 !important; }
+        .text-blue-300 { color: ${theme.primary} !important; }
+        .active.period-btn { background-color: ${theme.primary}33 !important; color: ${theme.primary} !important; }
+        .bg-blue-600 { background-color: ${theme.primary} !important; }
+        .hover\\:bg-blue-500:hover { background-color: ${theme.secondary} !important; }
+        .from-blue-600 { --tw-gradient-from: ${theme.primary} !important; }
+        .to-purple-600 { --tw-gradient-to: ${theme.secondary} !important; }
+        .to-purple-500 { --tw-gradient-to: ${theme.secondary} !important; }
+        input:focus, select:focus { border-color: ${theme.primary}80 !important; box-shadow: 0 0 0 1px ${theme.primary}4D !important; }
+        body.light-mode .active.period-btn { background-color: ${theme.primary}22 !important; color: ${theme.primary} !important; font-weight: bold; }
+    `;
+}
+
+function applySettings() {
+    const colorSelect = document.getElementById('kline-color'), refreshSelect = document.getElementById('refresh-rate');
+    if (!colorSelect || !refreshSelect) return;
+    const colorMode = colorSelect.value, refreshRate = refreshSelect.value;
+
+    localStorage.setItem('stockKlineColor', colorMode);
+    localStorage.setItem('stockRefreshRate', refreshRate);
+
+    updateChartColors(colorMode);
+    AUTO_REFRESH_INTERVAL = Math.max(Number(refreshRate) || 10000, 3000);
+    restartAutoRefresh();
+}
+
+function updateChartColors(mode) {
+    if (candlestickSeries) {
+        if (mode === 'green-red') {
+            candlestickSeries.applyOptions({ borderVisible: true, upColor: '#10b981', downColor: '#ef4444', borderUpColor: '#10b981', borderDownColor: '#ef4444', wickUpColor: '#10b981', wickDownColor: '#ef4444' });
+        } else {
+            candlestickSeries.applyOptions({ borderVisible: true, upColor: '#ef4444', downColor: '#10b981', borderUpColor: '#ef4444', borderDownColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981' });
+        }
     }
 
+    let styleTag = document.getElementById('dynamic-theme-styles');
+    if (!styleTag) { styleTag = document.createElement('style'); styleTag.id = 'dynamic-theme-styles'; document.head.appendChild(styleTag); }
 
-    startAutoRefresh();
+    if (mode === 'green-red') {
+        styleTag.innerHTML = `
+            .price-up { color: #10b981 !important; text-shadow: 0 0 12px rgba(16, 185, 129, 0.25) !important; }
+            .price-down { color: #ef4444 !important; text-shadow: 0 0 12px rgba(239, 68, 68, 0.25) !important; }
+            body.light-mode .price-up { color: #059669 !important; text-shadow: none !important; }
+            body.light-mode .price-down { color: #dc2626 !important; text-shadow: none !important; }
+        `;
+    } else {
+        styleTag.innerHTML = `
+            .price-up { color: #ef4444 !important; text-shadow: 0 0 12px rgba(239, 68, 68, 0.25) !important; }
+            .price-down { color: #10b981 !important; text-shadow: 0 0 12px rgba(16, 185, 129, 0.25) !important; }
+            body.light-mode .price-up { color: #dc2626 !important; text-shadow: none !important; }
+            body.light-mode .price-down { color: #059669 !important; text-shadow: none !important; }
+        `;
+    }
 
-  }
-);
+    renderWatchlist();
+    fetchMarketIndices();
+}
+
+window.addEventListener('resize', () => {
+    if (!chart) return;
+    const container = document.getElementById('chart-container');
+    if (!container) return;
+    requestAnimationFrame(() => {
+        const width = container.clientWidth; let height = container.clientHeight;
+        if (width <= 0) return;
+        if (height <= 0) height = window.innerWidth < 768 ? 330 : 400;
+        chart.applyOptions({ width, height });
+    });
+});
+
+// ============================================================
+// 全域導出 API
+// ============================================================
+window.loadStock = loadStock;
+window.addStock = addStock;
+window.removeStock = removeStock;
+window.removeStockBySymbol = removeStockBySymbol;
+window.changeSort = changeSort;
+window.changePeriod = changePeriod;
+window.toggleSidebar = toggleSidebar;
+window.openSettingsModal = openSettingsModal;
+window.openProfileModal = openProfileModal;
+window.closeModals = closeModals;
+window.toggleCompanyInfo = toggleCompanyInfo;
+window.changeThemeColor = changeThemeColor;
+window.applySettings = applySettings;
+window.toggleDarkMode = toggleDarkMode;
