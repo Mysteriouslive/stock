@@ -60,7 +60,7 @@
                     id="stock-input" 
                     name="stockInput"
                     type="text" 
-                    placeholder="代碼 (例: 2330 / 3293 / BTC)" 
+                    placeholder="代碼 (例: 2330 / SOXX / BTC)" 
                     class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30"
                     onkeydown="if(event.key==='Enter') addStock()"
                     maxlength="12"
@@ -80,7 +80,7 @@
         </div>
         <div class="flex-1 overflow-y-auto p-3 space-y-1" id="stock-list"></div>
         
-        <!-- 側邊欄底部 (頭像與設定鍵) -->
+        <!-- 側邊欄底部 -->
         <div class="mt-auto border-t border-white/5 p-3 flex items-center justify-between bg-black/20 shrink-0">
             <button onclick="openProfileModal()" class="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-white/5 transition-colors text-left group">
                 <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md group-hover:shadow-purple-500/20 transition-all">
@@ -162,7 +162,7 @@
                         <p id="last-update" class="text-[11px] text-gray-600 mt-2">—</p>
                     </div>
 
-                    <!-- 中間：核心大盤指數行情小卡 (可點擊切換查看) -->
+                    <!-- 中間：核心大盤指數行情小卡 -->
                     <div class="flex-1 min-w-0 hidden sm:grid grid-cols-2 xl:grid-cols-4 gap-2.5 px-2">
                         <!-- 加權指數 -->
                         <div onclick="loadStock('^TWII')" class="cursor-pointer bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 rounded-xl p-2.5 transition-all group">
@@ -174,14 +174,14 @@
                             <div id="idx-twii-change" class="text-[10px] text-gray-500">—</div>
                         </div>
 
-                        <!-- 櫃買指數 -->
-                        <div onclick="loadStock('^TWOII')" class="cursor-pointer bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 rounded-xl p-2.5 transition-all group">
+                        <!-- 費城半導體 SOXX -->
+                        <div onclick="loadStock('SOXX')" class="cursor-pointer bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 rounded-xl p-2.5 transition-all group">
                             <div class="flex items-center justify-between">
-                                <span class="text-[11px] text-gray-400 font-medium">櫃買指數</span>
-                                <span class="text-[9px] text-gray-500 group-hover:text-blue-400 transition-colors">OTC ↗</span>
+                                <span class="text-[11px] text-gray-400 font-medium">費城半導體</span>
+                                <span class="text-[9px] text-gray-500 group-hover:text-blue-400 transition-colors">SOXX ↗</span>
                             </div>
-                            <div id="idx-twoii-price" class="text-sm font-bold text-gray-200 mt-0.5">—</div>
-                            <div id="idx-twoii-change" class="text-[10px] text-gray-500">—</div>
+                            <div id="idx-soxx-price" class="text-sm font-bold text-gray-200 mt-0.5">—</div>
+                            <div id="idx-soxx-change" class="text-[10px] text-gray-500">—</div>
                         </div>
 
                         <!-- NASDAQ -->
