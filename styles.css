@@ -46,6 +46,40 @@ body {
 .fundamental-label { font-size: 11px; color: #a1a1aa; margin-bottom: 4px; font-weight: 500; }
 .fundamental-value { font-size: 14px; font-weight: 700; color: #f4f4f5; }
 .fundamentals-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.dashboard-header {
+    position: relative !important;
+    z-index: 1 !important;
+    background: rgba(12, 12, 14, 0.96) !important;
+}
+.index-strip {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 20 !important;
+    background: rgba(12, 12, 14, 0.96) !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+    transition: background-color 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease;
+}
+.index-strip.is-scrolling {
+    background: rgba(12, 12, 14, 0.54) !important;
+    opacity: 0.78;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.12);
+}
+.dashboard-main-row { flex-direction: row !important; align-items: center; }
+@media (max-width: 767px) { .dashboard-main-row { flex-direction: column !important; align-items: stretch; } }
+.legacy-index-grid { display: none !important; }
+.index-strip-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.index-card {
+    padding: 9px 11px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.045);
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+.index-card:hover { background: rgba(59,130,246,0.12); border-color: rgba(96,165,250,0.45); transform: translateY(-1px); }
+.index-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #a1a1aa; font-size: 11px; font-weight: 600; }
+.index-card-head small { color: #71717a; font-size: 9px; }
+.index-card > div:not(.index-card-head):not(.index-card-change) { margin-top: 3px; color: #f4f4f5; font-size: 14px; font-weight: 800; }
+.index-card > div:last-child { margin-top: 2px; color: #a1a1aa; font-size: 10px; }
 .assessment-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 10px; }
 .assessment-score { padding: 12px; border: 1px solid rgba(96,165,250,0.24); border-radius: 10px; background: rgba(59,130,246,0.08); }
 .assessment-score-value { font-size: 26px; line-height: 1.1; font-weight: 800; color: #60a5fa; }
@@ -390,6 +424,15 @@ body.light-mode .fundamental-card:hover {
 body.light-mode .assessment-score { background: #edf6f2; border-color: #b9d5ca; }
 body.light-mode .assessment-score-value { color: #087f62; }
 body.light-mode .assessment-reasons { border-color: #dbe7e2; color: #687873; }
+body.light-mode .dashboard-header { background: rgba(251, 253, 252, 0.98) !important; }
+body.light-mode .index-strip { background: rgba(251, 253, 252, 0.98) !important; box-shadow: 0 8px 20px rgba(33, 68, 59, 0.12); }
+body.light-mode .index-strip.is-scrolling { background: rgba(251, 253, 252, 0.62) !important; box-shadow: 0 5px 14px rgba(33, 68, 59, 0.08); }
+body.light-mode .index-card { background: #f1f7f4; border-color: #d6e5df; }
+body.light-mode .index-card:hover { background: #e7f2ed; border-color: #9bc7b6; }
+body.light-mode .index-card-head { color: #526760; }
+body.light-mode .index-card-head small { color: #8b9b96; }
+body.light-mode .index-card > div:not(.index-card-head):not(.index-card-change) { color: #30413d; }
+body.light-mode .index-card > div:last-child { color: #687873; }
 
 /* 中間大盤指數小卡 */
 body.light-mode header .grid > div {

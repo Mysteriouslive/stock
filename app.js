@@ -606,8 +606,8 @@ function removeStock(index) {
 // ============================================================
 // 圖表初始化與邏輯
 // ============================================================
-let chart = null, candlestickSeries = null, volumeSeries = null, ma20Series = null, ma60Series = null, upperBandSeries = null, lowerBandSeries = null, sessionMarkers = null, currentChartData = [], chartResizeObserver = null, chartResizeHandler = null, autoRefreshTimer = null, isLoadingStock = false;
-const chartIndicators = { volume: true, ma20: false, ma60: false, bollinger: false };
+let chart = null, candlestickSeries = null, volumeSeries = null, ma5Series = null, ma10Series = null, ma20Series = null, ma60Series = null, upperBandSeries = null, lowerBandSeries = null, sessionMarkers = null, currentChartData = [], chartResizeObserver = null, chartResizeHandler = null, autoRefreshTimer = null, isLoadingStock = false;
+const chartIndicators = { volume: true, ma5: false, ma10: false, ma20: false, ma60: false, bollinger: false };
 let chartAtRightEdge = true; // 是否停留在「最新」畫面：只有停在最新時，背景自動刷新才會把畫面滾回最新，避免使用者往回看歷史 K 線時被強制拉回而感覺「時間跑掉」
 
 function getChartDate(time) {
@@ -672,6 +672,8 @@ function calculateIndicatorData(data, period, valueGetter, mapper) {
 function updateChartIndicators(data) {
     if (!data.length) return;
     const close = item => item.close;
+    ma5Series?.setData(chartIndicators.ma5 ? calculateIndicatorData(data, 5, close, (item, average) => ({ time: item.time, value: average })) : []);
+    ma10Series?.setData(chartIndicators.ma10 ? calculateIndicatorData(data, 10, close, (item, average) => ({ time: item.time, value: average })) : []);
     ma20Series?.setData(chartIndicators.ma20 ? calculateIndicatorData(data, 20, close, (item, average) => ({ time: item.time, value: average })) : []);
     ma60Series?.setData(chartIndicators.ma60 ? calculateIndicatorData(data, 60, close, (item, average) => ({ time: item.time, value: average })) : []);
     if (chartIndicators.bollinger) {
@@ -795,6 +797,8 @@ function initChart() {
     });
     volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'volume', color: 'rgba(96,165,250,0.35)' });
     chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    ma5Series = chart.addSeries(LightweightCharts.LineSeries, { color: '#fb7185', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+    ma10Series = chart.addSeries(LightweightCharts.LineSeries, { color: '#a78bfa', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
     ma20Series = chart.addSeries(LightweightCharts.LineSeries, { color: '#f59e0b', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
     ma60Series = chart.addSeries(LightweightCharts.LineSeries, { color: '#38bdf8', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
     upperBandSeries = chart.addSeries(LightweightCharts.LineSeries, { color: 'rgba(168,85,247,0.7)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
@@ -1034,6 +1038,17 @@ function toggleSidebar() {
     if (sidebar) sidebar.classList.toggle('open'); if (overlay) overlay.classList.toggle('show');
 }
 
+function setupIndexStripScroll() {
+    const scroller = document.querySelector('main > .flex-1.overflow-y-auto'), strip = document.querySelector('.index-strip');
+    if (!scroller || !strip) return;
+    let scrollTimer = null;
+    scroller.addEventListener('scroll', () => {
+        strip.classList.toggle('is-scrolling', scroller.scrollTop > 8);
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => strip.classList.remove('is-scrolling'), 700);
+    }, { passive: true });
+}
+
 // ============================================================
 // 日夜模式 (Dark / Light Mode) 修正版
 // ============================================================
@@ -1085,6 +1100,7 @@ function applyDarkModeUI() {
 window.addEventListener('DOMContentLoaded', async () => {
     initChart();
     setupChartKeyboard();
+    setupIndexStripScroll();
     
     changeSort(sortMode);
     

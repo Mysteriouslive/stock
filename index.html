@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <link rel="stylesheet" href="./styles.css?v=13">
+    <link rel="stylesheet" href="./styles.css?v=18">
 </head>
 <body class="h-[100dvh] overflow-hidden flex">
     <div id="overlay" onclick="toggleSidebar()"></div>
@@ -171,10 +171,18 @@
 
         <div class="flex-1 min-w-0 flex flex-col p-3 sm:p-4 md:p-6 overflow-y-auto relative z-10">
             <!-- 頂部資訊看板 (手機/電腦響應優化版) -->
-            <header class="glass rounded-2xl p-4 sm:p-6 mb-5 relative overflow-visible shrink-0 border border-white/10 shadow-2xl">
+            <div class="index-strip glass rounded-2xl p-3 sm:p-4 mb-5 relative z-20 shrink-0">
+                <div class="index-strip-grid">
+                    <div onclick="loadStock('^TWII')" class="index-card cursor-pointer"><div class="index-card-head"><span>加權指數</span><small>TWSE</small></div><div id="idx-twii-price">—</div><div id="idx-twii-change">—</div></div>
+                    <div onclick="loadStock('SOXX')" class="index-card cursor-pointer"><div class="index-card-head"><span>費城半導體</span><small>SOXX</small></div><div id="idx-soxx-price">—</div><div id="idx-soxx-change">—</div></div>
+                    <div onclick="loadStock('^IXIC')" class="index-card cursor-pointer"><div class="index-card-head"><span>NASDAQ</span><small>科技</small></div><div id="idx-ixic-price">—</div><div id="idx-ixic-change">—</div></div>
+                    <div onclick="loadStock('^GSPC')" class="index-card cursor-pointer"><div class="index-card-head"><span>S&amp;P 500</span><small>大盤</small></div><div id="idx-gspc-price">—</div><div id="idx-gspc-change">—</div></div>
+                </div>
+            </div>
+            <header class="dashboard-header glass rounded-2xl p-4 sm:p-6 mb-5 relative overflow-visible shrink-0 border border-white/10 shadow-2xl">
                 <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-blue-500 via-purple-500 to-transparent opacity-80"></div>
                 
-                <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-6 min-w-0">
+                <div class="dashboard-main-row flex flex-col xl:flex-row xl:items-center justify-between gap-6 min-w-0">
                     <!-- 左側：標的資訊 -->
                     <div class="flex flex-col justify-center min-w-0">
                         <div class="flex items-center flex-wrap gap-2 sm:gap-3">
@@ -193,7 +201,7 @@
                     </div>
 
                     <!-- 中間：核心大盤指數行情小卡 (手機版改為自適應兩欄或自動收納，避免擠壓) -->
-                    <div class="w-full xl:flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+                    <div class="legacy-index-grid w-full xl:flex-1 min-w-0 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                         <!-- 加權指數 -->
                         <div onclick="loadStock('^TWII')" class="cursor-pointer bg-gradient-to-b from-white/[0.05] to-white/[0.01] hover:from-white/[0.09] hover:to-white/[0.03] border border-white/10 hover:border-blue-500/40 rounded-xl p-2.5 sm:p-3 transition-all duration-300 hover:-translate-y-0.5 shadow-lg group">
                             <div class="flex items-center justify-between">
@@ -299,6 +307,8 @@
                     </div>
                     <div class="chart-tools" aria-label="圖表工具">
                         <button type="button" class="chart-tool-btn active" data-indicator="volume" onclick="toggleChartIndicator('volume', this)" title="成交量">VOL</button>
+                        <button type="button" class="chart-tool-btn" data-indicator="ma5" onclick="toggleChartIndicator('ma5', this)" title="5 日均線">MA5</button>
+                        <button type="button" class="chart-tool-btn" data-indicator="ma10" onclick="toggleChartIndicator('ma10', this)" title="10 日均線">MA10</button>
                         <button type="button" class="chart-tool-btn" data-indicator="ma20" onclick="toggleChartIndicator('ma20', this)" title="20 日均線">MA20</button>
                         <button type="button" class="chart-tool-btn" data-indicator="ma60" onclick="toggleChartIndicator('ma60', this)" title="60 日均線">MA60</button>
                         <button type="button" class="chart-tool-btn" data-indicator="bollinger" onclick="toggleChartIndicator('bollinger', this)" title="布林通道">BB</button>
@@ -453,6 +463,6 @@
         </div>
     </div>
 
-    <script src="./app.js?v=13"></script>
+    <script src="./app.js?v=18"></script>
 </body>
 </html>
