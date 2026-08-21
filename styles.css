@@ -87,8 +87,27 @@ body {
     .blur-\[140px\], .blur-\[120px\] { display: none !important; }
     .company-info-card { margin-bottom: 12px; }
     .header-price-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-    main header.glass { padding: 16px; flex: 0 0 auto; min-height: 0; overflow: visible; }
-    main header.glass .grid.grid-cols-5 { gap: 6px; font-size: 10px; }
+    
+    /* 修改這裡：改為直向排列並增加間距，避免手機上被擠到下面或跑版 */
+    main header.glass { 
+        padding: 16px; 
+        flex: 0 0 auto; 
+        min-height: 0; 
+        overflow: visible; 
+        flex-direction: column !important; 
+        align-items: stretch !important;
+        gap: 12px;
+    }
+
+    /* 讓內部區塊在手機上撐滿並自適應 */
+    main header.glass > div {
+        width: 100% !important;
+    }
+    
+    main header.glass .grid.grid-cols-5 { 
+        gap: 6px; 
+        font-size: 10px; 
+    }
     
     #chart-card { min-height: 380px; height: 480px !important; }
     #chart-container { margin-bottom: 10px; }
