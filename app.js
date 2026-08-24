@@ -165,10 +165,28 @@ function parseQuote(result, symbol = '') {
     const index = Array.isArray(quote.close) ? quote.close.map(Number).findLastIndex(Number.isFinite) : -1;
     const close = Number(meta.regularMarketPrice ?? quote.close?.[index]);
     if (!Number.isFinite(close)) throw new Error('NO_QUOTE_DATA');
-    let previous = Number(meta.regularMarketPreviousClose ?? meta.previousClose ?? meta.chartPreviousClose);
-    if (!Number.isFinite(previous) && index > 0) previous = Number(quote.close?.slice(0, index).map(Number).findLast(Number.isFinite));
-    const change = Number.isFinite(previous) ? close - previous : 0;
-    const percent = Number.isFinite(previous) && previous > 0 ? (change / previous) * 100 : 0;
+    // Yahoo's chart response is not fully consistent across Taiwan, US and
+    // index symbols. Prefer its explicit regular-session change, then fall
+    // back to the previous close fields only when needed.
+    const finiteValue = value => value === null || value === undefined || value === '' ? NaN : Number(value);
+    const reportedChange = finiteValue(meta.regularMarketChange);
+    const reportedPercent = finiteValue(meta.regularMarketChangePercent);
+    const explicitPrevious = finiteValue(meta.regularMarketPreviousClose ?? meta.previousClose);
+    const latestCandleClose = finiteValue(quote.close?.[index]);
+    const priorCandleClose = index > 0 ? finiteValue(quote.close?.slice(0, index).map(Number).findLast(Number.isFinite)) : NaN;
+    let previous = explicitPrevious;
+    if (!Number.isFinite(previous) && Number.isFinite(latestCandleClose)) {
+        // During a live session Yahoo may give the current price in `meta`
+        // while the current daily candle has no close yet. In that case the
+        // latest completed candle is the correct previous close.
+        const sameAsLatestCandle = Math.abs(close - latestCandleClose) <= Math.max(Math.abs(close), 1) * 1e-8;
+        previous = sameAsLatestCandle && Number.isFinite(priorCandleClose) ? priorCandleClose : latestCandleClose;
+    }
+    if (!Number.isFinite(previous)) previous = finiteValue(meta.chartPreviousClose);
+    if (Number.isFinite(reportedChange)) previous = close - reportedChange;
+    else if (Number.isFinite(reportedPercent) && reportedPercent > -100) previous = close / (1 + reportedPercent / 100);
+    const change = Number.isFinite(reportedChange) ? reportedChange : (Number.isFinite(previous) ? close - previous : 0);
+    const percent = Number.isFinite(reportedPercent) ? reportedPercent : (Number.isFinite(previous) && previous > 0 ? (change / previous) * 100 : 0);
     const decimals = isForexSymbol(symbol) ? 4 : (isCryptoSymbol(symbol) && close < 1 ? 6 : 2);
     return {
         latestPrice: formatPrice(close, symbol), change: change.toFixed(decimals), changePercent: percent.toFixed(2), isUp: change > 0, isFlat: change === 0,
@@ -203,6 +221,60 @@ function applyCurrentPriceToQuote(quote, price, previousClose, symbol, fallbackP
 function resetFundamentals() {
     ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth'].forEach(id => setMetric(id, '—'));
     setMetric('fundamentals-status', '—');
+}
+
+function resetTechnicalAssessment() {
+    setText('assessment-period', '—');
+    setText('assessment-score', '—');
+    setText('assessment-signal', '等待資料');
+    setText('long-win-rate', '—'); setText('long-sample', '—');
+    setText('short-win-rate', '—'); setText('short-sample', '—');
+    setText('assessment-reasons', '—');
+}
+
+function calculateTechnicalScore(data) {
+    if (!Array.isArray(data) || data.length < 20) return null;
+    const last = data[data.length - 1], average = period => data.length >= period
+        ? data.slice(-period).reduce((sum, item) => sum + item.close, 0) / period : NaN;
+    const ma5 = average(5), ma20 = average(20), ma60 = average(60);
+    const rsi = calculateRSIData(data).at(-1)?.value;
+    const { kList, dList } = calculateKDData(data);
+    const k = kList.at(-1)?.value, d = dList.at(-1)?.value;
+    const { histList, difList, deaList } = calculateMACDData(data);
+    const hist = histList.at(-1)?.value, dif = difList.at(-1)?.value, dea = deaList.at(-1)?.value;
+    let score = 0;
+    const reasons = [];
+    if (Number.isFinite(ma20)) { const up = last.close >= ma20; score += up ? 20 : -20; reasons.push(`${up ? '收盤站上' : '收盤跌破'} MA20`); }
+    if (Number.isFinite(ma5) && Number.isFinite(ma20)) { const up = ma5 >= ma20; score += up ? 15 : -15; reasons.push(`MA5 ${up ? '高於' : '低於'} MA20`); }
+    if (Number.isFinite(ma20) && Number.isFinite(ma60)) { const up = ma20 >= ma60; score += up ? 15 : -15; reasons.push(`MA20 ${up ? '高於' : '低於'} MA60`); }
+    if (Number.isFinite(rsi)) { const up = rsi >= 50; score += up ? 15 : -15; reasons.push(`RSI ${rsi.toFixed(1)} ${up ? '偏強' : '偏弱'}`); }
+    if (Number.isFinite(dif) && Number.isFinite(dea)) { const up = dif >= dea; score += up ? 15 : -15; reasons.push(`MACD ${up ? '多方' : '空方'}排列`); }
+    if (Number.isFinite(k) && Number.isFinite(d)) { const up = k >= d; score += up ? 10 : -10; reasons.push(`KD ${up ? '黃金' : '死亡'}交叉`); }
+    if (Number.isFinite(hist)) score += hist >= 0 ? 10 : -10;
+    return { score: Math.max(-100, Math.min(100, score)), reasons };
+}
+
+function updateTechnicalAssessment(data) {
+    const assessment = calculateTechnicalScore(data);
+    if (!assessment) { resetTechnicalAssessment(); return; }
+    const horizon = Math.min(5, Math.max(1, Math.floor(data.length / 20)));
+    let longWins = 0, longSamples = 0, shortWins = 0, shortSamples = 0;
+    for (let index = 20; index + horizon < data.length; index++) {
+        const historical = calculateTechnicalScore(data.slice(0, index + 1));
+        if (!historical) continue;
+        const futureReturn = (data[index + horizon].close - data[index].close) / data[index].close;
+        if (historical.score >= 30) { longSamples++; if (futureReturn > 0) longWins++; }
+        if (historical.score <= -30) { shortSamples++; if (futureReturn < 0) shortWins++; }
+    }
+    const signal = assessment.score >= 35 ? '偏多' : assessment.score <= -35 ? '偏空' : '震盪觀望';
+    setText('assessment-period', `${currentPeriod.label} · ${data.length} 根`);
+    setText('assessment-score', `${assessment.score > 0 ? '+' : ''}${assessment.score}`);
+    setText('assessment-signal', signal);
+    setText('long-win-rate', longSamples ? `${(longWins / longSamples * 100).toFixed(0)}%` : '樣本不足');
+    setText('long-sample', longSamples ? `${longSamples} 次訊號 · ${horizon} 根後` : '尚無足夠訊號');
+    setText('short-win-rate', shortSamples ? `${(shortWins / shortSamples * 100).toFixed(0)}%` : '樣本不足');
+    setText('short-sample', shortSamples ? `${shortSamples} 次訊號 · ${horizon} 根後` : '尚無足夠訊號');
+    setText('assessment-reasons', assessment.reasons.join(' · '));
 }
 
 function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
@@ -243,7 +315,7 @@ function setChipVisibility(visible) {
 function renderChipContent() {
     const table = document.getElementById('chip-table-rows');
     if (!table) return;
-    if (!cachedChipHistory.length) { table.innerHTML = '<div class="text-center py-6 text-gray-500 text-xs">暫無籌碼資料</div>'; return; }
+    if (!cachedChipHistory.length) { table.innerHTML = '<div class="text-center py-6 text-gray-500 text-xs">暫無籌碼資料</div>'; renderChipHistoryChart([]); return; }
     let foreignHolding = 0, trustHolding = 0, dealerHolding = 0;
     const rows = [...cachedChipHistory].reverse().map(row => {
         const institutional = row.institutional || {};
@@ -259,6 +331,35 @@ function renderChipContent() {
         const values = currentChipTab === 'holding' ? [row.foreignHolding, row.trustHolding, row.dealerHolding, row.foreignHolding + row.trustHolding + row.dealerHolding] : [row.foreign, row.trust, row.dealer, row.total];
         return `<div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center border-b border-white/5"><div class="text-gray-300 font-medium">${String(row.date).replace(/-/g, '/')}</div>${values.map(value => `<div class="font-semibold ${color(value)}">${signed(value)}</div>`).join('')}</div>`;
     }).join('');
+    renderChipHistoryChart(rows);
+}
+
+function renderChipHistoryChart(rows) {
+    const canvas = document.getElementById('chip-history-chart');
+    if (!canvas) return;
+    const width = Math.max(canvas.clientWidth, 1), height = Math.max(canvas.clientHeight, 1);
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+    const context = canvas.getContext('2d'); if (!context) return;
+    context.scale(ratio, ratio); context.clearRect(0, 0, width, height);
+    if (!rows.length) return;
+    const values = rows.flatMap(row => [row.foreign, row.trust, row.dealer]);
+    const max = Math.max(1, ...values.map(value => Math.abs(value)));
+    const middle = height / 2, padding = 18, drawable = middle - padding;
+    context.strokeStyle = 'rgba(148,163,184,.28)'; context.lineWidth = 1;
+    context.beginPath(); context.moveTo(0, middle); context.lineTo(width, middle); context.stroke();
+    const colors = ['#38bdf8', '#f87171', '#c084fc'];
+    const groupWidth = width / rows.length, barWidth = Math.max(2, Math.min(12, groupWidth / 4));
+    rows.forEach((row, index) => {
+        [row.foreign, row.trust, row.dealer].forEach((value, series) => {
+            const barHeight = Math.abs(value) / max * drawable;
+            const x = index * groupWidth + groupWidth / 2 + (series - 1) * (barWidth + 2) - barWidth / 2;
+            const y = value >= 0 ? middle - barHeight : middle;
+            context.fillStyle = colors[series]; context.globalAlpha = .82;
+            context.fillRect(x, y, barWidth, Math.max(barHeight, 1));
+        });
+    });
+    context.globalAlpha = 1;
 }
 function renderChipData(data, history) {
     cachedChipLatest = data || null; cachedChipHistory = history?.history || data?.history || [];
@@ -996,6 +1097,7 @@ async function loadStock(symbol, isSilent = false) {
         const priceChange = document.getElementById('price-change'); if (priceChange) priceChange.className = 'text-sm sm:text-base font-bold px-2.5 py-1 rounded-lg bg-white/5 border border-white/5';
         const currentPrice = document.getElementById('current-price'); if (currentPrice) currentPrice.className = 'text-3xl sm:text-4xl font-black text-white tracking-tight leading-none transition-colors duration-300';
         resetFundamentals();
+        resetTechnicalAssessment();
         currentChartData = [];
         if (candlestickSeries) candlestickSeries.setData([]);
         updateChartIndicators([]);
@@ -1037,18 +1139,18 @@ async function loadStock(symbol, isSilent = false) {
                 }
             }
             if (!isSilent) {
-                // Chip data is supplementary.  Its upstream endpoint may be
-                // temporarily unavailable, so it must not invalidate a quote.
-                const [chipDataResult, chipHistoryResult] = await Promise.allSettled([
+                // Chip data is supplementary and can be slower than quotes.
+                // Render it when ready instead of blocking the main dashboard.
+                void Promise.allSettled([
                     fetchTwseChipData(symbol),
                     fetchTwseChipHistory(symbol)
-                ]);
-                if (isCurrentRequest()) {
+                ]).then(([chipDataResult, chipHistoryResult]) => {
+                    if (!isCurrentRequest()) return;
                     renderChipData(
                         chipDataResult.status === 'fulfilled' ? chipDataResult.value : null,
                         chipHistoryResult.status === 'fulfilled' ? chipHistoryResult.value : null
                     );
-                }
+                });
             }
         } else {
             if (isForexSymbol(symbol)) {
@@ -1115,6 +1217,7 @@ async function loadStock(symbol, isSilent = false) {
             currentChartData = chartData; 
             candlestickSeries.setData(chartData); 
             updateChartIndicators(chartData); 
+            updateTechnicalAssessment(chartData);
 
             if (!isSilent || chartAtRightEdge) {
                 chartAtRightEdge = true;
