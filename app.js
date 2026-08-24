@@ -893,182 +893,9 @@ function removeStock(index) {
 }
 
 // ============================================================
-// 獨立多 Panes 實例系統 (主圖/成交量/KD/RSI/MACD 徹底分離)
+// 獨立多 Panes 實例系統
 // ============================================================
-let mainChart = null, volChart = null, kdChart = null, rsiChart = null, macdChart = null;
-let candlestickSeries = null, ma5Series = null, ma20Series = null, ma60Series = null, upperBandSeries = null, lowerBandSeries = null;
-let volSeries = null;
-let kdSeriesK = null, kdSeriesD = null;
-let rsiSeries = null;
-let macdHistSeries = null, macdLineSeries = null, macdSignalSeries = null;
-let sessionMarkers = null, currentChartData = [], isSyncingTimeScale = false;
-let autoRefreshTimer = null, isLoadingStock = false;
-let chartAtRightEdge = true;
-
-const mainIndicatorsState = { ma: true, bollinger: false };
-const subIndicatorsState = { kd: true, rsi: false, macd: false };
-
-function getAllActiveCharts() {
-    const list = [mainChart, volChart];
-    if (subIndicatorsState.kd && kdChart) list.push(kdChart);
-    if (subIndicatorsState.rsi && rsiChart) list.push(rsiChart);
-    if (subIndicatorsState.macd && macdChart) list.push(macdChart);
-    return list.filter(Boolean);
-}
-
-function getChartDate(time) {
-    if (typeof time === 'number') return new Date(time * 1000);
-    if (typeof time === 'string') return new Date(`${time}T00:00:00`);
-    if (time && typeof time === 'object' && Number.isFinite(time.year) && Number.isFinite(time.month) && Number.isFinite(time.day)) {
-        return new Date(time.year, time.month - 1, time.day);
-    }
-    return new Date(NaN);
-}
-
-function updateSessionMarkers(data) {
-    if (!candlestickSeries) return;
-    const clearMarkers = () => {
-        if (sessionMarkers) sessionMarkers.setMarkers([]);
-        else if (typeof candlestickSeries.setMarkers === 'function') candlestickSeries.setMarkers([]);
-    };
-    if (!data.length || isTaiwanSymbol(currentSymbol) || isForexSymbol(currentSymbol) || isCryptoSymbol(currentSymbol)) {
-        clearMarkers();
-        return;
-    }
-
-    const partsFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
-    const markers = [], seenSessions = new Set();
-    data.forEach(item => {
-        if (typeof item.time !== 'number') return;
-        const parts = Object.fromEntries(partsFormatter.formatToParts(new Date(item.time * 1000)).map(part => [part.type, part.value]));
-        const minutes = Number(parts.hour) * 60 + Number(parts.minute);
-        const session = minutes >= 240 && minutes < 570 ? 'pre' : (minutes >= 960 && minutes <= 1200 ? 'post' : null);
-        if (!session) return;
-        const sessionKey = `${parts.year}-${parts.month}-${parts.day}-${session}`;
-        if (seenSessions.has(sessionKey)) return;
-        seenSessions.add(sessionKey);
-        markers.push({
-            time: item.time,
-            position: session === 'pre' ? 'aboveBar' : 'belowBar',
-            color: session === 'pre' ? '#f59e0b' : '#8b5cf6',
-            shape: session === 'pre' ? 'arrowDown' : 'arrowUp',
-            text: session === 'pre' ? '盤前' : '盤後'
-        });
-    });
-
-    if (typeof LightweightCharts.createSeriesMarkers === 'function') {
-        if (!sessionMarkers) sessionMarkers = LightweightCharts.createSeriesMarkers(candlestickSeries, markers);
-        else sessionMarkers.setMarkers(markers);
-    } else if (typeof candlestickSeries.setMarkers === 'function') {
-        candlestickSeries.setMarkers(markers);
-    }
-}
-
-function calculateIndicatorData(data, period, valueGetter, mapper) {
-    const result = [], values = [];
-    data.forEach(item => {
-        values.push(valueGetter(item));
-        if (values.length < period) return;
-        const window = values.slice(-period), average = window.reduce((sum, value) => sum + value, 0) / period;
-        result.push(mapper(item, average, window));
-    });
-    return result;
-}
-
-// 9日 KD 演算法
-function calculateKDData(data, n = 9) {
-    const kList = [], dList = [];
-    let prevK = 50, prevD = 50;
-
-    data.forEach((item, idx) => {
-        if (idx < n - 1) {
-            kList.push({ time: item.time, value: 50 });
-            dList.push({ time: item.time, value: 50 });
-            return;
-        }
-
-        const slice = data.slice(idx - n + 1, idx + 1);
-        const highest = Math.max(...slice.map(d => d.high));
-        const lowest = Math.min(...slice.map(d => d.low));
-        const rsv = highest === lowest ? 50 : ((item.close - lowest) / (highest - lowest)) * 100;
-
-        const currentK = (2 / 3) * prevK + (1 / 3) * rsv;
-        const currentD = (2 / 3) * prevD + (1 / 3) * currentK;
-
-        prevK = currentK;
-        prevD = currentD;
-
-        kList.push({ time: item.time, value: Number(currentK.toFixed(2)) });
-        dList.push({ time: item.time, value: Number(currentD.toFixed(2)) });
-    });
-
-    return { kList, dList };
-}
-
-// 14日 RSI 演算法
-function calculateRSIData(data, period = 14) {
-    const result = [];
-    let gains = 0, losses = 0;
-
-    for (let i = 1; i < data.length; i++) {
-        const diff = data[i].close - data[i - 1].close;
-        if (i <= period) {
-            if (diff >= 0) gains += diff; else losses -= diff;
-            if (i === period) {
-                const avgGain = gains / period, avgLoss = losses / period;
-                const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-                result.push({ time: data[i].time, value: 100 - (100 / (1 + rs)) });
-            }
-        } else {
-            const gain = diff >= 0 ? diff : 0;
-            const loss = diff < 0 ? -diff : 0;
-            gains = (gains * (period - 1) + gain) / period;
-            losses = (losses * (period - 1) + loss) / period;
-            const rs = losses === 0 ? 100 : gains / losses;
-            result.push({ time: data[i].time, value: Number((100 - (100 / (1 + rs))).toFixed(2)) });
-        }
-    }
-    return result;
-}
-
-// MACD (12, 26, 9) 演算法
-function calculateMACDData(data) {
-    const closes = data.map(d => d.close);
-    const emaSeries = (period) => {
-        const values = [], alpha = 2 / (period + 1);
-        let val = closes[0];
-        closes.forEach((close, i) => {
-            val = i === 0 ? close : close * alpha + val * (1 - alpha);
-            values.push(val);
-        });
-        return values;
-    };
-
-    const ema12 = emaSeries(12);
-    const ema26 = emaSeries(26);
-    const dif = closes.map((_, i) => ema12[i] - ema26[i]);
-
-    const dea = [];
-    let deaVal = dif[0];
-    const signalAlpha = 2 / 10;
-    dif.forEach((v, i) => {
-        deaVal = i === 0 ? v : v * signalAlpha + deaVal * (1 - signalAlpha);
-        dea.push(deaVal);
-    });
-
-    const histList = [], difList = [], deaList = [];
-    data.forEach((d, i) => {
-        const hist = (dif[i] - dea[i]) * 2;
-        histList.push({ time: d.time, value: Number(hist.toFixed(3)), color: hist >= 0 ? '#ef4444' : '#10b981' });
-        difList.push({ time: d.time, value: Number(dif[i].toFixed(3)) });
-        deaList.push({ time: d.time, value: Number(dea[i].toFixed(3)) });
-    });
-
-    return { histList, difList, deaList };
-}
-
-// 建立共通獨立 Chart 配置
-function createBaseChart(container, isBottomPane = false) {
+function createBaseChart(container) {
     const isMobile = window.innerWidth < 768;
     const gridColor = isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
     const scaleBorderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
@@ -1079,7 +906,7 @@ function createBaseChart(container, isBottomPane = false) {
         grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         timeScale: {
-            visible: isBottomPane,
+            visible: true,
             borderColor: scaleBorderColor,
             timeVisible: true,
             secondsVisible: false,
@@ -1088,7 +915,7 @@ function createBaseChart(container, isBottomPane = false) {
         },
         rightPriceScale: { borderColor: scaleBorderColor, scaleMargins: { top: 0.1, bottom: 0.1 } },
         handleScroll: { mouseWheel: false, pressedMouseMove: !isMobile, horzTouchDrag: true, vertTouchDrag: true },
-        handleScale: { axisPressedMouseMove: !isMobile, mouseWheel: false, pinch: true }
+        handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: !isMobile }
     });
 }
 
@@ -1102,17 +929,17 @@ function initChart() {
     if (!mainEl || typeof LightweightCharts === 'undefined' || mainChart) return false;
 
     // 1. 初始化各獨立圖表實例
-    mainChart = createBaseChart(mainEl, false);
-    volChart = createBaseChart(volEl, false);
+    mainChart = createBaseChart(mainEl);
+    volChart = createBaseChart(volEl);
     
     // 設定成交量獨立 PriceScale 邊界 (滿版呈現)
     volChart.priceScale('right').applyOptions({
         scaleMargins: { top: 0.05, bottom: 0.02 }
     });
 
-    kdChart = createBaseChart(kdEl, true);
-    rsiChart = createBaseChart(rsiEl, true);
-    macdChart = createBaseChart(macdEl, true);
+    kdChart = createBaseChart(kdEl);
+    rsiChart = createBaseChart(rsiEl);
+    macdChart = createBaseChart(macdEl);
 
     // 2. 主圖 Series
     candlestickSeries = mainChart.addCandlestickSeries({
@@ -1159,11 +986,43 @@ function initChart() {
     allCharts.forEach(c => c.subscribeCrosshairMove(updateCrosshairHUD));
 
     setupChartResize();
+    setupChartKeyboard();
     updateVisibleSubPanes();
     return true;
 }
 
-// 動態切換副圖顯示並管理最底層時間軸標籤
+// 鍵盤 +- 縮放多圖聯動引擎
+function setupChartKeyboard() {
+    window.addEventListener('keydown', event => {
+        if (document.activeElement?.tagName === 'INPUT' || !mainChart) return;
+        const timeScale = mainChart.timeScale();
+        const visibleRange = timeScale.getVisibleLogicalRange();
+        if (!visibleRange) return;
+
+        const span = visibleRange.to - visibleRange.from;
+        const zoomFactor = 0.2;
+
+        if (event.key === '+' || event.key === '=') {
+            const newSpan = Math.max(5, span * (1 - zoomFactor));
+            const center = (visibleRange.from + visibleRange.to) / 2;
+            const newRange = { from: center - newSpan / 2, to: center + newSpan / 2 };
+            getAllActiveCharts().forEach(c => {
+                try { c.timeScale().setVisibleLogicalRange(newRange); } catch {}
+            });
+            event.preventDefault();
+        } else if (event.key === '-' || event.key === '_') {
+            const newSpan = span * (1 + zoomFactor);
+            const center = (visibleRange.from + visibleRange.to) / 2;
+            const newRange = { from: center - newSpan / 2, to: center + newSpan / 2 };
+            getAllActiveCharts().forEach(c => {
+                try { c.timeScale().setVisibleLogicalRange(newRange); } catch {}
+            });
+            event.preventDefault();
+        }
+    });
+}
+
+// 切換副圖時固定緊湊尺寸 (主圖300px, 量能65px, KD/RSI各75px, MACD 80px)
 function updateVisibleSubPanes() {
     const kdWrap = document.getElementById('pane-kd-wrap');
     const rsiWrap = document.getElementById('pane-rsi-wrap');
@@ -1173,22 +1032,14 @@ function updateVisibleSubPanes() {
     if (rsiWrap) rsiWrap.classList.toggle('hidden', !subIndicatorsState.rsi);
     if (macdWrap) macdWrap.classList.toggle('hidden', !subIndicatorsState.macd);
 
-    const activeSubKeys = Object.keys(subIndicatorsState).filter(k => subIndicatorsState[k]);
-    const lastActiveKey = activeSubKeys[activeSubKeys.length - 1];
-
-    kdChart?.applyOptions({ timeScale: { visible: lastActiveKey === 'kd' } });
-    rsiChart?.applyOptions({ timeScale: { visible: lastActiveKey === 'rsi' } });
-    macdChart?.applyOptions({ timeScale: { visible: lastActiveKey === 'macd' } });
-    volChart?.applyOptions({ timeScale: { visible: activeSubKeys.length === 0 } });
-
     requestAnimationFrame(() => {
         const width = document.getElementById('panes-wrapper')?.clientWidth || 0;
         if (width > 0) {
-            if (subIndicatorsState.kd && kdChart) { kdChart.applyOptions({ width, height: 110 }); kdChart.timeScale().fitContent(); }
-            if (subIndicatorsState.rsi && rsiChart) { rsiChart.applyOptions({ width, height: 110 }); rsiChart.timeScale().fitContent(); }
-            if (subIndicatorsState.macd && macdChart) { macdChart.applyOptions({ width, height: 120 }); macdChart.timeScale().fitContent(); }
-            volChart?.applyOptions({ width, height: 100 });
-            mainChart?.applyOptions({ width, height: 340 });
+            mainChart?.applyOptions({ width, height: 300 });
+            volChart?.applyOptions({ width, height: 65 });
+            if (subIndicatorsState.kd && kdChart) kdChart.applyOptions({ width, height: 75 });
+            if (subIndicatorsState.rsi && rsiChart) rsiChart.applyOptions({ width, height: 75 });
+            if (subIndicatorsState.macd && macdChart) macdChart.applyOptions({ width, height: 80 });
         }
         resetChartView();
     });
@@ -1294,13 +1145,6 @@ function updateCrosshairHUD(param) {
     if (!candle) return;
     const timeStr = formatChartTooltipTime(param.time);
     updateChartHUD(candle, timeStr);
-}
-
-function formatChartTooltipTime(time) {
-    const date = getChartDate(time);
-    if (Number.isNaN(date.getTime())) return '—';
-    if (['1d', '1wk', '1mo'].includes(currentPeriod.interval)) return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
-    return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 // ============================================================
