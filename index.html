@@ -7,12 +7,12 @@
     <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImIiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxODE4MWIiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiMwOTA5MGIiLz48L2xpbmVhckdyYWRpZW50PjxsaW5lYXJHcmFkaWVudCBpZD0idCIgeDE9IjAlIiB5MT0iMTAwJSIgeDI9IjEwMCUiIHkyPSIwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2VmNDQ0NCIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2E4NTVmNyIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI1MDAiIGhlaWdodD0iNTAwIiByeD0iMTEwIiBmaWxsPSJ1cmwoI2IpIi8+PGcgZmlsbD0iIzMzNDE1NSIgb3BhY2l0eT0iMC41Ij48cmVjdCB4PSIxMzAiIHk9IjI4MCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjEyMCIgcng9IjEwIi8+PHJlY3QgeD0iMjMwIiB5PSIyMjAiIHdpZHRoPSI0MCIgaGVpZ2h0PSIxODAiIHJ4PSIxMCIvPjxyZWN0IHg9IjMzMCIgeT0iMTIwIiB3aWR0aD0iNDAiIGhlaWdodD0iMjgwIiByeD0iMTAiLz48L2c+PHBhdGggZD0iTTEwMCAzNTBsMTIwLTEyMCA2MCA0MCAxMDAtMTMwIiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjdCkiIHN0cm9rZS13aWR0aD0iMzUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjxwYXRoIGQ9Ik0zMTAgMTQwaDcwdjcwIiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjdCkiIHN0cm9rZS13aWR0aD0iMzUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==" type="image/svg+xml">
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <link rel="stylesheet" href="./styles.css?v=33">
+    <link rel="stylesheet" href="./styles.css?v=34">
 </head>
-<body class="h-[100dvh] overflow-hidden flex">
+<body class="h-[100dvh] overflow-hidden flex bg-[#09090b] text-[#f4f4f5]">
     <div id="overlay" onclick="toggleSidebar()"></div>
     
     <!-- 左側邊欄 -->
@@ -67,7 +67,7 @@
                         <option value="change-desc">漲幅 ↓</option><option value="change-asc">漲幅 ↑</option>
                     </select>
                     <button id="sort-trigger" type="button" class="sort-trigger" aria-haspopup="listbox" aria-expanded="false" onclick="toggleSortMenu()">
-                        <span id="sort-label">自訂順序</span><span class="sort-chevron">⌄</span>
+                        <span id="sort-label">自訂順序</span><span class="sort-chevron">▾</span>
                     </button>
                     <div id="sort-menu" class="sort-menu" role="listbox" aria-label="排序方式">
                         <button type="button" role="option" data-sort-value="manual" onclick="selectSortOption('manual')">自訂順序<span>⋮</span></button>
@@ -405,6 +405,7 @@
         </div>
     </main>
 
+    <!-- 系統設定 Modal -->
     <div id="modal-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden opacity-0 transition-opacity duration-300" onclick="closeModals()"></div>
     <div id="settings-modal" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-md glass bg-[#18181b]/95 border border-white/10 rounded-2xl z-50 hidden opacity-0 scale-95 transition-all duration-300 p-6 shadow-2xl">
         <div class="flex justify-between items-center mb-6">
@@ -430,6 +431,7 @@
         </div>
     </div>
 
+    <!-- 個人資訊 Modal -->
     <div id="profile-modal" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-sm glass bg-[#18181b]/95 border border-white/10 rounded-2xl z-50 hidden opacity-0 scale-95 transition-all duration-300 p-6 shadow-2xl">
         <div class="flex justify-between items-start mb-2">
             <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-600 to-purple-500 flex items-center justify-center text-2xl text-white font-bold shadow-lg">衡</div>
@@ -455,6 +457,6 @@
         </div>
     </div>
 
-    <script src="./app.js?v=33"></script>
+    <script src="./app.js?v=34"></script>
 </body>
 </html>
