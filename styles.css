@@ -432,6 +432,35 @@ body.light-mode {
     color: #172a26 !important;
 }
 
+#period-dropdown {
+    background: rgba(24, 24, 28, 0.95);
+    color: #60a5fa;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+#period-dropdown:hover,
+#period-dropdown:focus {
+    border-color: rgba(96, 165, 250, 0.5);
+    background: rgba(59, 130, 246, 0.12);
+}
+
+#period-dropdown option {
+    background: #18181b;
+    color: #f4f4f5;
+}
+
+body.light-mode #period-dropdown {
+    background: #edf4f1;
+    color: #087f62;
+    border-color: #c7d8d2;
+}
+
+body.light-mode #period-dropdown option {
+    background: #ffffff;
+    color: #172a26;
+}
+
 body.light-mode .glass,
 body.light-mode .section-card,
 body.light-mode #chart-card {
