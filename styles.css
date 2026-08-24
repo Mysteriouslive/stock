@@ -138,28 +138,9 @@ body {
     background: rgba(59, 130, 246, 0.2) !important;
 }
 
-/* 非台股籌碼按鈕強制隱藏 */
 .section-nav-btn.hidden,
 .section-nav-btn.is-hidden {
     display: none !important;
-}
-
-.period-btn {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 5px 10px;
-    border-radius: 8px;
-    color: #a1a1aa;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    transition: all 0.2s ease;
-}
-.period-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; border-color: rgba(255, 255, 255, 0.15); }
-.period-btn.active {
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
-    border-color: rgba(59, 130, 246, 0.4);
-    box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
 }
 
 /* 股票排序選單 (Sort Picker) */
@@ -339,19 +320,6 @@ body {
 }
 
 .period-menu button[aria-selected="true"] {
-    color: #60a5fa;
-    background: rgba(59, 130, 246, 0.15);
-    font-weight: 700;
-}
-
-.period-menu button[aria-selected="true"]::after {
-    content: "✓";
-    color: #60a5fa;
-    font-weight: 700;
-}
-
-/* 選單選中勾選符號 (✓) */
-.period-menu button[aria-selected="true"] {
     color: #60a5fa !important;
     background: rgba(59, 130, 246, 0.15) !important;
     font-weight: 700;
@@ -406,8 +374,9 @@ body {
     flex-direction: column;
     min-height: 480px;
     margin-bottom: 1.25rem;
+    transition: height 0.25s ease;
 }
-#chart-container { flex: 1; width: 100%; min-height: 380px; }
+#chart-container { flex: 1; width: 100%; min-height: 460px; }
 .company-info-card.collapsed .company-info-body { display: none; }
 .company-info-item {
     background: rgba(255, 255, 255, 0.025);
@@ -470,9 +439,9 @@ body {
     
     #chart-card { min-height: 480px; height: 480px !important; flex: 0 0 480px !important; }
     #chart-container {
-        flex: 0 0 350px !important;
-        height: 350px !important;
-        min-height: 350px;
+        flex: 0 0 380px !important;
+        height: 380px !important;
+        min-height: 380px;
         margin-bottom: 0;
     }
     #chart-card > .flex.items-center.justify-between { flex-wrap: wrap; }
@@ -535,8 +504,8 @@ body.light-mode .period-menu button:hover {
     background: #f1f7f4;
 }
 body.light-mode .period-menu button[aria-selected="true"] {
-    color: #087f62;
-    background: #e2f0ea;
+    color: #087f62 !important;
+    background: #e2f0ea !important;
 }
 body.light-mode .period-menu button[aria-selected="true"]::after {
     color: #087f62;

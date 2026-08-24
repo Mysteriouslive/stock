@@ -165,7 +165,7 @@ function formatCompactNumber(value) {
     return n.toFixed(2);
 }
 function formatVolume(value) {
-    if (!Number.isFinite(Number(value)) || value === '' || value === 0) return '—';
+    if (!Number.isFinite(Number(value)) || value === '' || Number(value) <= 0) return '—';
     const n = Number(value);
     if (n >= 100000000) return `${(n / 100000000).toFixed(2)} 億`;
     if (n >= 10000) return `${(n / 10000).toFixed(2)} 萬`;
@@ -507,7 +507,6 @@ function renderChipContent() {
         } else {
             tableRows.innerHTML = `<div class="text-center py-6 text-gray-500 text-xs">暫無持股走勢資料</div>`;
         }
-
         renderHoldingChart(holdingList);
     }
 }
@@ -909,7 +908,7 @@ function removeStock(index) {
 }
 
 // ============================================================
-// 圖表與指標系統 (獨立三層佈局 + 多附圖疊加)
+// 圖表與指標系統 (多副圖獨立比例尺分離架構)
 // ============================================================
 let chart = null, candlestickSeries = null, volumeSeries = null;
 let ma5Series = null, ma20Series = null, ma60Series = null, upperBandSeries = null, lowerBandSeries = null;
@@ -921,7 +920,7 @@ let chartAtRightEdge = true;
 // 多重主圖覆蓋
 const mainIndicatorsState = { ma: true, bollinger: false };
 
-// 多重附圖疊加
+// 多重附圖獨立疊加
 const subIndicatorsState = { kd: true, rsi: false, macd: false };
 
 function getChartDate(time) {
@@ -1075,6 +1074,52 @@ function calculateMACDData(data) {
     return { histList, difList, deaList };
 }
 
+// 動態配置每張副圖獨立的垂直空間 (scaleMargins)
+function updateChartLayoutMargins() {
+    if (!chart) return;
+
+    const activeSubs = Object.keys(subIndicatorsState).filter(k => subIndicatorsState[k]);
+    const subCount = activeSubs.length;
+
+    // 依開啟的副圖數量，自動拉高畫布總高度以保持寬敞
+    const container = document.getElementById('chart-container');
+    const chartCard = document.getElementById('chart-card');
+    const totalHeight = Math.max(460, 400 + subCount * 110);
+    
+    if (container) container.style.height = `${totalHeight}px`;
+    if (chartCard) chartCard.style.height = 'auto';
+    chart.applyOptions({ height: totalHeight });
+
+    // 1. 主圖空間 (固定分配頂部 52%)
+    chart.priceScale('right').applyOptions({
+        scaleMargins: { top: 0.05, bottom: subCount > 0 ? 0.48 : 0.05 }
+    });
+
+    // 2. 成交量空間 (置於主圖底端 15% 區間)
+    chart.priceScale('volume_scale').applyOptions({
+        scaleMargins: { top: 0.54, bottom: subCount > 0 ? 0.32 : 0.02 },
+        visible: false
+    });
+
+    // 3. 各副圖獨立分配底端專屬區間，彼此絕不重疊
+    const subHeightRatio = 0.28 / Math.max(subCount, 1);
+
+    activeSubs.forEach((key, index) => {
+        const topMargin = 0.72 + index * subHeightRatio;
+        const bottomMargin = 1 - (topMargin + subHeightRatio * 0.9);
+        const scaleId = `sub_scale_${key}`;
+
+        chart.priceScale(scaleId).applyOptions({
+            scaleMargins: {
+                top: topMargin,
+                bottom: Math.max(bottomMargin, 0.01)
+            },
+            visible: true,
+            borderVisible: true
+        });
+    });
+}
+
 function updateChartIndicators(data) {
     if (!data.length) return;
     const close = item => item.close;
@@ -1094,14 +1139,14 @@ function updateChartIndicators(data) {
         upperBandSeries?.setData([]); lowerBandSeries?.setData([]);
     }
 
-    // 3. 成交量柱狀圖 (獨立在中央專屬區間，不與主圖K線重疊)
+    // 3. 成交量
     volumeSeries?.setData(data.filter(item => Number(item.volume) > 0).map(item => ({
         time: item.time,
         value: Number(item.volume),
         color: item.close >= item.open ? 'rgba(239, 68, 68, 0.75)' : 'rgba(16, 185, 129, 0.75)'
     })));
 
-    // 4. 多重附圖疊加渲染
+    // 4. 多重附圖獨立渲染
     if (subIndicatorsState.kd) {
         const { kList, dList } = calculateKDData(data);
         kdSeriesK?.setData(kList);
@@ -1131,23 +1176,25 @@ function updateChartIndicators(data) {
     if (lastItem) updateChartHUD(lastItem);
 }
 
-// 修正：HUD 成交量精準解析，杜絕「量 —」
+// HUD 成交量精準解析
 function updateChartHUD(candle, timeStr) {
     if (!candle) return;
     const date = getChartDate(candle.time);
     const dateFormatted = timeStr || (['1d', '1wk', '1mo'].includes(currentPeriod.interval) ? `${date.getMonth() + 1}/${date.getDate()}` : `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`);
-    
+
     setText('hud-date', dateFormatted);
     setText('hud-close', formatPrice(candle.close, currentSymbol));
     setText('hud-open', formatPrice(candle.open, currentSymbol));
     setText('hud-high', formatPrice(candle.high, currentSymbol));
     setText('hud-low', formatPrice(candle.low, currentSymbol));
-    
-    // 成交量精準取得
-    const volNumber = candle.volume != null && Number.isFinite(Number(candle.volume)) && Number(candle.volume) > 0
-        ? candle.volume
-        : (currentChartData.find(d => d.time === candle.time)?.volume || null);
-    setText('hud-volume', volNumber ? formatVolume(volNumber) : '—');
+
+    // 成交量 Fallback
+    let volVal = candle.volume;
+    if ((volVal == null || volVal === 0 || !Number.isFinite(Number(volVal))) && currentChartData.length > 0) {
+        const found = currentChartData.find(d => d.time === candle.time);
+        if (found) volVal = found.volume;
+    }
+    setText('hud-volume', formatVolume(volVal));
 
     const closeEl = document.getElementById('hud-close');
     if (closeEl) closeEl.className = candle.close >= candle.open ? 'text-[#ef4444] font-bold font-mono' : 'text-[#10b981] font-bold font-mono';
@@ -1167,20 +1214,20 @@ function updateChartHUD(candle, timeStr) {
 
             if (subIndicatorsState.kd && hudKd) {
                 const { kList, dList } = calculateKDData(currentChartData);
-                hudKd.textContent = `K ${kList[idx]?.value ?? '—'} D ${dList[idx]?.value ?? '—'}`;
+                hudKd.textContent = `KD: K ${kList[idx]?.value ?? '—'} D ${dList[idx]?.value ?? '—'}`;
                 hudKd.classList.remove('hidden');
             } else if (hudKd) hudKd.classList.add('hidden');
 
             if (subIndicatorsState.rsi && hudRsi) {
                 const rsiList = calculateRSIData(currentChartData);
                 const rsiVal = rsiList.find(r => r.time === candle.time)?.value ?? '—';
-                hudRsi.textContent = `RSI ${rsiVal}`;
+                hudRsi.textContent = `RSI: ${rsiVal}`;
                 hudRsi.classList.remove('hidden');
             } else if (hudRsi) hudRsi.classList.add('hidden');
 
             if (subIndicatorsState.macd && hudMacd) {
                 const { difList, deaList } = calculateMACDData(currentChartData);
-                hudMacd.textContent = `DIF ${difList[idx]?.value ?? '—'} DEA ${deaList[idx]?.value ?? '—'}`;
+                hudMacd.textContent = `MACD: DIF ${difList[idx]?.value ?? '—'} DEA ${deaList[idx]?.value ?? '—'}`;
                 hudMacd.classList.remove('hidden');
             } else if (hudMacd) hudMacd.classList.add('hidden');
         }
@@ -1202,11 +1249,9 @@ function formatChartTooltipTime(time) {
     return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
-// 核心佈局改造：主圖頂部 58%、成交量中間 18%、副圖底部 24%，徹底拉開間距
 function initChart() {
     const container = document.getElementById('chart-container');
     if (!container || typeof LightweightCharts === 'undefined' || chart) return false;
-    if (container.clientHeight <= 0) container.style.minHeight = window.innerWidth < 768 ? '380px' : '480px';
 
     const isMobile = window.innerWidth < 768;
     const gridColor = isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
@@ -1216,9 +1261,9 @@ function initChart() {
     chart = LightweightCharts.createChart(container, {
         layout: { textColor: textColor, background: { type: 'solid', color: 'transparent' }, fontSize: 11 },
         grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
-        crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 }, horzLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 } },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         timeScale: { borderColor: scaleBorderColor, timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
-        rightPriceScale: { borderColor: scaleBorderColor, scaleMargins: { top: 0.05, bottom: 0.45 } }, // 主圖 K 線限制在最上方 55%
+        rightPriceScale: { borderColor: scaleBorderColor },
         handleScroll: { mouseWheel: false, pressedMouseMove: !isMobile, horzTouchDrag: true, vertTouchDrag: true },
         handleScale: { axisPressedMouseMove: !isMobile, mouseWheel: false, pinch: true }
     });
@@ -1229,15 +1274,11 @@ function initChart() {
         borderUpColor: '#ef4444', borderDownColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
     });
 
-    // 2. 中間獨立成交量 (配置在 56% ~ 74% 區間)
+    // 2. 成交量
     volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, {
         priceFormat: { type: 'volume' },
         priceScaleId: 'volume_scale',
         color: 'rgba(96,165,250,0.35)'
-    });
-    chart.priceScale('volume_scale').applyOptions({
-        scaleMargins: { top: 0.58, bottom: 0.26 },
-        visible: false
     });
 
     // 3. 主圖均線
@@ -1249,20 +1290,17 @@ function initChart() {
     upperBandSeries = chart.addSeries(LightweightCharts.LineSeries, { color: 'rgba(168,85,247,0.7)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     lowerBandSeries = chart.addSeries(LightweightCharts.LineSeries, { color: 'rgba(168,85,247,0.7)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
 
-    // 5. 底部獨立附圖 (配置在 76% ~ 98% 區間)
-    kdSeriesK = chart.addSeries(LightweightCharts.LineSeries, { color: '#38bdf8', lineWidth: 1.5, priceScaleId: 'sub_pane', priceLineVisible: false });
-    kdSeriesD = chart.addSeries(LightweightCharts.LineSeries, { color: '#f87171', lineWidth: 1.5, priceScaleId: 'sub_pane', priceLineVisible: false });
-    rsiSeries = chart.addSeries(LightweightCharts.LineSeries, { color: '#c084fc', lineWidth: 1.5, priceScaleId: 'sub_pane', priceLineVisible: false });
-    
-    macdHistSeries = chart.addSeries(LightweightCharts.HistogramSeries, { priceScaleId: 'sub_pane', priceLineVisible: false });
-    macdLineSeries = chart.addSeries(LightweightCharts.LineSeries, { color: '#38bdf8', lineWidth: 1.5, priceScaleId: 'sub_pane', priceLineVisible: false });
-    macdSignalSeries = chart.addSeries(LightweightCharts.LineSeries, { color: '#f87171', lineWidth: 1.5, priceScaleId: 'sub_pane', priceLineVisible: false });
+    // 5. 各副圖獨立綁定專屬 PriceScale ID
+    kdSeriesK = chart.addSeries(LightweightCharts.LineSeries, { color: '#38bdf8', lineWidth: 1.5, priceScaleId: 'sub_scale_kd', priceLineVisible: false });
+    kdSeriesD = chart.addSeries(LightweightCharts.LineSeries, { color: '#f87171', lineWidth: 1.5, priceScaleId: 'sub_scale_kd', priceLineVisible: false });
 
-    chart.priceScale('sub_pane').applyOptions({
-        scaleMargins: { top: 0.76, bottom: 0.02 },
-        visible: true,
-        borderVisible: true
-    });
+    rsiSeries = chart.addSeries(LightweightCharts.LineSeries, { color: '#c084fc', lineWidth: 1.5, priceScaleId: 'sub_scale_rsi', priceLineVisible: false });
+
+    macdHistSeries = chart.addSeries(LightweightCharts.HistogramSeries, { priceScaleId: 'sub_scale_macd', priceLineVisible: false });
+    macdLineSeries = chart.addSeries(LightweightCharts.LineSeries, { color: '#38bdf8', lineWidth: 1.5, priceScaleId: 'sub_scale_macd', priceLineVisible: false });
+    macdSignalSeries = chart.addSeries(LightweightCharts.LineSeries, { color: '#f87171', lineWidth: 1.5, priceScaleId: 'sub_scale_macd', priceLineVisible: false });
+
+    updateChartLayoutMargins();
 
     chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
         if (!range || !currentChartData.length) { chartAtRightEdge = true; return; }
@@ -1270,7 +1308,6 @@ function initChart() {
     });
 
     chart.subscribeCrosshairMove(updateCrosshairHUD);
-
     setupChartResize(container);
     return true;
 }
@@ -1570,19 +1607,17 @@ function toggleMainOption(type) {
     updateChartIndicators(currentChartData);
 }
 
-// 附圖多選疊加開關 (可同時開 KD / RSI / MACD)
+// 附圖多選開關與圖層重新分配
 function toggleSubOption(type) {
     subIndicatorsState[type] = !subIndicatorsState[type];
-    
+
     const opt = document.getElementById(`sub-opt-${type}`);
     if (opt) opt.setAttribute('aria-selected', String(subIndicatorsState[type]));
 
-    const activeList = [];
-    if (subIndicatorsState.kd) activeList.push('KD');
-    if (subIndicatorsState.rsi) activeList.push('RSI');
-    if (subIndicatorsState.macd) activeList.push('MACD');
-    setText('sub-indicator-label', activeList.length > 0 ? activeList.join('+') : '無');
+    const activeList = Object.keys(subIndicatorsState).filter(k => subIndicatorsState[k]);
+    setText('sub-indicator-label', activeList.length > 0 ? activeList.map(k => k.toUpperCase()).join('+') : '無');
 
+    updateChartLayoutMargins();
     updateChartIndicators(currentChartData);
 }
 
@@ -1637,11 +1672,16 @@ function applyDarkModeUI() {
     }
 
     if (chart) {
+        const scaleBorderColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
         chart.applyOptions({
             layout: { textColor: isDarkMode ? '#9ca3af' : '#52525b', background: { type: 'solid', color: 'transparent' } },
             grid: { vertLines: { color: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }, horzLines: { color: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' } },
-            timeScale: { borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' },
-            rightPriceScale: { borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)' }
+            timeScale: { borderColor: scaleBorderColor },
+            rightPriceScale: { borderColor: scaleBorderColor }
+        });
+        
+        ['sub_scale_kd', 'sub_scale_rsi', 'sub_scale_macd'].forEach(id => {
+            try { chart.priceScale(id).applyOptions({ borderColor: scaleBorderColor }); } catch {}
         });
     }
 }
@@ -1693,24 +1733,15 @@ function toggleModal(modalId, show) {
     }
 }
 function openSettingsModal() { toggleModal('settings-modal', true); }
-function openProfileModal() { toggleModal('profile-modal', true); }
-function closeModals() { toggleModal('settings-modal', false); toggleModal('profile-modal', false); }
+function closeModals() { toggleModal('settings-modal', false); }
 window.addEventListener('keydown', event => { if (event.key === 'Escape') closeModals(); });
 
 // ============================================================
 // 主題色與偏好設定
 // ============================================================
-const THEMES = {
-    blue: { primary: '#3b82f6', secondary: '#8b5cf6', bg1: 'rgba(59, 130, 246, 0.1)', bg2: 'rgba(139, 92, 246, 0.1)' },
-    emerald: { primary: '#10b981', secondary: '#06b6d4', bg1: 'rgba(16, 185, 129, 0.1)', bg2: 'rgba(6, 182, 212, 0.1)' },
-    purple: { primary: '#a855f7', secondary: '#ec4899', bg1: 'rgba(168, 85, 247, 0.1)', bg2: 'rgba(236, 72, 153, 0.1)' },
-    orange: { primary: '#f97316', secondary: '#facc15', bg1: 'rgba(249, 115, 22, 0.1)', bg2: 'rgba(250, 204, 21, 0.1)' }
-};
-
 function loadUserPreferences() {
     const savedColorMode = localStorage.getItem('stockKlineColor') || 'red-green';
     const savedRefreshRate = localStorage.getItem('stockRefreshRate') || '10000';
-    const savedTheme = localStorage.getItem('stockTheme') || 'blue';
 
     const colorSelect = document.getElementById('kline-color'), refreshSelect = document.getElementById('refresh-rate');
     if (colorSelect) { colorSelect.value = savedColorMode; colorSelect.onchange = applySettings; }
@@ -1719,38 +1750,6 @@ function loadUserPreferences() {
     applyDarkModeUI();
     updateChartColors(savedColorMode);
     AUTO_REFRESH_INTERVAL = Math.max(Number(savedRefreshRate) || 10000, 3000);
-    changeThemeColor(savedTheme, false);
-}
-
-function changeThemeColor(themeName, save = true) {
-    const theme = THEMES[themeName] || THEMES.blue;
-    if (save) localStorage.setItem('stockTheme', themeName);
-
-    document.querySelectorAll('.theme-btn').forEach(btn => { btn.classList.remove('ring-2', 'ring-offset-2', 'ring-offset-[#18181b]'); btn.style.boxShadow = ''; });
-    const activeBtn = document.getElementById(`theme-btn-${themeName}`);
-    if (activeBtn) { activeBtn.classList.add('ring-2', 'ring-offset-2', 'ring-offset-[#18181b]'); activeBtn.style.setProperty('--tw-ring-color', theme.primary); }
-
-    document.documentElement.style.setProperty('--theme-color-1', theme.bg1);
-    document.documentElement.style.setProperty('--theme-color-2', theme.bg2);
-
-    let themeStyleTag = document.getElementById('dynamic-theme-vars');
-    if (!themeStyleTag) { themeStyleTag = document.createElement('style'); themeStyleTag.id = 'dynamic-theme-vars'; document.head.appendChild(themeStyleTag); }
-
-    themeStyleTag.innerHTML = `
-        :root { --theme-primary: ${theme.primary}; --theme-secondary: ${theme.secondary}; }
-        .from-blue-400 { --tw-gradient-from: ${theme.primary} !important; }
-        .to-purple-400 { --tw-gradient-to: ${theme.secondary} !important; }
-        .bg-blue-500\\/20 { background-color: ${theme.primary}33 !important; }
-        .text-blue-300 { color: ${theme.primary} !important; }
-        .active.period-btn { background-color: ${theme.primary}33 !important; color: ${theme.primary} !important; }
-        .bg-blue-600 { background-color: ${theme.primary} !important; }
-        .hover\\:bg-blue-500:hover { background-color: ${theme.secondary} !important; }
-        .from-blue-600 { --tw-gradient-from: ${theme.primary} !important; }
-        .to-purple-600 { --tw-gradient-to: ${theme.secondary} !important; }
-        .to-purple-500 { --tw-gradient-to: ${theme.secondary} !important; }
-        input:focus, select:focus { border-color: ${theme.primary}80 !important; box-shadow: 0 0 0 1px ${theme.primary}4D !important; }
-        body.light-mode .active.period-btn { background-color: ${theme.primary}22 !important; color: ${theme.primary} !important; font-weight: bold; }
-    `;
 }
 
 function applySettings() {
@@ -1773,25 +1772,6 @@ function updateChartColors(mode) {
         } else {
             candlestickSeries.applyOptions({ borderVisible: true, upColor: '#ef4444', downColor: '#10b981', borderUpColor: '#ef4444', borderDownColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981' });
         }
-    }
-
-    let styleTag = document.getElementById('dynamic-theme-styles');
-    if (!styleTag) { styleTag = document.createElement('style'); styleTag.id = 'dynamic-theme-styles'; document.head.appendChild(styleTag); }
-
-    if (mode === 'green-red') {
-        styleTag.innerHTML = `
-            .price-up { color: #10b981 !important; text-shadow: 0 0 12px rgba(16, 185, 129, 0.25) !important; }
-            .price-down { color: #ef4444 !important; text-shadow: 0 0 12px rgba(239, 68, 68, 0.25) !important; }
-            body.light-mode .price-up { color: #059669 !important; text-shadow: none !important; }
-            body.light-mode .price-down { color: #dc2626 !important; text-shadow: none !important; }
-        `;
-    } else {
-        styleTag.innerHTML = `
-            .price-up { color: #ef4444 !important; text-shadow: 0 0 12px rgba(239, 68, 68, 0.25) !important; }
-            .price-down { color: #10b981 !important; text-shadow: 0 0 12px rgba(16, 185, 129, 0.25) !important; }
-            body.light-mode .price-up { color: #dc2626 !important; text-shadow: none !important; }
-            body.light-mode .price-down { color: #059669 !important; text-shadow: none !important; }
-        `;
     }
 
     renderWatchlist();
@@ -1828,10 +1808,8 @@ window.toggleMainOption = toggleMainOption;
 window.toggleSubOption = toggleSubOption;
 window.toggleSidebar = toggleSidebar;
 window.openSettingsModal = openSettingsModal;
-window.openProfileModal = openProfileModal;
 window.closeModals = closeModals;
 window.toggleCompanyInfo = toggleCompanyInfo;
-window.changeThemeColor = changeThemeColor;
 window.applySettings = applySettings;
 window.toggleDarkMode = toggleDarkMode;
 window.jumpToSection = jumpToSection;
