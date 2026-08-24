@@ -54,6 +54,8 @@ let cachedChipHistory = [];
 let cachedChipLatest = null;
 let isDarkMode = localStorage.getItem('stockThemeMode') !== 'light';
 let sortableInstance = null;
+const finnhubCache = new Map();
+let finnhubBackoffUntil = 0;
 
 // ============================================================
 // 1. Symbol 工具函式
@@ -134,6 +136,138 @@ function formatChartTooltipTime(time) {
 
 function setCompanyField(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
 function toggleCompanyInfo() { document.getElementById('overview-card')?.classList.toggle('collapsed'); }
+
+function updateMarketState(state, symbol = '') {
+    const badge = document.getElementById('market-state-badge');
+    if (!badge) return;
+    const status = String(state || '').toUpperCase();
+    const states = { PRE: ['盤前', 'state-pre'], PREPRE: ['盤前', 'state-pre'], REGULAR: ['盤中', 'state-regular'], POST: ['盤後', 'state-post'], POSTPOST: ['盤後', 'state-post'], CLOSED: ['休市', 'state-closed'] };
+    let fallback = ['—', 'state-unknown'];
+    if (isCryptoSymbol(symbol) || isForexSymbol(symbol)) fallback = ['盤中', 'state-regular'];
+    else {
+        const timeZone = isTaiwanSymbol(symbol) ? 'Asia/Taipei' : 'America/New_York';
+        const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()).map(part => [part.type, part.value]));
+        const weekend = ['Sat', 'Sun'].includes(parts.weekday), minute = Number(parts.hour) * 60 + Number(parts.minute);
+        if (!weekend) {
+            const sessions = isTaiwanSymbol(symbol) ? [[510, 540, 'state-pre', '盤前'], [540, 810, 'state-regular', '盤中'], [810, 870, 'state-post', '盤後']] : [[240, 570, 'state-pre', '盤前'], [570, 960, 'state-regular', '盤中'], [960, 1200, 'state-post', '盤後']];
+            const session = sessions.find(([start, end]) => minute >= start && minute < end);
+            fallback = session ? [session[3], session[2]] : ['休市', 'state-closed'];
+        } else fallback = ['休市', 'state-closed'];
+    }
+    const [label, className] = states[status] || fallback;
+    badge.textContent = label;
+    badge.className = `market-state-badge ${className}`;
+}
+
+function parseQuote(result, symbol = '') {
+    const meta = result?.meta || {}, quote = result?.indicators?.quote?.[0] || {};
+    const index = Array.isArray(quote.close) ? quote.close.map(Number).findLastIndex(Number.isFinite) : -1;
+    const close = Number(meta.regularMarketPrice ?? quote.close?.[index]);
+    if (!Number.isFinite(close)) throw new Error('NO_QUOTE_DATA');
+    let previous = Number(meta.regularMarketPreviousClose ?? meta.previousClose ?? meta.chartPreviousClose);
+    if (!Number.isFinite(previous) && index > 0) previous = Number(quote.close?.slice(0, index).map(Number).findLast(Number.isFinite));
+    const change = Number.isFinite(previous) ? close - previous : 0;
+    const percent = Number.isFinite(previous) && previous > 0 ? (change / previous) * 100 : 0;
+    const decimals = isForexSymbol(symbol) ? 4 : (isCryptoSymbol(symbol) && close < 1 ? 6 : 2);
+    return {
+        latestPrice: formatPrice(close, symbol), change: change.toFixed(decimals), changePercent: percent.toFixed(2), isUp: change > 0, isFlat: change === 0,
+        open: formatPrice(meta.regularMarketOpen ?? quote.open?.[index], symbol), high: formatPrice(meta.regularMarketDayHigh ?? quote.high?.[index], symbol),
+        low: formatPrice(meta.regularMarketDayLow ?? quote.low?.[index], symbol), previousClose: formatPrice(previous, symbol), volume: formatVolume(meta.regularMarketVolume ?? quote.volume?.[index])
+    };
+}
+
+function parseCandles(result) {
+    const quote = result?.indicators?.quote?.[0], timestamps = result?.timestamp || [];
+    if (!quote || !timestamps.length) return [];
+    const daily = ['1d', '1wk', '1mo'].includes(currentPeriod.interval);
+    return timestamps.flatMap((timestamp, index) => {
+        const [open, high, low, close] = [quote.open?.[index], quote.high?.[index], quote.low?.[index], quote.close?.[index]].map(Number);
+        if (![open, high, low, close].every(Number.isFinite)) return [];
+        return [{ time: daily ? new Date(timestamp * 1000).toISOString().slice(0, 10) : timestamp, open, high, low, close, volume: Number(quote.volume?.[index]) || 0 }];
+    });
+}
+
+function applyCurrentPriceToQuote(quote, price, previousClose, symbol, fallbackPercent = NaN) {
+    const current = Number(price), previous = Number(previousClose);
+    if (!Number.isFinite(current) || current <= 0) return quote;
+    let percent = Number.isFinite(previous) && previous > 0 ? ((current - previous) / previous) * 100 : Number(fallbackPercent);
+    if (!Number.isFinite(percent)) percent = 0;
+    const base = Number.isFinite(previous) && previous > 0 ? previous : current / (1 + percent / 100);
+    const change = current - base, decimals = isForexSymbol(symbol) ? 4 : (isCryptoSymbol(symbol) && current < 1 ? 6 : 2);
+    return { ...(quote || {}), latestPrice: formatPrice(current, symbol), change: change.toFixed(decimals), changePercent: percent.toFixed(2), isUp: change > 0, isFlat: change === 0, previousClose: formatPrice(base, symbol) };
+}
+
+function resetFundamentals() {
+    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth'].forEach(id => setMetric(id, '—'));
+    setMetric('fundamentals-status', '—');
+}
+
+function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
+    const meta = result?.meta || {};
+    setCompanyField('company-long-name', meta.longName || meta.shortName || displaySymbol(symbol));
+    setCompanyField('company-exchange', meta.fullExchangeName || meta.exchangeName || '—');
+    setCompanyField('company-market', source); setCompanyField('company-currency', meta.currency || '—');
+    setCompanyField('company-type', meta.instrumentType || '—'); setCompanyField('company-market-state', meta.marketState || '—');
+    setCompanyField('company-symbol', toYahooSymbol(symbol)); setCompanyField('company-price', quote?.latestPrice || '—');
+}
+
+function renderFinnhubCompanyInfo(profile, symbol, quote) {
+    setCompanyField('company-long-name', profile?.name || displaySymbol(symbol)); setCompanyField('company-exchange', profile?.exchange || '—');
+    setCompanyField('company-market', 'Finnhub'); setCompanyField('company-currency', profile?.currency || '—'); setCompanyField('company-type', profile?.finnhubIndustry || '—');
+    setCompanyField('company-symbol', finnhubSymbol(symbol)); setCompanyField('company-price', quote?.latestPrice || '—');
+}
+
+function renderFinnhubMetrics(result) {
+    const metric = result?.metric || {};
+    setMetric('metric-pe', formatMetric(firstFinite(metric, ['peNormalizedAnnual', 'peTTM']))); setMetric('metric-eps', formatMetric(firstFinite(metric, ['epsNormalizedAnnual', 'epsTTM'])));
+    setMetric('metric-marketcap', formatCompactNumber(firstFinite(metric, ['marketCapitalization']))); setMetric('metric-beta', formatMetric(firstFinite(metric, ['beta'])));
+    setMetric('metric-52high', formatMetric(firstFinite(metric, ['52WeekHigh']))); setMetric('metric-52low', formatMetric(firstFinite(metric, ['52WeekLow'])));
+    setMetric('metric-dividend', formatPercentMetric(firstFinite(metric, ['dividendYieldIndicatedAnnual', 'dividendYieldTTM']))); setMetric('metric-roe', formatPercentMetric(firstFinite(metric, ['roeTTM', 'roeRfy'])));
+    setMetric('metric-gross-margin', formatPercentMetric(firstFinite(metric, ['grossMarginTTM']))); setMetric('metric-op-margin', formatPercentMetric(firstFinite(metric, ['operatingMarginTTM'])));
+    setMetric('metric-net-margin', formatPercentMetric(firstFinite(metric, ['netProfitMarginTTM']))); setMetric('metric-revenue-growth', formatPercentMetric(firstFinite(metric, ['revenueGrowthTTMYoy']))); setMetric('fundamentals-status', 'Finnhub 已載入');
+}
+
+function renderTwseMetrics(data, symbol, result, currentPrice) {
+    const meta = result?.meta || {}; resetFundamentals();
+    setMetric('metric-pe', data?.pe || '—'); setMetric('metric-dividend', data?.dividendYield || '—'); setMetric('metric-52high', formatPrice(meta.fiftyTwoWeekHigh, symbol)); setMetric('metric-52low', formatPrice(meta.fiftyTwoWeekLow, symbol));
+    setMetric('metric-marketcap', formatCompactNumber(meta.marketCap)); setMetric('fundamentals-status', `${data?.source || 'TWSE'} 已載入`);
+}
+
+function setChipVisibility(visible) {
+    document.getElementById('nav-chip-btn')?.classList.toggle('hidden', !visible);
+    document.getElementById('chip-card')?.classList.toggle('hidden', !visible);
+}
+function renderChipContent() {
+    const table = document.getElementById('chip-table-rows');
+    if (!table) return;
+    if (!cachedChipHistory.length) { table.innerHTML = '<div class="text-center py-6 text-gray-500 text-xs">暫無籌碼資料</div>'; return; }
+    let foreignHolding = 0, trustHolding = 0, dealerHolding = 0;
+    const rows = [...cachedChipHistory].reverse().map(row => {
+        const institutional = row.institutional || {};
+        const foreign = Number(institutional.foreignNet ?? row.foreignNet ?? 0) / 1000;
+        const trust = Number(institutional.investmentTrustNet ?? row.investmentTrustNet ?? 0) / 1000;
+        const dealer = Number(institutional.dealerNet ?? row.dealerNet ?? 0) / 1000;
+        foreignHolding += foreign; trustHolding += trust; dealerHolding += dealer;
+        return { date: row.date || '—', foreign, trust, dealer, total: foreign + trust + dealer, foreignHolding, trustHolding, dealerHolding };
+    });
+    const signed = value => `${value > 0 ? '+' : ''}${Math.round(value).toLocaleString('zh-TW')}`;
+    const color = value => value > 0 ? 'text-[#ef4444]' : value < 0 ? 'text-[#22c55e]' : 'text-gray-400';
+    table.innerHTML = rows.map(row => {
+        const values = currentChipTab === 'holding' ? [row.foreignHolding, row.trustHolding, row.dealerHolding, row.foreignHolding + row.trustHolding + row.dealerHolding] : [row.foreign, row.trust, row.dealer, row.total];
+        return `<div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center border-b border-white/5"><div class="text-gray-300 font-medium">${String(row.date).replace(/-/g, '/')}</div>${values.map(value => `<div class="font-semibold ${color(value)}">${signed(value)}</div>`).join('')}</div>`;
+    }).join('');
+}
+function renderChipData(data, history) {
+    cachedChipLatest = data || null; cachedChipHistory = history?.history || data?.history || [];
+    const date = data?.date || cachedChipHistory[0]?.date || '—';
+    setMetric('chip-date', date); setMetric('chip-source-note', `資料來源：TWSE / TPEx 官方資料 · 交易日 ${date}`);
+    const margin = data?.margin || cachedChipHistory[0]?.margin || {};
+    setMetric('margin-financing', Number.isFinite(Number(margin.financingBalance)) ? `${Math.round(Number(margin.financingBalance) / 1000).toLocaleString('zh-TW')} 張` : '—');
+    setMetric('margin-financing-change', Number.isFinite(Number(margin.financingChange)) ? `${Number(margin.financingChange) >= 0 ? '+' : ''}${Math.round(Number(margin.financingChange) / 1000).toLocaleString('zh-TW')} 張` : '—');
+    setMetric('margin-short', Number.isFinite(Number(margin.shortBalance)) ? `${Math.round(Number(margin.shortBalance) / 1000).toLocaleString('zh-TW')} 張` : '—');
+    setMetric('margin-short-change', Number.isFinite(Number(margin.shortChange)) ? `${Number(margin.shortChange) >= 0 ? '+' : ''}${Math.round(Number(margin.shortChange) / 1000).toLocaleString('zh-TW')} 張` : '—');
+    renderChipContent();
+}
 
 // ============================================================
 // 自選股清單
@@ -364,9 +498,25 @@ async function fetchTwseChipHistory(symbol) {
 
 async function fetchFinnhubWorker(symbol, endpoint, params = {}) {
     const query = new URLSearchParams({ source: 'finnhub', symbol: finnhubSymbol(symbol), endpoint, ...params });
+    const cacheKey = query.toString();
+    const ttl = endpoint === 'quote' ? 30_000 : 6 * 60 * 60 * 1000;
+    const cached = finnhubCache.get(cacheKey);
+    if (cached && Date.now() - cached.time < ttl) return cached.data;
+    if (Date.now() < finnhubBackoffUntil) {
+        if (cached) return cached.data;
+        throw new Error('FINNHUB_RATE_LIMITED');
+    }
     const res = await fetch(`${WORKER_URL}/?${query.toString()}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`FINNHUB_PROXY_${res.status}`);
-    return await res.json();
+    if (!res.ok) {
+        if (res.status === 429) {
+            const retryAfter = Number(res.headers.get('retry-after'));
+            finnhubBackoffUntil = Date.now() + (Number.isFinite(retryAfter) ? retryAfter * 1000 : 60_000);
+        }
+        throw new Error(`FINNHUB_PROXY_${res.status}`);
+    }
+    const data = await res.json();
+    finnhubCache.set(cacheKey, { data, time: Date.now() });
+    return data;
 }
 
 async function fetchFinnhubQuote(symbol) {
@@ -992,7 +1142,7 @@ function startAutoRefresh() {
             if (currentSymbol) loadStock(currentSymbol, true);
             fetchMarketIndices();
         }
-    }, Math.max(AUTO_REFRESH_INTERVAL, 3000));
+    }, Math.max(AUTO_REFRESH_INTERVAL, 30_000));
 }
 function stopAutoRefresh() { if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; } }
 function restartAutoRefresh() { stopAutoRefresh(); if (currentSymbol) startAutoRefresh(); }
