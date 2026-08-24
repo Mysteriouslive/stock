@@ -119,11 +119,12 @@ export default {
       const code = symbolParam.replace(/\.(TW|TWO)$/i, '').trim();
       if (!/^\d{4,6}$/.test(code)) return jsonResponse({ error: 'Taiwan stock code required' }, 400);
 
-      const days = source === 'twse_chip_history' ? Math.min(Math.max(Number(url.searchParams.get('days')) || 15, 5), 15) : 7;
+      const days = source === 'twse_chip_history' ? Math.min(Math.max(Number(url.searchParams.get('days')) || 15, 5), 30) : 7;
 
       // 修正:改用「循序嘗試、抓滿即停」取代一次全部平行送出，
       // 避免同時對 TWSE/TPEx 發出過多請求觸發限流或超過 Worker 執行時間。
-      const maxLookback = days + 10; // 最多回溯天數上限(涵蓋假日)
+      // 回溯緩衝加大到 days*1.5+10，涵蓋連續假期(如春節)造成的多日無交易資料狀況。
+      const maxLookback = Math.ceil(days * 1.5) + 10;
       const candidates = recentTradingDates(maxLookback);
       const validList = [];
       const BATCH_SIZE = 4; // 每批平行請求的日期數，兼顧速度與限流風險
@@ -381,22 +382,32 @@ async function fetchTpexInstitutional(date) {
   return result;
 }
 
-// 修正:比對前先清除欄位名稱中的空白，避免因全形/半形空白差異而抓不到欄位索引
+// 修正核心 bug:TWSE MI_MARGN (selectType=ALL) 回傳的欄位固定為
+// ["代號","名稱","買進","賣出","現金(券)償還","前日餘額","今日餘額","次一營業日限額",
+//  "買進","賣出","現券償還","前日餘額","今日餘額","次一營業日限額","資券互抵","註記"]
+// 融資與融券的「前日餘額」「今日餘額」欄位名稱完全相同、本身不含「融資」「融券」字樣，
+// 只能靠出現順序區分：第一次出現＝融資群組，第二次出現＝融券群組(官方固定順序：資在前、券在後)。
+// 原本用 findIndex('融資', '今日餘額') 這種名稱比對永遠找不到融資欄位，導致融資餘額顯示為 null，
+// 融券餘額卻誤抓到本屬於融資的數值。
 function parseMarginRow(fields, row) {
   const cleanFields = fields.map(f => String(f || '').replace(/\s+/g, ''));
-  const findIndex = (group, label) => cleanFields.findIndex(field => field.includes(group) && field.includes(label));
 
-  const financingBalance = findIndex('融資', '今日餘額');
-  const shortBalance = cleanFields.findIndex((field, index) => field.includes('今日餘額') && index > financingBalance);
-  const financingPrevious = findIndex('融資', '前日餘額');
-  const shortPrevious = cleanFields.findIndex((field, index) => field.includes('前日餘額') && index > financingPrevious);
+  const findAllIndexes = (label) => cleanFields.reduce((acc, field, index) => {
+    if (field.includes(label)) acc.push(index);
+    return acc;
+  }, []);
+
+  const [financingBalance, shortBalance] = findAllIndexes('今日餘額');
+  const [financingPrevious, shortPrevious] = findAllIndexes('前日餘額');
+
+  const has = (index) => Number.isInteger(index) && index >= 0;
 
   return {
     name: String(row[1] || '').trim(),
-    financingBalance: financingBalance >= 0 ? parseNumber(row[financingBalance]) : null,
-    financingChange: financingBalance >= 0 && financingPrevious >= 0 ? parseNumber(row[financingBalance]) - parseNumber(row[financingPrevious]) : null,
-    shortBalance: shortBalance >= 0 ? parseNumber(row[shortBalance]) : null,
-    shortChange: shortBalance >= 0 && shortPrevious >= 0 ? parseNumber(row[shortBalance]) - parseNumber(row[shortPrevious]) : null
+    financingBalance: has(financingBalance) ? parseNumber(row[financingBalance]) : null,
+    financingChange: has(financingBalance) && has(financingPrevious) ? parseNumber(row[financingBalance]) - parseNumber(row[financingPrevious]) : null,
+    shortBalance: has(shortBalance) ? parseNumber(row[shortBalance]) : null,
+    shortChange: has(shortBalance) && has(shortPrevious) ? parseNumber(row[shortBalance]) - parseNumber(row[shortPrevious]) : null
   };
 }
 

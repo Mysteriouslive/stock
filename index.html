@@ -203,19 +203,24 @@
             <!-- K 線圖表區塊 -->
             <div id="chart-card" class="glass rounded-2xl p-3 md:p-4 relative mb-5">
                 <div class="flex items-center justify-between gap-2 px-1 pb-3 shrink-0">
-                    <div class="flex items-center gap-1 flex-wrap">
-                        <span class="text-[11px] text-gray-500 mr-1">K線</span>
-                        <button class="period-btn" data-interval="1m" data-range="1d" onclick="changePeriod(this)">1分K</button>
-                        <button class="period-btn active" data-interval="5m" data-range="5d" onclick="changePeriod(this)">5分K</button>
-                        <button class="period-btn" data-interval="15m" data-range="1mo" onclick="changePeriod(this)">15分K</button>
-                        <button class="period-btn" data-interval="30m" data-range="1mo" onclick="changePeriod(this)">30分K</button>
-                        <button class="period-btn" data-interval="60m" data-range="3mo" onclick="changePeriod(this)">60分K</button>
-                        <button class="period-btn" data-interval="1d" data-range="6mo" onclick="changePeriod(this)">日K</button>
-                        <button class="period-btn" data-interval="1wk" data-range="2y" onclick="changePeriod(this)">週K</button>
-                        <button class="period-btn" data-interval="1mo" data-range="max" onclick="changePeriod(this)">月K</button>
+                    <div class="flex items-center gap-2">
+                        <!-- 週期下拉選單 -->
+                        <select id="period-dropdown" onchange="changePeriodDropdown(this.value)" 
+                                class="bg-white/5 border border-white/10 text-blue-400 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500/50 cursor-pointer">
+                            <option value="1m|1d">1分K</option>
+                            <option value="5m|5d" selected>5分K</option>
+                            <option value="15m|1mo">15分K</option>
+                            <option value="30m|1mo">30分K</option>
+                            <option value="60m|3mo">60分K</option>
+                            <option value="1d|6mo">日K</option>
+                            <option value="1wk|2y">週K</option>
+                            <option value="1mo|max">月K</option>
+                        </select>
                         <span class="session-legend session-pre">盤前</span>
                         <span class="session-legend session-post">盤後</span>
                     </div>
+
+                    <!-- 技術指標工具列 -->
                     <div class="chart-tools" aria-label="圖表工具">
                         <button type="button" class="chart-tool-btn active" data-indicator="volume" onclick="toggleChartIndicator('volume', this)">VOL</button>
                         <button type="button" class="chart-tool-btn" data-indicator="ma5" onclick="toggleChartIndicator('ma5', this)">MA5</button>
@@ -223,11 +228,12 @@
                         <button type="button" class="chart-tool-btn" data-indicator="ma20" onclick="toggleChartIndicator('ma20', this)">MA20</button>
                         <button type="button" class="chart-tool-btn" data-indicator="ma60" onclick="toggleChartIndicator('ma60', this)">MA60</button>
                         <button type="button" class="chart-tool-btn" data-indicator="bollinger" onclick="toggleChartIndicator('bollinger', this)">BB</button>
-                        <button type="button" class="chart-tool-btn" onclick="resetChartView()">↺</button>
-                        <button type="button" class="chart-tool-btn" onclick="toggleChartFullscreen()">⛶</button>
+                        <button type="button" class="chart-tool-btn" onclick="resetChartView()" title="重置縮放">↺</button>
+                        <button type="button" class="chart-tool-btn" onclick="toggleChartFullscreen()" title="全螢幕">⛶</button>
                     </div>
-                    <span id="chart-status" class="text-[10px] text-gray-500">載入中</span>
+                    <span id="chart-status" class="text-[10px] text-gray-500 hidden sm:inline-block">載入中</span>
                 </div>
+                
                 <div id="chart-container" class="w-full h-full min-h-[330px]"></div>
                 <div id="chart-volume-readout" class="chart-volume-readout">交易量 —</div>
                 <div id="chart-crosshair-tooltip" class="chart-crosshair-tooltip" aria-live="polite"></div>
