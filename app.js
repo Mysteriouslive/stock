@@ -1170,69 +1170,6 @@ function initChart() {
     setupChartResize();
     updateVisibleSubPanes();
     return true;
-}function initChart() {
-    const mainEl = document.getElementById('pane-main');
-    const volEl = document.getElementById('pane-vol');
-    const kdEl = document.getElementById('pane-kd');
-    const rsiEl = document.getElementById('pane-rsi');
-    const macdEl = document.getElementById('pane-macd');
-
-    if (!mainEl || typeof LightweightCharts === 'undefined' || mainChart) return false;
-
-    // 1. 初始化各獨立圖表實例
-    mainChart = createBaseChart(mainEl, false);
-    volChart = createBaseChart(volEl, false);
-    kdChart = createBaseChart(kdEl, true);
-    rsiChart = createBaseChart(rsiEl, true);
-    macdChart = createBaseChart(macdEl, true);
-
-    // 2. 主圖 Series (使用標準 addCandlestickSeries / addLineSeries)
-    candlestickSeries = mainChart.addCandlestickSeries({
-        upColor: '#ef4444', downColor: '#10b981', borderVisible: true,
-        borderUpColor: '#ef4444', borderDownColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
-    });
-    ma5Series = mainChart.addLineSeries({ color: '#fb7185', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
-    ma20Series = mainChart.addLineSeries({ color: '#f59e0b', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
-    ma60Series = mainChart.addLineSeries({ color: '#38bdf8', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false });
-    upperBandSeries = mainChart.addLineSeries({ color: 'rgba(168,85,247,0.7)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-    lowerBandSeries = mainChart.addLineSeries({ color: 'rgba(168,85,247,0.7)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
-
-    // 3. 成交量 Series
-    volSeries = volChart.addHistogramSeries({ priceFormat: { type: 'volume' } });
-
-    // 4. KD Series
-    kdSeriesK = kdChart.addLineSeries({ color: '#38bdf8', lineWidth: 1.5, priceLineVisible: false });
-    kdSeriesD = kdChart.addLineSeries({ color: '#f87171', lineWidth: 1.5, priceLineVisible: false });
-
-    // 5. RSI Series
-    rsiSeries = rsiChart.addLineSeries({ color: '#c084fc', lineWidth: 1.5, priceLineVisible: false });
-
-    // 6. MACD Series
-    macdHistSeries = macdChart.addHistogramSeries({ priceLineVisible: false });
-    macdLineSeries = macdChart.addLineSeries({ color: '#38bdf8', lineWidth: 1.5, priceLineVisible: false });
-    macdSignalSeries = macdChart.addLineSeries({ color: '#f87171', lineWidth: 1.5, priceLineVisible: false });
-
-    // 7. 多圖時間軸毫秒級雙向同步
-    const allCharts = [mainChart, volChart, kdChart, rsiChart, macdChart];
-    allCharts.forEach(sourceChart => {
-        sourceChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
-            if (isSyncingTimeScale || !range) return;
-            isSyncingTimeScale = true;
-            allCharts.forEach(targetChart => {
-                if (targetChart !== sourceChart) {
-                    try { targetChart.timeScale().setVisibleLogicalRange(range); } catch {}
-                }
-            });
-            isSyncingTimeScale = false;
-        });
-    });
-
-    // 8. 準心 HUD 同步監聽
-    allCharts.forEach(c => c.subscribeCrosshairMove(updateCrosshairHUD));
-
-    setupChartResize();
-    updateVisibleSubPanes();
-    return true;
 }
 
 // 動態切換副圖顯示並管理最底層時間軸標籤
