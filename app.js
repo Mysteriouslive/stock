@@ -3,6 +3,58 @@ const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
 let AUTO_REFRESH_INTERVAL = Number(localStorage.getItem('stockRefreshRate')) || 10000;
 
 // ============================================================
+// 全域變數宣告 (置頂避免 ReferenceError)
+// ============================================================
+let mainChart = null, volChart = null, kdChart = null, rsiChart = null, macdChart = null;
+let candlestickSeries = null, ma5Series = null, ma20Series = null, ma60Series = null, upperBandSeries = null, lowerBandSeries = null;
+let volSeries = null;
+let kdSeriesK = null, kdSeriesD = null;
+let rsiSeries = null;
+let macdHistSeries = null, macdLineSeries = null, macdSignalSeries = null;
+let sessionMarkers = null, currentChartData = [], isSyncingTimeScale = false;
+let autoRefreshTimer = null, isLoadingStock = false;
+let chartAtRightEdge = true;
+
+const mainIndicatorsState = { ma: true, bollinger: false };
+const subIndicatorsState = { kd: true, rsi: false, macd: false };
+
+let watchlist = JSON.parse(localStorage.getItem('stockWatchlist') || 'null') || [
+    { symbol: 'AMD', name: '超微', color: 'orange' },
+    { symbol: 'USDTWD', name: '美元/台幣匯率', color: 'blue' },
+    { symbol: 'BTC', name: '比特幣', color: 'yellow' },
+    { symbol: '2330.TW', name: '台積電', color: 'cyan' }
+];
+let quoteCache = JSON.parse(localStorage.getItem('stockQuoteCache') || '{}');
+let sortMode = localStorage.getItem('stockSortMode') || 'manual';
+let currentSymbol = localStorage.getItem('stockCurrentSymbol') || (watchlist.length > 0 ? watchlist[0].symbol : null);
+let currentPeriod = { interval: '1d', range: '6mo', label: '日K' };
+
+const COLOR_KEYS = ['orange', 'blue', 'green', 'cyan', 'purple', 'pink', 'yellow', 'red'];
+const COLOR_MAP = { orange: 'bg-orange-500/20 text-orange-400', blue: 'bg-blue-500/20 text-blue-400', green: 'bg-green-500/20 text-green-400', cyan: 'bg-cyan-500/20 text-cyan-400', purple: 'bg-purple-500/20 text-purple-400', pink: 'bg-pink-500/20 text-pink-400', yellow: 'bg-yellow-500/20 text-yellow-400', red: 'bg-red-500/20 text-red-400' };
+
+const INDICES_CONFIG = [
+    { id: 'twii', symbol: '^TWII' },
+    { id: 'soxx', symbol: 'SOXX' },
+    { id: 'ixic', symbol: '^IXIC' },
+    { id: 'gspc', symbol: '^GSPC' }
+];
+
+const SPECIAL_NAME_MAP = {
+    '^TWII': '加權指數',
+    '^TWOII': '櫃買指數',
+    'SOXX': '費城半導體 ETF',
+    '^IXIC': '那斯達克綜合指數',
+    '^GSPC': '標普 500 指數',
+    '^DJI': '道瓊工業指數',
+    '^SOX': '費城半導體指數'
+};
+
+let currentChipTab = 'flow';
+let cachedChipHistory = [];
+let cachedChipLatest = null;
+let isDarkMode = localStorage.getItem('stockThemeMode') !== 'light';
+
+// ============================================================
 // Symbol 工具
 // ============================================================
 function isIndexSymbol(symbol) { return String(symbol || '').trim().toUpperCase().startsWith('^'); }
@@ -342,10 +394,6 @@ function setChipVisibility(visible) {
 // ============================================================
 // 三大法人與持股走勢
 // ============================================================
-let currentChipTab = 'flow';
-let cachedChipHistory = [];
-let cachedChipLatest = null;
-
 function switchChipTab(tab) {
     currentChipTab = tab;
     const flowBtn = document.getElementById('chip-tab-flow');
@@ -623,7 +671,7 @@ function jumpToSection(id, button) {
 }
 
 function resetFundamentals() {
-    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth', 'metric-forward-pe', 'metric-peg', 'metric-ev-ebitda', 'metric-shares'].forEach(id => setMetric(id, '—'));
+    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth'].forEach(id => setMetric(id, '—'));
     setMetric('fundamentals-status', '—');
     const subtitle = document.getElementById('fundamentals-subtitle'); if (subtitle) subtitle.textContent = 'Finnhub · Fundamental Metrics';
 }
@@ -686,36 +734,8 @@ function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
     setCompanyField('company-price', quote?.latestPrice || '—');
 }
 
-function renderFinnhubCompanyInfo(profile, symbol, quote) {
-    const p = profile || {};
-    setCompanyField('company-long-name', p.name || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol));
-    setCompanyField('company-exchange', p.exchange || '—'); setCompanyField('company-market', p.finnhubIndustry || '—'); setCompanyField('company-currency', p.currency || '—');
-    setCompanyField('company-type', p.shareClassFIGI ? '股票' : '—'); setCompanyField('company-market-state', 'Finnhub 即時資料');
-    setCompanyField('company-symbol', displaySymbol(symbol)); setCompanyField('company-price', quote?.latestPrice || '—');
-}
-
 function setCompanyField(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
 function toggleCompanyInfo() { document.getElementById('overview-card')?.classList.toggle('collapsed'); }
-
-// ============================================================
-// 大盤核心指數看板配置
-// ============================================================
-const INDICES_CONFIG = [
-    { id: 'twii', symbol: '^TWII' },
-    { id: 'soxx', symbol: 'SOXX' },
-    { id: 'ixic', symbol: '^IXIC' },
-    { id: 'gspc', symbol: '^GSPC' }
-];
-
-const SPECIAL_NAME_MAP = {
-    '^TWII': '加權指數',
-    '^TWOII': '櫃買指數',
-    'SOXX': '費城半導體 ETF',
-    '^IXIC': '那斯達克綜合指數',
-    '^GSPC': '標普 500 指數',
-    '^DJI': '道瓊工業指數',
-    '^SOX': '費城半導體指數'
-};
 
 async function fetchMarketIndices() {
     for (const idx of INDICES_CONFIG) {
@@ -735,24 +755,6 @@ async function fetchMarketIndices() {
         } catch (e) {}
     }
 }
-
-// ============================================================
-// Watchlist Management
-// ============================================================
-let watchlist = JSON.parse(localStorage.getItem('stockWatchlist') || 'null') || [
-    { symbol: 'AMD', name: '超微', color: 'orange' },
-    { symbol: 'USDTWD', name: '美元/台幣匯率', color: 'blue' },
-    { symbol: 'BTC', name: '比特幣', color: 'yellow' },
-    { symbol: '2330.TW', name: '台積電', color: 'cyan' }
-];
-let quoteCache = JSON.parse(localStorage.getItem('stockQuoteCache') || '{}');
-let sortMode = localStorage.getItem('stockSortMode') || 'manual';
-let currentSymbol = localStorage.getItem('stockCurrentSymbol') || (watchlist.length > 0 ? watchlist[0].symbol : null);
-
-let currentPeriod = { interval: '1d', range: '6mo', label: '日K' };
-
-const COLOR_KEYS = ['orange', 'blue', 'green', 'cyan', 'purple', 'pink', 'yellow', 'red'];
-const COLOR_MAP = { orange: 'bg-orange-500/20 text-orange-400', blue: 'bg-blue-500/20 text-blue-400', green: 'bg-green-500/20 text-green-400', cyan: 'bg-cyan-500/20 text-cyan-400', purple: 'bg-purple-500/20 text-purple-400', pink: 'bg-pink-500/20 text-pink-400', yellow: 'bg-yellow-500/20 text-yellow-400', red: 'bg-red-500/20 text-red-400' };
 
 function saveWatchlist() {
     localStorage.setItem('stockWatchlist', JSON.stringify(watchlist));
@@ -932,7 +934,6 @@ function initChart() {
     mainChart = createBaseChart(mainEl);
     volChart = createBaseChart(volEl);
     
-    // 設定成交量獨立 PriceScale 邊界 (滿版呈現)
     volChart.priceScale('right').applyOptions({
         scaleMargins: { top: 0.05, bottom: 0.02 }
     });
@@ -991,7 +992,6 @@ function initChart() {
     return true;
 }
 
-// 鍵盤 +- 縮放多圖聯動引擎
 function setupChartKeyboard() {
     window.addEventListener('keydown', event => {
         if (document.activeElement?.tagName === 'INPUT' || !mainChart) return;
@@ -1022,7 +1022,6 @@ function setupChartKeyboard() {
     });
 }
 
-// 切換副圖時固定緊湊尺寸 (主圖300px, 量能65px, KD/RSI各75px, MACD 80px)
 function updateVisibleSubPanes() {
     const kdWrap = document.getElementById('pane-kd-wrap');
     const rsiWrap = document.getElementById('pane-rsi-wrap');
@@ -1088,7 +1087,6 @@ function updateChartIndicators(data) {
     if (lastItem) updateChartHUD(lastItem);
 }
 
-// HUD 成交量精準解析
 function updateChartHUD(candle, timeStr) {
     if (!candle) return;
     const date = getChartDate(candle.time);
@@ -1445,8 +1443,6 @@ function setupIndexStripScroll() {
 // ============================================================
 // 日夜模式 (Dark / Light Mode)
 // ============================================================
-let isDarkMode = localStorage.getItem('stockThemeMode') !== 'light';
-
 function toggleDarkMode() {
     isDarkMode = !isDarkMode;
     localStorage.setItem('stockThemeMode', isDarkMode ? 'dark' : 'light');
