@@ -56,18 +56,7 @@ let isDarkMode = localStorage.getItem('stockThemeMode') !== 'light';
 let sortableInstance = null;
 
 // ============================================================
-// 取得所有啟用的 Chart
-// ============================================================
-function getAllActiveCharts() {
-    const list = [mainChart, volChart];
-    if (subIndicatorsState.kd && kdChart) list.push(kdChart);
-    if (subIndicatorsState.rsi && rsiChart) list.push(rsiChart);
-    if (subIndicatorsState.macd && macdChart) list.push(macdChart);
-    return list.filter(Boolean);
-}
-
-// ============================================================
-// Symbol 工具
+// 1. Symbol 工具函式
 // ============================================================
 function isIndexSymbol(symbol) { return String(symbol || '').trim().toUpperCase().startsWith('^'); }
 function isForexSymbol(symbol) { const s = String(symbol || '').toUpperCase().trim(); return s === 'USDTWD' || s === 'USD/TWD' || s === 'USDTWD=X'; }
@@ -88,7 +77,7 @@ function displaySymbol(symbol) { return String(symbol || '').replace(/\.(TW|TWO)
 function finnhubSymbol(symbol) { const displayed = displaySymbol(symbol); return isTaiwanSymbol(symbol) ? `${displayed}.TW` : displayed; }
 
 // ============================================================
-// 資料格式化工具
+// 2. 資料格式化與 DOM 輔助
 // ============================================================
 function setText(id, value) { const el = document.getElementById(id); if (el) el.textContent = value; }
 function setMetric(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
@@ -143,149 +132,251 @@ function formatChartTooltipTime(time) {
     return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
+function setCompanyField(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
+function toggleCompanyInfo() { document.getElementById('overview-card')?.classList.toggle('collapsed'); }
+
 // ============================================================
-// Watchlist 與 排序功能 (提前定義)
+// 3. 核心 API 請求
 // ============================================================
-function saveWatchlist() {
-    localStorage.setItem('stockWatchlist', JSON.stringify(watchlist));
-    localStorage.setItem('stockSortMode', sortMode);
-    localStorage.setItem('stockQuoteCache', JSON.stringify(quoteCache));
-    if (currentSymbol) localStorage.setItem('stockCurrentSymbol', currentSymbol);
+async function fetchTwseName(code) {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=twse_name&symbol=${encodeURIComponent(displaySymbol(code))}`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        return (await res.json())?.name || null;
+    } catch { return null; }
 }
 
-function sortedWatchlist() {
-    const arr = [...watchlist];
-    if (sortMode === 'manual') return arr;
-    const getNumber = stock => Number(String(quoteCache[stock.symbol]?.latestPrice ?? '').replace(/,/g, ''));
-    const getChange = stock => Number(quoteCache[stock.symbol]?.changePercent ?? NaN);
-    arr.sort((a, b) => {
-        let av, bv;
-        switch (sortMode) {
-            case 'symbol-asc': return a.symbol.localeCompare(b.symbol, undefined, { numeric: true });
-            case 'symbol-desc': return b.symbol.localeCompare(a.symbol, undefined, { numeric: true });
-            case 'name-asc': return (a.name || a.symbol).localeCompare(b.name || b.symbol, 'zh-Hant');
-            case 'name-desc': return (b.name || b.symbol).localeCompare(a.name || a.symbol, 'zh-Hant');
-            case 'price-asc': av = getNumber(a); bv = getNumber(b); return (Number.isNaN(av) ? Infinity : av) - (Number.isNaN(bv) ? Infinity : bv);
-            case 'price-desc': av = getNumber(a); bv = getNumber(b); return (Number.isNaN(bv) ? -Infinity : bv) - (Number.isNaN(av) ? -Infinity : av);
-            case 'change-asc': av = getChange(a); bv = getChange(b); return (Number.isNaN(av) ? Infinity : av) - (Number.isNaN(bv) ? Infinity : bv);
-            case 'change-desc': av = getChange(a); bv = getChange(b); return (Number.isNaN(bv) ? -Infinity : bv) - (Number.isNaN(av) ? -Infinity : av);
-            default: return 0;
+async function fetchTwseMetrics(symbol) {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=twse_metrics&symbol=${encodeURIComponent(displaySymbol(symbol))}`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch { return null; }
+}
+
+async function fetchTwseChipData(symbol) {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=twse_chip&symbol=${encodeURIComponent(displaySymbol(symbol))}`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch { return null; }
+}
+
+async function fetchTwseChipHistory(symbol) {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=twse_chip_history&symbol=${encodeURIComponent(displaySymbol(symbol))}&days=15`, { cache: 'no-store' });
+        if (!res.ok) return null;
+        return await res.json();
+    } catch { return null; }
+}
+
+async function fetchFinnhubWorker(symbol, endpoint, params = {}) {
+    const query = new URLSearchParams({ source: 'finnhub', symbol: finnhubSymbol(symbol), endpoint, ...params });
+    const res = await fetch(`${WORKER_URL}/?${query.toString()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`FINNHUB_PROXY_${res.status}`);
+    return await res.json();
+}
+
+async function fetchFinnhubQuote(symbol) {
+    const data = await fetchFinnhubWorker(symbol, 'quote');
+    if (data?.c == null || Number(data.c) <= 0) throw new Error('FINNHUB_NO_QUOTE');
+    const current = Number(data.c), previous = Number(data.pc);
+    if (!Number.isFinite(previous) || previous <= 0) throw new Error('FINNHUB_NO_PREVIOUS_CLOSE');
+    const change = current - previous;
+    return {
+        latestPrice: formatPrice(current, symbol),
+        change: change.toFixed(isForexSymbol(symbol) ? 4 : 2),
+        changePercent: ((change / previous) * 100).toFixed(2),
+        isUp: change > 0, isFlat: change === 0,
+        open: formatPrice(data.o, symbol), high: formatPrice(data.h, symbol),
+        low: formatPrice(data.l, symbol), previousClose: formatPrice(previous, symbol), volume: '—'
+    };
+}
+
+async function fetchFinnhubCompanyProfile(symbol) { return await fetchFinnhubWorker(symbol, 'profile2').catch(() => null); }
+async function fetchFinnhubMetrics(symbol) { return await fetchFinnhubWorker(symbol, 'metric', { metric: 'all' }).catch(() => null); }
+
+async function fetchForexData() {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=forex`, { cache: 'no-store' });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data) throw new Error(data?.error || `FOREX_HTTP_${res.status}`);
+        const rate = Number(data.rate ?? data.rates?.TWD);
+        if (!Number.isFinite(rate) || rate <= 0) throw new Error('FOREX_NO_RATE');
+        return { rate, changePercent: Number(data.changePercent ?? data.change_percent ?? data.percentChange ?? NaN), source: data.source || 'Frankfurter' };
+    } catch { return null; }
+}
+
+async function fetchCryptoData() {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=crypto`, { cache: 'no-store' });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data || data.error) throw new Error(data?.error || `CRYPTO_HTTP_${res.status}`);
+        return data;
+    } catch { return null; }
+}
+
+async function fetchYahooData(symbol, interval = currentPeriod.interval, range = currentPeriod.range) {
+    let yahooSymbol = toYahooSymbol(symbol);
+    const callApi = async (sym) => {
+        const url = `${WORKER_URL}/?symbol=${encodeURIComponent(sym)}&interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}`;
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error('YAHOO_FAILED');
+        const json = await res.json();
+        if (json?.error) throw new Error(json.error);
+        const result = json.chart?.result?.[0];
+        if (!result) throw new Error(json.chart?.error?.description || 'NO_YAHOO_DATA');
+        return result;
+    };
+
+    try {
+        return await callApi(yahooSymbol);
+    } catch (err) {
+        if (/^\d{4,6}\.TW$/i.test(yahooSymbol)) {
+            const fallbackSym = yahooSymbol.replace(/\.TW$/i, '.TWO');
+            try {
+                const res = await callApi(fallbackSym);
+                const item = watchlist.find(s => s.symbol === symbol);
+                if (item) { item.symbol = fallbackSym; saveWatchlist(); }
+                if (currentSymbol === symbol) currentSymbol = fallbackSym;
+                return res;
+            } catch {}
+        } else if (/^\d{4,6}\.TWO$/i.test(yahooSymbol)) {
+            const fallbackSym = yahooSymbol.replace(/\.TWO$/i, '.TW');
+            try {
+                const res = await callApi(fallbackSym);
+                const item = watchlist.find(s => s.symbol === symbol);
+                if (item) { item.symbol = fallbackSym; saveWatchlist(); }
+                if (currentSymbol === symbol) currentSymbol = fallbackSym;
+                return res;
+            } catch {}
         }
-    });
-    return arr;
+        throw err;
+    }
 }
 
-function renderWatchlist() {
-    const listEl = document.getElementById('stock-list');
-    if (!listEl) return;
-    listEl.innerHTML = '';
-    const sorted = sortedWatchlist();
-    if (sorted.length === 0) { listEl.innerHTML = `<p class="text-center text-gray-600 text-sm py-8">尚未新增任何股票</p>`; return; }
-
-    sorted.forEach(stock => {
-        const colorClass = COLOR_MAP[stock.color] || COLOR_MAP.blue, quote = quoteCache[stock.symbol], btn = document.createElement('button');
-        btn.className = `stock-btn w-full text-left px-3 py-2.5 rounded-xl text-gray-400 flex items-center gap-2 group ${currentSymbol === stock.symbol ? 'bg-white/10 text-white' : ''}`;
-        btn.dataset.symbol = stock.symbol; btn.onclick = () => loadStock(stock.symbol);
-        const priceText = quote?.latestPrice ? `<span class="text-[10px] text-gray-400">${quote.latestPrice}</span>` : '';
-        const changeNumber = Number(quote?.changePercent);
-        const changeText = quote?.changePercent != null && Number.isFinite(changeNumber) ? `<span class="text-[10px] ${changeNumber >= 0 ? 'price-up' : 'price-down'}">${changeNumber >= 0 ? '+' : ''}${changeNumber.toFixed(2)}%</span>` : '';
-        btn.innerHTML = `
-            <span class="drag-handle text-lg px-2 py-1 ${sortMode === 'manual' ? 'cursor-grab hover:text-white' : 'opacity-30'}" title="${sortMode === 'manual' ? '拖曳排序' : '切換到自訂順序後可拖曳'}">⋮</span>
-            <span class="w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center text-[10px] font-bold shrink-0">${displaySymbol(stock.symbol).slice(0, 4)}</span>
-            <div class="flex-1 min-w-0">
-                <div class="font-medium text-sm truncate">${stock.name || displaySymbol(stock.symbol)}</div>
-                <div class="text-[11px] text-gray-500 flex items-center gap-2"><span>${displaySymbol(stock.symbol)}</span>${priceText}${changeText}</div>
-            </div>
-            <button class="delete-btn text-gray-600 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10" onclick="event.stopPropagation(); removeStockBySymbol('${escapeHtmlAttribute(stock.symbol)}')" title="移除">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
-        `;
-        listEl.appendChild(btn);
-    });
-
-    if (!sortableInstance && typeof Sortable !== 'undefined') {
-        sortableInstance = new Sortable(listEl, {
-            animation: 150, handle: '.drag-handle', disabled: sortMode !== 'manual',
-            onEnd(evt) {
-                if (sortMode !== 'manual' || evt.oldIndex == null || evt.newIndex == null) return;
-                const order = [...listEl.children].map(item => item.dataset.symbol).filter(Boolean);
-                const reordered = order.map(symbol => watchlist.find(stock => stock.symbol === symbol)).filter(Boolean);
-                if (reordered.length !== watchlist.length) return;
-                watchlist = reordered;
-                saveWatchlist();
+async function fetchMarketIndices() {
+    for (const idx of INDICES_CONFIG) {
+        try {
+            const data = await fetchYahooData(idx.symbol, '1d', '5d');
+            if (data) {
+                const quote = parseQuote(data, idx.symbol);
+                const priceEl = document.getElementById(`idx-${idx.id}-price`);
+                const changeEl = document.getElementById(`idx-${idx.id}-change`);
+                if (priceEl) priceEl.textContent = quote.latestPrice;
+                if (changeEl) {
+                    const sign = quote.isUp ? '+' : '';
+                    changeEl.textContent = `${sign}${quote.change} (${sign}${quote.changePercent}%)`;
+                    changeEl.className = `text-[10px] mt-0.5 font-medium ${quote.isFlat ? 'text-gray-500' : (quote.isUp ? 'price-up' : 'price-down')}`;
+                }
             }
-        });
-    } else if (sortableInstance) {
-        sortableInstance.option('disabled', sortMode !== 'manual');
+        } catch (e) {}
     }
 }
 
-const SORT_LABELS = { manual: '自訂順序', 'symbol-asc': '代碼 ↑', 'symbol-desc': '代碼 ↓', 'name-asc': '名稱 ↑', 'name-desc': '名稱 ↓', 'price-desc': '價格 ↓', 'price-asc': '價格 ↑', 'change-desc': '漲幅 ↓', 'change-asc': '漲幅 ↑' };
-
-function changeSort(value) {
-    sortMode = value; saveWatchlist(); renderWatchlist();
-    const select = document.getElementById('sort-select'), label = document.getElementById('sort-label');
-    if (select) select.value = value;
-    if (label) label.textContent = SORT_LABELS[value] || SORT_LABELS.manual;
-    document.querySelectorAll('#sort-menu [role="option"]').forEach(option => option.setAttribute('aria-selected', option.dataset.sortValue === value ? 'true' : 'false'));
+// ============================================================
+// 4. 指標演算法與圖表管理
+// ============================================================
+function calculateIndicatorData(data, period, valueGetter, mapper) {
+    const result = [], values = [];
+    data.forEach(item => {
+        values.push(valueGetter(item));
+        if (values.length < period) return;
+        const window = values.slice(-period), average = window.reduce((sum, value) => sum + value, 0) / period;
+        result.push(mapper(item, average, window));
+    });
+    return result;
 }
 
-function toggleSortMenu() {
-    const picker = document.getElementById('sort-picker'), trigger = document.getElementById('sort-trigger');
-    if (!picker || !trigger) return;
-    const open = picker.classList.toggle('open'); trigger.setAttribute('aria-expanded', String(open));
+function calculateKDData(data, n = 9) {
+    const kList = [], dList = [];
+    let prevK = 50, prevD = 50;
+
+    data.forEach((item, idx) => {
+        if (idx < n - 1) {
+            kList.push({ time: item.time, value: 50 });
+            dList.push({ time: item.time, value: 50 });
+            return;
+        }
+
+        const slice = data.slice(idx - n + 1, idx + 1);
+        const highest = Math.max(...slice.map(d => d.high));
+        const lowest = Math.min(...slice.map(d => d.low));
+        const rsv = highest === lowest ? 50 : ((item.close - lowest) / (highest - lowest)) * 100;
+
+        const currentK = (2 / 3) * prevK + (1 / 3) * rsv;
+        const currentD = (2 / 3) * prevD + (1 / 3) * currentK;
+
+        prevK = currentK;
+        prevD = currentD;
+
+        kList.push({ time: item.time, value: Number(currentK.toFixed(2)) });
+        dList.push({ time: item.time, value: Number(currentD.toFixed(2)) });
+    });
+
+    return { kList, dList };
 }
 
-function selectSortOption(value) { changeSort(value); toggleSortMenu(); }
+function calculateRSIData(data, period = 14) {
+    const result = [];
+    let gains = 0, losses = 0;
 
-async function addStock() {
-    const input = document.getElementById('stock-input');
-    if (!input) return;
-    const raw = input.value.trim().toUpperCase();
-    if (!raw) { input.focus(); return; }
-    if (!/^[A-Z0-9.\-=\/^]+$/.test(raw)) { alert('請輸入有效的代碼，例如 2330、SOXX、USDTWD、BTC、^TWII'); return; }
-
-    let symbol = raw;
-    if (isForexSymbol(raw)) symbol = 'USDTWD';
-    else if (isCryptoSymbol(raw)) symbol = raw.replace('-USD', '');
-    else if (isIndexSymbol(raw)) symbol = raw;
-    else if (/^\d{4,6}$/.test(raw)) {
-        try { const twRes = await fetchYahooData(`${raw}.TW`, '1d', '5d'); if (twRes) symbol = `${raw}.TW`; }
-        catch { try { const twoRes = await fetchYahooData(`${raw}.TWO`, '1d', '5d'); if (twoRes) symbol = `${raw}.TWO`; } catch { symbol = `${raw}.TW`; } }
-    }
-
-    if (watchlist.some(s => s.symbol === symbol || displaySymbol(s.symbol) === displaySymbol(symbol))) { alert(`${displaySymbol(symbol)} 已經在清單中了`); input.value = ''; return; }
-
-    const color = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
-    let name = SPECIAL_NAME_MAP[symbol] || displaySymbol(symbol);
-    if (isForexSymbol(symbol)) name = '美元/台幣匯率';
-    else if (isCryptoSymbol(symbol)) { const cryptoNames = { BTC: '比特幣', ETH: '以太幣', SOL: 'Solana', XRP: 'XRP', ADA: 'Cardano', DOGE: 'Dogecoin', BNB: 'BNB' }; name = cryptoNames[symbol] || symbol; }
-    else if (isTaiwanSymbol(symbol)) name = (await fetchTwseName(displaySymbol(symbol))) || displaySymbol(symbol);
-
-    watchlist.push({ symbol, name, color }); saveWatchlist(); renderWatchlist(); input.value = ''; await loadStock(symbol);
-}
-
-function removeStockBySymbol(symbol) { const index = watchlist.findIndex(s => s.symbol === symbol); if (index >= 0) removeStock(index); }
-
-function removeStock(index) {
-    const removed = watchlist[index]; if (!removed) return;
-    if (!confirm(`確定要移除 ${displaySymbol(removed.symbol)} 嗎？`)) return;
-    watchlist.splice(index, 1); delete quoteCache[removed.symbol]; saveWatchlist(); renderWatchlist();
-    if (currentSymbol === removed.symbol) {
-        currentSymbol = watchlist.length > 0 ? watchlist[0].symbol : null; currentChartData = []; saveWatchlist(); stopAutoRefresh();
-        if (currentSymbol) loadStock(currentSymbol);
-        else {
-            setText('stock-symbol-title', '—'); setText('stock-name', '選擇或新增股票以查看詳情');
-            ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume', 'last-update'].forEach(id => setText(id, '—'));
-            setChipVisibility(false);
-            resetFundamentals();
+    for (let i = 1; i < data.length; i++) {
+        const diff = data[i].close - data[i - 1].close;
+        if (i <= period) {
+            if (diff >= 0) gains += diff; else losses -= diff;
+            if (i === period) {
+                const avgGain = gains / period, avgLoss = losses / period;
+                const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+                result.push({ time: data[i].time, value: 100 - (100 / (1 + rs)) });
+            }
+        } else {
+            const gain = diff >= 0 ? diff : 0;
+            const loss = diff < 0 ? -diff : 0;
+            gains = (gains * (period - 1) + gain) / period;
+            losses = (losses * (period - 1) + loss) / period;
+            const rs = losses === 0 ? 100 : gains / losses;
+            result.push({ time: data[i].time, value: Number((100 - (100 / (1 + rs))).toFixed(2)) });
         }
     }
+    return result;
 }
 
-// ============================================================
-// 獨立多 Panes 實例系統
-// ============================================================
+function calculateMACDData(data) {
+    const closes = data.map(d => d.close);
+    const emaSeries = (period) => {
+        const values = [], alpha = 2 / (period + 1);
+        let val = closes[0];
+        closes.forEach((close, i) => {
+            val = i === 0 ? close : close * alpha + val * (1 - alpha);
+            values.push(val);
+        });
+        return values;
+    };
+
+    const ema12 = emaSeries(12);
+    const ema26 = emaSeries(26);
+    const dif = closes.map((_, i) => ema12[i] - ema26[i]);
+
+    const dea = [];
+    let deaVal = dif[0];
+    const signalAlpha = 2 / 10;
+    dif.forEach((v, i) => {
+        deaVal = i === 0 ? v : v * signalAlpha + deaVal * (1 - signalAlpha);
+        dea.push(deaVal);
+    });
+
+    const histList = [], difList = [], deaList = [];
+    data.forEach((d, i) => {
+        const hist = (dif[i] - dea[i]) * 2;
+        histList.push({ time: d.time, value: Number(hist.toFixed(3)), color: hist >= 0 ? '#ef4444' : '#10b981' });
+        difList.push({ time: d.time, value: Number(dif[i].toFixed(3)) });
+        deaList.push({ time: d.time, value: Number(dea[i].toFixed(3)) });
+    });
+
+    return { histList, difList, deaList };
+}
+
 function createBaseChart(container) {
     const isMobile = window.innerWidth < 768;
     const gridColor = isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
@@ -319,14 +410,10 @@ function initChart() {
 
     if (!mainEl || typeof LightweightCharts === 'undefined' || mainChart) return false;
 
-    // 1. 初始化各獨立圖表實例
+    // 1. 初始化各圖表實例
     mainChart = createBaseChart(mainEl);
     volChart = createBaseChart(volEl);
-    
-    volChart.priceScale('right').applyOptions({
-        scaleMargins: { top: 0.05, bottom: 0.02 }
-    });
-
+    volChart.priceScale('right').applyOptions({ scaleMargins: { top: 0.05, bottom: 0.02 } });
     kdChart = createBaseChart(kdEl);
     rsiChart = createBaseChart(rsiEl);
     macdChart = createBaseChart(macdEl);
@@ -433,96 +520,6 @@ function updateVisibleSubPanes() {
     });
 }
 
-// 指標計算
-function calculateKDData(data, n = 9) {
-    const kList = [], dList = [];
-    let prevK = 50, prevD = 50;
-
-    data.forEach((item, idx) => {
-        if (idx < n - 1) {
-            kList.push({ time: item.time, value: 50 });
-            dList.push({ time: item.time, value: 50 });
-            return;
-        }
-
-        const slice = data.slice(idx - n + 1, idx + 1);
-        const highest = Math.max(...slice.map(d => d.high));
-        const lowest = Math.min(...slice.map(d => d.low));
-        const rsv = highest === lowest ? 50 : ((item.close - lowest) / (highest - lowest)) * 100;
-
-        const currentK = (2 / 3) * prevK + (1 / 3) * rsv;
-        const currentD = (2 / 3) * prevD + (1 / 3) * currentK;
-
-        prevK = currentK;
-        prevD = currentD;
-
-        kList.push({ time: item.time, value: Number(currentK.toFixed(2)) });
-        dList.push({ time: item.time, value: Number(currentD.toFixed(2)) });
-    });
-
-    return { kList, dList };
-}
-
-function calculateRSIData(data, period = 14) {
-    const result = [];
-    let gains = 0, losses = 0;
-
-    for (let i = 1; i < data.length; i++) {
-        const diff = data[i].close - data[i - 1].close;
-        if (i <= period) {
-            if (diff >= 0) gains += diff; else losses -= diff;
-            if (i === period) {
-                const avgGain = gains / period, avgLoss = losses / period;
-                const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-                result.push({ time: data[i].time, value: 100 - (100 / (1 + rs)) });
-            }
-        } else {
-            const gain = diff >= 0 ? diff : 0;
-            const loss = diff < 0 ? -diff : 0;
-            gains = (gains * (period - 1) + gain) / period;
-            losses = (losses * (period - 1) + loss) / period;
-            const rs = losses === 0 ? 100 : gains / losses;
-            result.push({ time: data[i].time, value: Number((100 - (100 / (1 + rs))).toFixed(2)) });
-        }
-    }
-    return result;
-}
-
-function calculateMACDData(data) {
-    const closes = data.map(d => d.close);
-    const emaSeries = (period) => {
-        const values = [], alpha = 2 / (period + 1);
-        let val = closes[0];
-        closes.forEach((close, i) => {
-            val = i === 0 ? close : close * alpha + val * (1 - alpha);
-            values.push(val);
-        });
-        return values;
-    };
-
-    const ema12 = emaSeries(12);
-    const ema26 = emaSeries(26);
-    const dif = closes.map((_, i) => ema12[i] - ema26[i]);
-
-    const dea = [];
-    let deaVal = dif[0];
-    const signalAlpha = 2 / 10;
-    dif.forEach((v, i) => {
-        deaVal = i === 0 ? v : v * signalAlpha + deaVal * (1 - signalAlpha);
-        dea.push(deaVal);
-    });
-
-    const histList = [], difList = [], deaList = [];
-    data.forEach((d, i) => {
-        const hist = (dif[i] - dea[i]) * 2;
-        histList.push({ time: d.time, value: Number(hist.toFixed(3)), color: hist >= 0 ? '#ef4444' : '#10b981' });
-        difList.push({ time: d.time, value: Number(dif[i].toFixed(3)) });
-        deaList.push({ time: d.time, value: Number(dea[i].toFixed(3)) });
-    });
-
-    return { histList, difList, deaList };
-}
-
 function updateChartIndicators(data) {
     if (!data.length) return;
     const close = item => item.close;
@@ -622,7 +619,7 @@ function updateCrosshairHUD(param) {
 }
 
 // ============================================================
-// Load Stock 主流程
+// 5. 標的資料載入主流程
 // ============================================================
 async function loadStock(symbol, isSilent = false) {
     if (!symbol || (isLoadingStock && !isSilent)) return;
@@ -750,7 +747,6 @@ async function loadStock(symbol, isSilent = false) {
             currentChartData = chartData; 
             candlestickSeries.setData(chartData); 
             updateChartIndicators(chartData); 
-            updateSessionMarkers(chartData);
 
             if (!isSilent || chartAtRightEdge) {
                 chartAtRightEdge = true;
@@ -792,13 +788,8 @@ function startAutoRefresh() {
 function stopAutoRefresh() { if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; } }
 function restartAutoRefresh() { stopAutoRefresh(); if (currentSymbol) startAutoRefresh(); }
 
-document.addEventListener('visibilitychange', () => {
-    if (document.hidden) stopAutoRefresh();
-    else if (currentSymbol) { loadStock(currentSymbol, true); fetchMarketIndices(); startAutoRefresh(); }
-});
-
 // ============================================================
-// 微型選單控制
+// 6. 微型選單控制
 // ============================================================
 function togglePeriodMenu() { closeAllMiniMenusExcept('period-picker'); document.getElementById('period-picker')?.classList.toggle('open'); }
 function toggleRangeMenu() { closeAllMiniMenusExcept('range-picker'); document.getElementById('range-picker')?.classList.toggle('open'); }
@@ -814,12 +805,6 @@ function closeAllMiniMenusExcept(exceptId) {
 function closeAllMiniMenus() {
     document.querySelectorAll('.period-picker, .range-picker, #main-indicator-picker, #sub-indicator-picker').forEach(el => el.classList.remove('open'));
 }
-
-document.addEventListener('click', event => {
-    if (!event.target.closest('.period-picker, .range-picker, #main-indicator-picker, #sub-indicator-picker')) {
-        closeAllMiniMenus();
-    }
-});
 
 async function selectPeriodOption(value, label) {
     const [interval, range] = value.split('|');
@@ -917,7 +902,7 @@ function setupIndexStripScroll() {
 }
 
 // ============================================================
-// 日夜模式 (Dark / Light Mode)
+// 7. 日夜模式與偏好設定
 // ============================================================
 function toggleDarkMode() {
     isDarkMode = !isDarkMode;
@@ -953,59 +938,6 @@ function applyDarkModeUI() {
     });
 }
 
-// ============================================================
-// 初始化與事件綁定
-// ============================================================
-window.addEventListener('DOMContentLoaded', async () => {
-    initChart();
-    setupIndexStripScroll();
-    changeSort(sortMode);
-    loadUserPreferences(); 
-    renderWatchlist(); 
-    fetchMarketIndices();
-    
-    for (const stock of watchlist) {
-        if (isTaiwanSymbol(stock.symbol)) {
-            const code = displaySymbol(stock.symbol);
-            if (stock.name === code || !stock.name || /^\d+$/.test(stock.name)) {
-                const fetchedName = await fetchTwseName(code); 
-                if (fetchedName) stock.name = fetchedName;
-            }
-        }
-    }
-    saveWatchlist(); 
-    renderWatchlist();
-
-    if (currentSymbol && watchlist.some(stock => stock.symbol === currentSymbol)) await loadStock(currentSymbol);
-    else if (watchlist.length > 0) { currentSymbol = watchlist[0].symbol; await loadStock(currentSymbol); }
-    startAutoRefresh();
-});
-
-// ============================================================
-// Modal
-// ============================================================
-function toggleModal(modalId, show) {
-    const overlay = document.getElementById('modal-overlay'), modal = document.getElementById(modalId);
-    if (!overlay || !modal) return;
-    if (show) {
-        overlay.classList.remove('modal-closing');
-        if (window.innerWidth < 768) { const sidebar = document.getElementById('sidebar'); if (sidebar) sidebar.classList.remove('open'); }
-        overlay.classList.remove('hidden'); modal.classList.remove('hidden');
-        setTimeout(() => { overlay.classList.remove('opacity-0'); modal.classList.remove('opacity-0', 'scale-95'); }, 10);
-    } else {
-        overlay.classList.add('modal-closing');
-        overlay.classList.add('opacity-0'); modal.classList.add('opacity-0', 'scale-95');
-        setTimeout(() => { overlay.classList.add('hidden'); modal.classList.add('hidden'); }, 300);
-    }
-}
-function openSettingsModal() { toggleModal('settings-modal', true); }
-function openProfileModal() { toggleModal('profile-modal', true); }
-function closeModals() { toggleModal('settings-modal', false); toggleModal('profile-modal', false); }
-window.addEventListener('keydown', event => { if (event.key === 'Escape') closeModals(); });
-
-// ============================================================
-// 主題色與偏好設定
-// ============================================================
 function loadUserPreferences() {
     const savedColorMode = localStorage.getItem('stockKlineColor') || 'red-green';
     const savedRefreshRate = localStorage.getItem('stockRefreshRate') || '10000';
@@ -1046,7 +978,28 @@ function updateChartColors(mode) {
 }
 
 // ============================================================
-// 全域導出 API (頂部全域綁定)
+// 8. Modal 控制
+// ============================================================
+function toggleModal(modalId, show) {
+    const overlay = document.getElementById('modal-overlay'), modal = document.getElementById(modalId);
+    if (!overlay || !modal) return;
+    if (show) {
+        overlay.classList.remove('modal-closing');
+        if (window.innerWidth < 768) { const sidebar = document.getElementById('sidebar'); if (sidebar) sidebar.classList.remove('open'); }
+        overlay.classList.remove('hidden'); modal.classList.remove('hidden');
+        setTimeout(() => { overlay.classList.remove('opacity-0'); modal.classList.remove('opacity-0', 'scale-95'); }, 10);
+    } else {
+        overlay.classList.add('modal-closing');
+        overlay.classList.add('opacity-0'); modal.classList.add('opacity-0', 'scale-95');
+        setTimeout(() => { overlay.classList.add('hidden'); modal.classList.add('hidden'); }, 300);
+    }
+}
+function openSettingsModal() { toggleModal('settings-modal', true); }
+function openProfileModal() { toggleModal('profile-modal', true); }
+function closeModals() { toggleModal('settings-modal', false); toggleModal('profile-modal', false); }
+
+// ============================================================
+// 9. 全域 API 掛載與啟動入口 (置於程式碼最底端)
 // ============================================================
 window.loadStock = loadStock;
 window.addStock = addStock;
@@ -1075,3 +1028,46 @@ window.resetChartView = resetChartView;
 window.toggleChartFullscreen = toggleChartFullscreen;
 window.switchChipTab = switchChipTab;
 window.getAllActiveCharts = getAllActiveCharts;
+
+document.addEventListener('click', event => {
+    if (!event.target.closest('.period-picker, .range-picker, #main-indicator-picker, #sub-indicator-picker')) {
+        closeAllMiniMenus();
+    }
+    const sortPicker = document.getElementById('sort-picker');
+    if (sortPicker && !sortPicker.contains(event.target)) {
+        sortPicker.classList.remove('open');
+        document.getElementById('sort-trigger')?.setAttribute('aria-expanded', 'false');
+    }
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopAutoRefresh();
+    else if (currentSymbol) { loadStock(currentSymbol, true); fetchMarketIndices(); startAutoRefresh(); }
+});
+
+window.addEventListener('keydown', event => { if (event.key === 'Escape') closeModals(); });
+
+window.addEventListener('DOMContentLoaded', async () => {
+    initChart();
+    setupIndexStripScroll();
+    changeSort(sortMode);
+    loadUserPreferences(); 
+    renderWatchlist(); 
+    fetchMarketIndices();
+    
+    for (const stock of watchlist) {
+        if (isTaiwanSymbol(stock.symbol)) {
+            const code = displaySymbol(stock.symbol);
+            if (stock.name === code || !stock.name || /^\d+$/.test(stock.name)) {
+                const fetchedName = await fetchTwseName(code); 
+                if (fetchedName) stock.name = fetchedName;
+            }
+        }
+    }
+    saveWatchlist(); 
+    renderWatchlist();
+
+    if (currentSymbol && watchlist.some(stock => stock.symbol === currentSymbol)) await loadStock(currentSymbol);
+    else if (watchlist.length > 0) { currentSymbol = watchlist[0].symbol; await loadStock(currentSymbol); }
+    startAutoRefresh();
+});
