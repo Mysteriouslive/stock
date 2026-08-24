@@ -3,7 +3,7 @@ const WORKER_URL = 'https://stock-proxy.stu-108042.workers.dev';
 let AUTO_REFRESH_INTERVAL = Number(localStorage.getItem('stockRefreshRate')) || 10000;
 
 // ============================================================
-// 全域變數宣告
+// 全域狀態變數宣告
 // ============================================================
 let mainChart = null, volChart = null, kdChart = null, rsiChart = null, macdChart = null;
 let candlestickSeries = null, ma5Series = null, ma20Series = null, ma60Series = null, upperBandSeries = null, lowerBandSeries = null;
@@ -53,8 +53,11 @@ let currentChipTab = 'flow';
 let cachedChipHistory = [];
 let cachedChipLatest = null;
 let isDarkMode = localStorage.getItem('stockThemeMode') !== 'light';
+let sortableInstance = null;
 
-// 取得當前所有已啟用的圖表實例
+// ============================================================
+// 取得所有啟用的 Chart
+// ============================================================
 function getAllActiveCharts() {
     const list = [mainChart, volChart];
     if (subIndicatorsState.kd && kdChart) list.push(kdChart);
@@ -85,128 +88,12 @@ function displaySymbol(symbol) { return String(symbol || '').replace(/\.(TW|TWO)
 function finnhubSymbol(symbol) { const displayed = displaySymbol(symbol); return isTaiwanSymbol(symbol) ? `${displayed}.TW` : displayed; }
 
 // ============================================================
-// APIs
+// 資料格式化工具
 // ============================================================
-async function fetchTwseName(code) {
-    try {
-        const res = await fetch(`${WORKER_URL}/?source=twse_name&symbol=${encodeURIComponent(displaySymbol(code))}`, { cache: 'no-store' });
-        if (!res.ok) return null;
-        return (await res.json())?.name || null;
-    } catch { return null; }
-}
+function setText(id, value) { const el = document.getElementById(id); if (el) el.textContent = value; }
+function setMetric(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
+function escapeHtmlAttribute(value) { return String(value).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-async function fetchTwseMetrics(symbol) {
-    try {
-        const res = await fetch(`${WORKER_URL}/?source=twse_metrics&symbol=${encodeURIComponent(displaySymbol(symbol))}`, { cache: 'no-store' });
-        if (!res.ok) return null;
-        return await res.json();
-    } catch { return null; }
-}
-
-async function fetchTwseChipData(symbol) {
-    try {
-        const res = await fetch(`${WORKER_URL}/?source=twse_chip&symbol=${encodeURIComponent(displaySymbol(symbol))}`, { cache: 'no-store' });
-        if (!res.ok) return null;
-        return await res.json();
-    } catch { return null; }
-}
-
-async function fetchTwseChipHistory(symbol) {
-    try {
-        const res = await fetch(`${WORKER_URL}/?source=twse_chip_history&symbol=${encodeURIComponent(displaySymbol(symbol))}&days=15`, { cache: 'no-store' });
-        if (!res.ok) return null;
-        return await res.json();
-    } catch { return null; }
-}
-
-async function fetchFinnhubWorker(symbol, endpoint, params = {}) {
-    const query = new URLSearchParams({ source: 'finnhub', symbol: finnhubSymbol(symbol), endpoint, ...params });
-    const res = await fetch(`${WORKER_URL}/?${query.toString()}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`FINNHUB_PROXY_${res.status}`);
-    return await res.json();
-}
-
-async function fetchFinnhubQuote(symbol) {
-    const data = await fetchFinnhubWorker(symbol, 'quote');
-    if (data?.c == null || Number(data.c) <= 0) throw new Error('FINNHUB_NO_QUOTE');
-    const current = Number(data.c), previous = Number(data.pc);
-    if (!Number.isFinite(previous) || previous <= 0) throw new Error('FINNHUB_NO_PREVIOUS_CLOSE');
-    const change = current - previous;
-    return {
-        latestPrice: formatPrice(current, symbol),
-        change: change.toFixed(isForexSymbol(symbol) ? 4 : 2),
-        changePercent: ((change / previous) * 100).toFixed(2),
-        isUp: change > 0, isFlat: change === 0,
-        open: formatPrice(data.o, symbol), high: formatPrice(data.h, symbol),
-        low: formatPrice(data.l, symbol), previousClose: formatPrice(previous, symbol), volume: '—'
-    };
-}
-
-async function fetchFinnhubCompanyProfile(symbol) { return await fetchFinnhubWorker(symbol, 'profile2').catch(() => null); }
-async function fetchFinnhubMetrics(symbol) { return await fetchFinnhubWorker(symbol, 'metric', { metric: 'all' }).catch(() => null); }
-
-async function fetchForexData() {
-    try {
-        const res = await fetch(`${WORKER_URL}/?source=forex`, { cache: 'no-store' });
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data) throw new Error(data?.error || `FOREX_HTTP_${res.status}`);
-        const rate = Number(data.rate ?? data.rates?.TWD);
-        if (!Number.isFinite(rate) || rate <= 0) throw new Error('FOREX_NO_RATE');
-        return { rate, changePercent: Number(data.changePercent ?? data.change_percent ?? data.percentChange ?? NaN), source: data.source || 'Frankfurter' };
-    } catch { return null; }
-}
-
-async function fetchCryptoData() {
-    try {
-        const res = await fetch(`${WORKER_URL}/?source=crypto`, { cache: 'no-store' });
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data || data.error) throw new Error(data?.error || `CRYPTO_HTTP_${res.status}`);
-        return data;
-    } catch { return null; }
-}
-
-async function fetchYahooData(symbol, interval = currentPeriod.interval, range = currentPeriod.range) {
-    let yahooSymbol = toYahooSymbol(symbol);
-    const callApi = async (sym) => {
-        const url = `${WORKER_URL}/?symbol=${encodeURIComponent(sym)}&interval=${encodeURIComponent(interval)}&range=${encodeURIComponent(range)}`;
-        const res = await fetch(url, { cache: 'no-store' });
-        if (!res.ok) throw new Error('YAHOO_FAILED');
-        const json = await res.json();
-        if (json?.error) throw new Error(json.error);
-        const result = json.chart?.result?.[0];
-        if (!result) throw new Error(json.chart?.error?.description || 'NO_YAHOO_DATA');
-        return result;
-    };
-
-    try {
-        return await callApi(yahooSymbol);
-    } catch (err) {
-        if (/^\d{4,6}\.TW$/i.test(yahooSymbol)) {
-            const fallbackSym = yahooSymbol.replace(/\.TW$/i, '.TWO');
-            try {
-                const res = await callApi(fallbackSym);
-                const item = watchlist.find(s => s.symbol === symbol);
-                if (item) { item.symbol = fallbackSym; saveWatchlist(); }
-                if (currentSymbol === symbol) currentSymbol = fallbackSym;
-                return res;
-            } catch {}
-        } else if (/^\d{4,6}\.TWO$/i.test(yahooSymbol)) {
-            const fallbackSym = yahooSymbol.replace(/\.TWO$/i, '.TW');
-            try {
-                const res = await callApi(fallbackSym);
-                const item = watchlist.find(s => s.symbol === symbol);
-                if (item) { item.symbol = fallbackSym; saveWatchlist(); }
-                if (currentSymbol === symbol) currentSymbol = fallbackSym;
-                return res;
-            } catch {}
-        }
-        throw err;
-    }
-}
-
-// ============================================================
-// 格式化輔助函式
-// ============================================================
 function firstFinite(obj, keys) {
     for (const key of keys) {
         const value = obj?.[key], number = Number(value);
@@ -240,519 +127,161 @@ function formatPrice(value, symbol = '') {
     return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
 }
 
-function updateMarketState(state, symbol = '') {
-    const badge = document.getElementById('market-state-badge');
-    if (!badge) return;
-    const normalizedState = String(state || '').toUpperCase();
-    const stateMap = { PRE: ['盤前', 'state-pre'], PREPRE: ['盤前', 'state-pre'], REGULAR: ['盤中', 'state-regular'], POST: ['盤後', 'state-post'], POSTPOST: ['盤後', 'state-post'], CLOSED: ['休市', 'state-closed'] };
-    let fallback = ['—', 'state-unknown'];
-    if (isCryptoSymbol(symbol) || isForexSymbol(symbol)) {
-        fallback = ['盤中', 'state-regular'];
-    } else {
-        const timeZone = isTaiwanSymbol(symbol) ? 'Asia/Taipei' : 'America/New_York';
-        const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()).map(part => [part.type, part.value]));
-        const weekday = ['Sat', 'Sun'].includes(parts.weekday), minutes = Number(parts.hour) * 60 + Number(parts.minute);
-        if (!weekday) {
-            const sessions = isTaiwanSymbol(symbol) ? [[510, 540, 'pre'], [540, 810, 'regular'], [810, 870, 'post']] : [[240, 570, 'pre'], [570, 960, 'regular'], [960, 1200, 'post']];
-            const session = sessions.find(([start, end]) => minutes >= start && minutes < end)?.[2];
-            fallback = session ? { pre: ['盤前', 'state-pre'], regular: ['盤中', 'state-regular'], post: ['盤後', 'state-post'] }[session] : ['休市', 'state-closed'];
-        } else fallback = ['休市', 'state-closed'];
+function getChartDate(time) {
+    if (typeof time === 'number') return new Date(time * 1000);
+    if (typeof time === 'string') return new Date(`${time}T00:00:00`);
+    if (time && typeof time === 'object' && Number.isFinite(time.year) && Number.isFinite(time.month) && Number.isFinite(time.day)) {
+        return new Date(time.year, time.month - 1, time.day);
     }
-    const [label, className] = stateMap[normalizedState] || fallback;
-    badge.textContent = label;
-    badge.className = `market-state-badge ${className}`;
+    return new Date(NaN);
 }
 
-function parseQuote(result, symbol = '') {
-    const meta = result?.meta || {}, quote = result?.indicators?.quote?.[0] || {};
-    let lastClose = null, lastOpen = null, lastHigh = null, lastLow = null, lastVol = null;
-
-    if (Array.isArray(quote.close) && quote.close.length > 0) {
-        for (let i = quote.close.length - 1; i >= 0; i--) {
-            if (quote.close[i] != null) {
-                lastClose = quote.close[i];
-                lastOpen = quote.open?.[i];
-                lastHigh = quote.high?.[i];
-                lastLow = quote.low?.[i];
-                lastVol = quote.volume?.[i];
-                break;
-            }
-        }
-    }
-
-    let previousClose = Number(meta.regularMarketPreviousClose ?? meta.previousClose);
-    const currentPrice = Number(meta.regularMarketPrice ?? lastClose);
-
-    if (!Number.isFinite(previousClose) || previousClose <= 0) {
-        if (Array.isArray(quote.close)) {
-            const validCloses = quote.close.filter(v => v != null && Number.isFinite(Number(v)));
-            if (validCloses.length >= 2) {
-                previousClose = Number(validCloses[validCloses.length - 2]);
-            }
-        }
-    }
-
-    if (!Number.isFinite(previousClose)) previousClose = Number(meta.chartPreviousClose);
-    if (!Number.isFinite(currentPrice)) throw new Error('NO_QUOTE_DATA');
-
-    const change = Number.isFinite(previousClose) ? currentPrice - previousClose : 0;
-    const changePercent = Number.isFinite(previousClose) && previousClose > 0 ? (change / previousClose) * 100 : 0;
-    const decimals = isForexSymbol(symbol) ? 4 : (isCryptoSymbol(symbol) && currentPrice < 1 ? 6 : 2);
-
-    return {
-        latestPrice: formatPrice(currentPrice, symbol),
-        change: change.toFixed(decimals),
-        changePercent: changePercent.toFixed(2),
-        isUp: change > 0,
-        isFlat: change === 0,
-        open: formatPrice(meta.regularMarketOpen ?? lastOpen, symbol),
-        high: formatPrice(meta.regularMarketDayHigh ?? lastHigh, symbol),
-        low: formatPrice(meta.regularMarketDayLow ?? lastLow, symbol),
-        previousClose: formatPrice(previousClose, symbol),
-        volume: formatVolume(meta.regularMarketVolume ?? lastVol)
-    };
-}
-
-function parseCandles(result) {
-    const timestamps = result?.timestamp || [], quote = result?.indicators?.quote?.[0];
-    if (!timestamps.length || !quote) throw new Error('NO_CANDLE_DATA');
-
-    const isDailyOrAbove = ['1d', '1wk', '1mo'].includes(currentPeriod.interval);
-    const chartData = [];
-    for (let i = 0; i < timestamps.length; i++) {
-        const open = quote.open?.[i], high = quote.high?.[i], low = quote.low?.[i], close = quote.close?.[i];
-        if ([open, high, low, close].some(v => v == null || !Number.isFinite(Number(v)))) continue;
-        
-        chartData.push({
-            time: isDailyOrAbove ? new Date(timestamps[i] * 1000).toISOString().split('T')[0] : timestamps[i],
-            open: Number(open), high: Number(high), low: Number(low), close: Number(close),
-            volume: Number(quote.volume?.[i]) || 0
-        });
-    }
-    return chartData;
-}
-
-function applyCurrentPriceToQuote(quote, currentPrice, previousClose, symbol, fallbackChangePercent = NaN) {
-    if (!quote) quote = { open: '—', high: '—', low: '—', previousClose: '—', volume: '—' };
-    const current = Number(currentPrice), previous = Number(previousClose);
-    if (!Number.isFinite(current) || current <= 0) return quote;
-
-    let change = 0, percent = 0;
-    if (Number.isFinite(previous) && previous > 0) {
-        change = current - previous;
-        percent = (change / previous) * 100;
-    } else if (Number.isFinite(Number(fallbackChangePercent))) {
-        percent = Number(fallbackChangePercent);
-        const estPrev = current / (1 + percent / 100);
-        if (Number.isFinite(estPrev) && estPrev > 0) { change = current - estPrev; quote.previousClose = formatPrice(estPrev, symbol); }
-    }
-
-    const decimals = isForexSymbol(symbol) ? 4 : (isCryptoSymbol(symbol) && current < 1 ? 6 : 2);
-    quote.latestPrice = formatPrice(current, symbol);
-    quote.change = change.toFixed(decimals);
-    quote.changePercent = percent.toFixed(2);
-    quote.isUp = change > 0; quote.isFlat = change === 0;
-    return quote;
+function formatChartTooltipTime(time) {
+    const date = getChartDate(time);
+    if (Number.isNaN(date.getTime())) return '—';
+    if (['1d', '1wk', '1mo'].includes(currentPeriod.interval)) return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+    return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 // ============================================================
-// UI Render Helpers
+// Watchlist 與 排序功能 (提前定義)
 // ============================================================
-function setText(id, value) { const el = document.getElementById(id); if (el) el.textContent = value; }
-function setMetric(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
-function escapeHtmlAttribute(value) { return String(value).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-
-function resetChipData() {
-    setMetric('chip-date', '—');
-    setMetric('chip-source-note', '選擇台股後載入 TWSE / TPEx 官方籌碼與財報資料');
-    const chartCanvas = document.getElementById('chip-history-chart');
-    if (chartCanvas) {
-        chartCanvas.classList.add('hidden');
-        const ctx = chartCanvas.getContext?.('2d');
-        if (ctx) ctx.clearRect(0, 0, chartCanvas.width || 0, chartCanvas.height || 0);
-    }
-    const tableRows = document.getElementById('chip-table-rows');
-    if (tableRows) tableRows.replaceChildren();
-    setMetric('margin-financing', '—');
-    setMetric('margin-financing-change', '—');
-    setMetric('margin-short', '—');
-    setMetric('margin-short-change', '—');
-    cachedChipLatest = null;
-    cachedChipHistory = [];
+function saveWatchlist() {
+    localStorage.setItem('stockWatchlist', JSON.stringify(watchlist));
+    localStorage.setItem('stockSortMode', sortMode);
+    localStorage.setItem('stockQuoteCache', JSON.stringify(quoteCache));
+    if (currentSymbol) localStorage.setItem('stockCurrentSymbol', currentSymbol);
 }
 
-function setChipVisibility(visible) {
-    const chipNavBtn = document.getElementById('nav-chip-btn');
-    const chipCard = document.getElementById('chip-card');
-
-    if (visible) {
-        chipNavBtn?.classList.remove('hidden');
-        chipCard?.classList.remove('hidden');
-    } else {
-        if (chipNavBtn?.classList.contains('active')) {
-            const overviewBtn = document.querySelector('.section-nav-btn');
-            if (overviewBtn) jumpToSection('overview-card', overviewBtn);
+function sortedWatchlist() {
+    const arr = [...watchlist];
+    if (sortMode === 'manual') return arr;
+    const getNumber = stock => Number(String(quoteCache[stock.symbol]?.latestPrice ?? '').replace(/,/g, ''));
+    const getChange = stock => Number(quoteCache[stock.symbol]?.changePercent ?? NaN);
+    arr.sort((a, b) => {
+        let av, bv;
+        switch (sortMode) {
+            case 'symbol-asc': return a.symbol.localeCompare(b.symbol, undefined, { numeric: true });
+            case 'symbol-desc': return b.symbol.localeCompare(a.symbol, undefined, { numeric: true });
+            case 'name-asc': return (a.name || a.symbol).localeCompare(b.name || b.symbol, 'zh-Hant');
+            case 'name-desc': return (b.name || b.symbol).localeCompare(a.name || a.symbol, 'zh-Hant');
+            case 'price-asc': av = getNumber(a); bv = getNumber(b); return (Number.isNaN(av) ? Infinity : av) - (Number.isNaN(bv) ? Infinity : bv);
+            case 'price-desc': av = getNumber(a); bv = getNumber(b); return (Number.isNaN(bv) ? -Infinity : bv) - (Number.isNaN(av) ? -Infinity : av);
+            case 'change-asc': av = getChange(a); bv = getChange(b); return (Number.isNaN(av) ? Infinity : av) - (Number.isNaN(bv) ? Infinity : bv);
+            case 'change-desc': av = getChange(a); bv = getChange(b); return (Number.isNaN(bv) ? -Infinity : bv) - (Number.isNaN(av) ? -Infinity : av);
+            default: return 0;
         }
-        chipNavBtn?.classList.remove('active');
-        chipNavBtn?.classList.add('hidden');
-        chipCard?.classList.add('hidden');
-        resetChipData();
-    }
-}
-
-// ============================================================
-// 三大法人與持股走勢
-// ============================================================
-function switchChipTab(tab) {
-    currentChipTab = tab;
-    const flowBtn = document.getElementById('chip-tab-flow');
-    const holdingBtn = document.getElementById('chip-tab-holding');
-    
-    if (tab === 'flow') {
-        flowBtn?.classList.add('bg-white/15', 'text-white');
-        flowBtn?.classList.remove('text-gray-400');
-        holdingBtn?.classList.remove('bg-white/15', 'text-white');
-        holdingBtn?.classList.add('text-gray-400');
-    } else {
-        holdingBtn?.classList.add('bg-white/15', 'text-white');
-        holdingBtn?.classList.remove('text-gray-400');
-        flowBtn?.classList.remove('bg-white/15', 'text-white');
-        flowBtn?.classList.add('text-gray-400');
-    }
-    renderChipContent();
-}
-
-function renderChipData(data, historyData) {
-    const chipCard = document.getElementById('chip-card');
-    if (!chipCard) return;
-
-    if (!data && !historyData) {
-        setChipVisibility(false);
-        return;
-    }
-
-    setChipVisibility(true);
-
-    cachedChipLatest = data;
-    cachedChipHistory = (historyData?.history && historyData.history.length > 0)
-        ? historyData.history
-        : (data?.history || []);
-
-    const displayDate = data?.date || cachedChipHistory[0]?.date || '—';
-    setMetric('chip-date', displayDate);
-    setMetric('chip-source-note', `資料來源：TWSE / TPEx 官方資料 · 交易日 ${displayDate}`);
-
-    renderChipContent();
-
-    const margin = data?.margin || cachedChipHistory[0]?.margin;
-    if (margin) {
-        if (margin.financingBalance !== null && margin.financingBalance !== undefined) {
-            const finBal = Math.round(Number(margin.financingBalance) / 1000).toLocaleString('zh-TW') + ' 張';
-            setMetric('margin-financing', finBal);
-        } else {
-            setMetric('margin-financing', '—');
-        }
-
-        if (margin.financingChange !== null && margin.financingChange !== undefined) {
-            const chg = Math.round(Number(margin.financingChange) / 1000);
-            const finChg = `${chg >= 0 ? '+' : ''}${chg.toLocaleString('zh-TW')} 張`;
-            setMetric('margin-financing-change', finChg);
-        } else {
-            setMetric('margin-financing-change', '—');
-        }
-
-        if (margin.shortBalance !== null && margin.shortBalance !== undefined) {
-            const shortBal = Math.round(Number(margin.shortBalance) / 1000).toLocaleString('zh-TW') + ' 張';
-            setMetric('margin-short', shortBal);
-        } else {
-            setMetric('margin-short', '0 張');
-        }
-
-        if (margin.shortChange !== null && margin.shortChange !== undefined) {
-            const chg = Math.round(Number(margin.shortChange) / 1000);
-            const shortChg = `${chg >= 0 ? '+' : ''}${chg.toLocaleString('zh-TW')} 張`;
-            setMetric('margin-short-change', shortChg);
-        } else {
-            setMetric('margin-short-change', '0 張');
-        }
-    } else {
-        setMetric('margin-financing', '—');
-        setMetric('margin-financing-change', '—');
-        setMetric('margin-short', '—');
-        setMetric('margin-short-change', '—');
-    }
-}
-
-function renderChipContent() {
-    const tableRows = document.getElementById('chip-table-rows');
-    if (!tableRows) return;
-
-    const formatDate = (d) => {
-        if (!d) return '—';
-        const s = String(d).replace(/[-\/]/g, '');
-        return s.length === 8 ? `${s.substring(4, 6)}/${s.substring(6, 8)}` : d;
-    };
-
-    const formatSheets = (shares) => {
-        if (shares === undefined || shares === null || isNaN(shares)) return '<span class="text-gray-500">—</span>';
-        const sheets = Math.round(Number(shares) / 1000);
-        const formatted = Math.abs(sheets).toLocaleString('zh-TW');
-        if (sheets > 0) return `<span class="text-[#ef4444] font-semibold">+${formatted}</span>`;
-        if (sheets < 0) return `<span class="text-[#22c55e] font-semibold">-${formatted}</span>`;
-        return `<span class="text-gray-400">0</span>`;
-    };
-
-    const getRowVal = (row, key) => {
-        const inst = row.institutional || {};
-        if (inst[key] !== undefined && inst[key] !== null) return Number(inst[key]);
-        if (row[key] !== undefined && row[key] !== null) return Number(row[key]);
-        return 0;
-    };
-
-    if (currentChipTab === 'flow') {
-        if (cachedChipHistory.length > 0) {
-            tableRows.innerHTML = cachedChipHistory.map(row => {
-                const f = getRowVal(row, 'foreignNet');
-                const t = getRowVal(row, 'investmentTrustNet');
-                const d = getRowVal(row, 'dealerNet');
-                const inst = row.institutional || {};
-                const total = (inst.totalNet !== undefined && inst.totalNet !== null) ? Number(inst.totalNet) : (row.totalNet !== undefined && row.totalNet !== null ? Number(row.totalNet) : (f + t + d));
-
-                return `
-                    <div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center border-b border-white/5">
-                        <div class="text-gray-300 font-medium">${formatDate(row.date)}</div>
-                        <div>${formatSheets(f)}</div>
-                        <div>${formatSheets(t)}</div>
-                        <div>${formatSheets(d)}</div>
-                        <div>${formatSheets(total)}</div>
-                    </div>
-                `;
-            }).join('');
-        } else {
-            tableRows.innerHTML = `<div class="text-center py-6 text-gray-500 text-xs">暫無法人進出資料</div>`;
-        }
-        renderChipHistory(cachedChipHistory);
-    } else {
-        let runningF = 0, runningT = 0, runningD = 0;
-        const holdingList = [...cachedChipHistory].reverse().map(row => {
-            const f = getRowVal(row, 'foreignNet');
-            const t = getRowVal(row, 'investmentTrustNet');
-            const d = getRowVal(row, 'dealerNet');
-
-            runningF += f / 1000;
-            runningT += t / 1000;
-            runningD += d / 1000;
-            return {
-                date: row.date,
-                foreignHolding: Math.round(runningF),
-                trustHolding: Math.round(runningT),
-                dealerHolding: Math.round(runningD),
-                totalHolding: Math.round(runningF + runningT + runningD)
-            };
-        }).reverse();
-
-        if (holdingList.length > 0) {
-            tableRows.innerHTML = holdingList.map(row => `
-                <div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center border-b border-white/5">
-                    <div class="text-gray-300 font-medium">${formatDate(row.date)}</div>
-                    <div class="text-[#38bdf8] font-semibold">${row.foreignHolding > 0 ? '+' : ''}${row.foreignHolding.toLocaleString()}</div>
-                    <div class="text-[#f87171] font-semibold">${row.trustHolding > 0 ? '+' : ''}${row.trustHolding.toLocaleString()}</div>
-                    <div class="text-[#c084fc] font-semibold">${row.dealerHolding > 0 ? '+' : ''}${row.dealerHolding.toLocaleString()}</div>
-                    <div class="text-white font-bold">${row.totalHolding > 0 ? '+' : ''}${row.totalHolding.toLocaleString()}</div>
-                </div>
-            `).join('');
-        } else {
-            tableRows.innerHTML = `<div class="text-center py-6 text-gray-500 text-xs">暫無持股走勢資料</div>`;
-        }
-        renderHoldingChart(holdingList);
-    }
-}
-
-function renderChipHistory(rowsOrObj) {
-    const canvas = document.getElementById('chip-history-chart');
-    if (!canvas) return;
-
-    const rows = Array.isArray(rowsOrObj) ? rowsOrObj : (rowsOrObj?.history || []);
-    const dataList = rows.slice(-15);
-    if (!dataList.length) {
-        canvas.classList.add('hidden');
-        return;
-    }
-
-    canvas.classList.remove('hidden');
-
-    const width = canvas.clientWidth || 600;
-    const height = 180;
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = width * ratio;
-    canvas.height = height * ratio;
-    canvas.style.height = `${height}px`;
-
-    const ctx = canvas.getContext('2d');
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-
-    const foreignList = dataList.map(r => Number(r.institutional?.foreignNet ?? r.foreignNet ?? 0) / 1000);
-    const trustList = dataList.map(r => Number(r.institutional?.investmentTrustNet ?? r.investmentTrustNet ?? 0) / 1000);
-    const dealerList = dataList.map(r => Number(r.institutional?.dealerNet ?? r.dealerNet ?? 0) / 1000);
-    
-    const allValues = [...foreignList, ...trustList, ...dealerList];
-    const maxVal = Math.max(...allValues.map(Math.abs), 500);
-    const zeroY = height / 2;
-    const barWidth = Math.max(Math.floor((width / dataList.length) * 0.22), 4);
-    const step = width / dataList.length;
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, zeroY);
-    ctx.lineTo(width, zeroY);
-    ctx.stroke();
-
-    dataList.forEach((row, i) => {
-        const centerX = i * step + step / 2;
-        const f = Number(row.institutional?.foreignNet ?? row.foreignNet ?? 0) / 1000;
-        const t = Number(row.institutional?.investmentTrustNet ?? row.investmentTrustNet ?? 0) / 1000;
-        const d = Number(row.institutional?.dealerNet ?? row.dealerNet ?? 0) / 1000;
-
-        const drawBar = (val, color, offsetX) => {
-            const barH = (val / maxVal) * (height * 0.4);
-            ctx.fillStyle = color;
-            ctx.fillRect(centerX + offsetX, zeroY, barWidth, -barH);
-        };
-
-        drawBar(f, '#38bdf8', -barWidth * 1.6);
-        drawBar(t, '#f87171', -barWidth * 0.5);
-        drawBar(d, '#c084fc', barWidth * 0.6);
     });
+    return arr;
 }
 
-function renderHoldingChart(holdingList) {
-    const canvas = document.getElementById('chip-history-chart');
-    if (!canvas || !holdingList.length) return;
+function renderWatchlist() {
+    const listEl = document.getElementById('stock-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    const sorted = sortedWatchlist();
+    if (sorted.length === 0) { listEl.innerHTML = `<p class="text-center text-gray-600 text-sm py-8">尚未新增任何股票</p>`; return; }
 
-    const rows = [...holdingList].reverse();
-    const width = canvas.clientWidth || 600;
-    const height = 180;
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = width * ratio;
-    canvas.height = height * ratio;
-    canvas.style.height = `${height}px`;
+    sorted.forEach(stock => {
+        const colorClass = COLOR_MAP[stock.color] || COLOR_MAP.blue, quote = quoteCache[stock.symbol], btn = document.createElement('button');
+        btn.className = `stock-btn w-full text-left px-3 py-2.5 rounded-xl text-gray-400 flex items-center gap-2 group ${currentSymbol === stock.symbol ? 'bg-white/10 text-white' : ''}`;
+        btn.dataset.symbol = stock.symbol; btn.onclick = () => loadStock(stock.symbol);
+        const priceText = quote?.latestPrice ? `<span class="text-[10px] text-gray-400">${quote.latestPrice}</span>` : '';
+        const changeNumber = Number(quote?.changePercent);
+        const changeText = quote?.changePercent != null && Number.isFinite(changeNumber) ? `<span class="text-[10px] ${changeNumber >= 0 ? 'price-up' : 'price-down'}">${changeNumber >= 0 ? '+' : ''}${changeNumber.toFixed(2)}%</span>` : '';
+        btn.innerHTML = `
+            <span class="drag-handle text-lg px-2 py-1 ${sortMode === 'manual' ? 'cursor-grab hover:text-white' : 'opacity-30'}" title="${sortMode === 'manual' ? '拖曳排序' : '切換到自訂順序後可拖曳'}">⋮</span>
+            <span class="w-8 h-8 rounded-lg ${colorClass} flex items-center justify-center text-[10px] font-bold shrink-0">${displaySymbol(stock.symbol).slice(0, 4)}</span>
+            <div class="flex-1 min-w-0">
+                <div class="font-medium text-sm truncate">${stock.name || displaySymbol(stock.symbol)}</div>
+                <div class="text-[11px] text-gray-500 flex items-center gap-2"><span>${displaySymbol(stock.symbol)}</span>${priceText}${changeText}</div>
+            </div>
+            <button class="delete-btn text-gray-600 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10" onclick="event.stopPropagation(); removeStockBySymbol('${escapeHtmlAttribute(stock.symbol)}')" title="移除">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        `;
+        listEl.appendChild(btn);
+    });
 
-    const ctx = canvas.getContext('2d');
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-
-    const values = rows.map(r => r.totalHolding);
-    const maxVal = Math.max(...values.map(Math.abs), 100);
-    const zeroY = height / 2;
-    const step = width / Math.max(rows.length - 1, 1);
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, zeroY);
-    ctx.lineTo(width, zeroY);
-    ctx.stroke();
-
-    const drawLine = (prop, color) => {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        rows.forEach((r, i) => {
-            const x = i * step;
-            const y = zeroY - (r[prop] / maxVal) * (height * 0.4);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+    if (!sortableInstance && typeof Sortable !== 'undefined') {
+        sortableInstance = new Sortable(listEl, {
+            animation: 150, handle: '.drag-handle', disabled: sortMode !== 'manual',
+            onEnd(evt) {
+                if (sortMode !== 'manual' || evt.oldIndex == null || evt.newIndex == null) return;
+                const order = [...listEl.children].map(item => item.dataset.symbol).filter(Boolean);
+                const reordered = order.map(symbol => watchlist.find(stock => stock.symbol === symbol)).filter(Boolean);
+                if (reordered.length !== watchlist.length) return;
+                watchlist = reordered;
+                saveWatchlist();
+            }
         });
-        ctx.stroke();
-    };
-
-    drawLine('foreignHolding', '#38bdf8');
-    drawLine('trustHolding', '#f87171');
-    drawLine('totalHolding', '#ffffff');
-}
-
-function jumpToSection(id, button) {
-    document.querySelectorAll('.section-nav-btn').forEach(item => item.classList.remove('active'));
-    button?.classList.add('active');
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function resetFundamentals() {
-    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth'].forEach(id => setMetric(id, '—'));
-    setMetric('fundamentals-status', '—');
-    const subtitle = document.getElementById('fundamentals-subtitle'); if (subtitle) subtitle.textContent = 'Finnhub · Fundamental Metrics';
-}
-
-function renderFinnhubMetrics(result, profile, symbol) {
-    const m = result?.metric || {};
-    setMetric('metric-pe', formatMetric(firstFinite(m, ['peNormalizedAnnual', 'peTTM', 'peBasicExclExtraTTM', 'peExclExtraTTM'])));
-    setMetric('metric-eps', formatMetric(firstFinite(m, ['epsNormalizedAnnual', 'epsTTM', 'epsBasicExclExtraItemsTTM'])));
-    setMetric('metric-marketcap', formatCompactNumber(firstFinite(m, ['marketCapitalization'])));
-    setMetric('metric-beta', formatMetric(firstFinite(m, ['beta'])));
-    setMetric('metric-52high', formatMetric(firstFinite(m, ['52WeekHigh'])));
-    setMetric('metric-52low', formatMetric(firstFinite(m, ['52WeekLow'])));
-    setMetric('metric-dividend', formatPercentMetric(firstFinite(m, ['dividendYieldIndicatedAnnual', 'dividendYieldTTM', 'currentDividendYieldTTM'])));
-    setMetric('metric-roe', formatPercentMetric(firstFinite(m, ['roeTTM', 'roeRfy'])));
-    setMetric('metric-gross-margin', formatPercentMetric(firstFinite(m, ['grossMarginTTM', 'grossMargin5Y'])));
-    setMetric('metric-op-margin', formatPercentMetric(firstFinite(m, ['operatingMarginTTM', 'operatingMargin5Y'])));
-    setMetric('metric-net-margin', formatPercentMetric(firstFinite(m, ['netProfitMarginTTM', 'netProfitMargin5Y'])));
-    setMetric('metric-revenue-growth', formatPercentMetric(firstFinite(m, ['revenueGrowthTTMYoy', 'revenueGrowth5Y'])));
-    setMetric('fundamentals-status', 'Finnhub 已載入');
-}
-
-function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
-    resetFundamentals();
-    const isOtc = String(symbol).toUpperCase().includes('.TWO'), marketName = isOtc ? '櫃買中心 (TPEx)' : '證交所 (TWSE)';
-    const subtitle = document.getElementById('fundamentals-subtitle'); if (subtitle) subtitle.textContent = `台灣在地市場 · ${twseData?.source || marketName}`;
-    const peVal = Number(twseData?.pe), priceVal = Number(String(currentPrice).replace(/,/g, ''));
-    setMetric('metric-pe', twseData?.pe !== '0' && twseData?.pe ? twseData.pe : '—');
-    if (Number.isFinite(priceVal) && Number.isFinite(peVal) && peVal > 0) setMetric('metric-eps', (priceVal / peVal).toFixed(2));
-    setMetric('metric-dividend', twseData?.dividendYield || '—');
-    const meta = quoteResult?.meta || {}, quotes = quoteResult?.indicators?.quote?.[0] || {};
-    let high52 = meta.fiftyTwoWeekHigh, low52 = meta.fiftyTwoWeekLow;
-    if (!high52 && Array.isArray(quotes.high)) { const values = quotes.high.filter(v => v != null && Number.isFinite(Number(v))); if (values.length) high52 = Math.max(...values); }
-    if (!low52 && Array.isArray(quotes.low)) { const values = quotes.low.filter(v => v != null && Number.isFinite(Number(v))); if (values.length) low52 = Math.min(...values); }
-    setMetric('metric-52high', formatPrice(high52, symbol)); setMetric('metric-52low', formatPrice(low52, symbol));
-    if (meta.marketCap) setMetric('metric-marketcap', formatCompactNumber(meta.marketCap));
-    setMetric('fundamentals-status', `${twseData?.source || marketName} 已載入`);
-}
-
-function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
-    const meta = result?.meta || {}, isOtc = String(symbol).toUpperCase().includes('.TWO');
-    const mapMarketState = { REGULAR: '正常交易', PRE: '盤前交易', POST: '盤後交易', CLOSED: '休市' };
-    const mapType = { EQUITY: '股票', ETF: 'ETF', MUTUALFUND: '共同基金', INDEX: '指數', CURRENCY: '外匯', FUTURE: '期貨', CRYPTOCURRENCY: '加密貨幣' };
-    
-    if (isForexSymbol(symbol)) {
-        setCompanyField('company-long-name', '美元/台幣 (USD/TWD)'); setCompanyField('company-exchange', '外匯市場 (Forex)'); setCompanyField('company-market', 'Forex');
-        setCompanyField('company-currency', 'TWD'); setCompanyField('company-type', '外匯'); setCompanyField('company-market-state', mapMarketState[meta.marketState] || '全球外匯市場');
-        setCompanyField('company-symbol', 'USD/TWD');
-    } else if (isCryptoSymbol(symbol)) {
-        const nameMap = { BTC: '比特幣', ETH: '以太幣', SOL: 'Solana', XRP: 'XRP', ADA: 'Cardano', DOGE: 'Dogecoin', BNB: 'BNB' };
-        setCompanyField('company-long-name', nameMap[displaySymbol(symbol)] || displaySymbol(symbol)); setCompanyField('company-exchange', '加密貨幣'); setCompanyField('company-market', 'Crypto');
-        setCompanyField('company-currency', 'USD'); setCompanyField('company-type', '加密貨幣'); setCompanyField('company-market-state', '24 小時市場');
-        setCompanyField('company-symbol', displaySymbol(symbol));
-    } else {
-        const companyName = SPECIAL_NAME_MAP[symbol] || meta.longName || meta.shortName || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol);
-        setCompanyField('company-long-name', companyName); setCompanyField('company-exchange', meta.fullExchangeName || meta.exchangeName || (isOtc ? '櫃買中心 (TPEx)' : '證交所 (TWSE)'));
-        setCompanyField('company-market', meta.market || meta.exchangeName || '—'); setCompanyField('company-currency', meta.currency || meta.currencyCode || '—');
-        setCompanyField('company-type', mapType[meta.instrumentType || meta.quoteType] || meta.instrumentType || meta.quoteType || '—'); setCompanyField('company-market-state', mapMarketState[meta.marketState] || meta.marketState || '—');
-        setCompanyField('company-symbol', displaySymbol(symbol));
+    } else if (sortableInstance) {
+        sortableInstance.option('disabled', sortMode !== 'manual');
     }
-    setCompanyField('company-price', quote?.latestPrice || '—');
 }
 
-function renderFinnhubCompanyInfo(profile, symbol, quote) {
-    const p = profile || {};
-    setCompanyField('company-long-name', p.name || watchlist.find(s => s.symbol === symbol)?.name || displaySymbol(symbol));
-    setCompanyField('company-exchange', p.exchange || '—'); setCompanyField('company-market', p.finnhubIndustry || '—'); setCompanyField('company-currency', p.currency || '—');
-    setCompanyField('company-type', p.shareClassFIGI ? '股票' : '—'); setCompanyField('company-market-state', 'Finnhub 即時資料');
-    setCompanyField('company-symbol', displaySymbol(symbol)); setCompanyField('company-price', quote?.latestPrice || '—');
+const SORT_LABELS = { manual: '自訂順序', 'symbol-asc': '代碼 ↑', 'symbol-desc': '代碼 ↓', 'name-asc': '名稱 ↑', 'name-desc': '名稱 ↓', 'price-desc': '價格 ↓', 'price-asc': '價格 ↑', 'change-desc': '漲幅 ↓', 'change-asc': '漲幅 ↑' };
+
+function changeSort(value) {
+    sortMode = value; saveWatchlist(); renderWatchlist();
+    const select = document.getElementById('sort-select'), label = document.getElementById('sort-label');
+    if (select) select.value = value;
+    if (label) label.textContent = SORT_LABELS[value] || SORT_LABELS.manual;
+    document.querySelectorAll('#sort-menu [role="option"]').forEach(option => option.setAttribute('aria-selected', option.dataset.sortValue === value ? 'true' : 'false'));
 }
 
-function setCompanyField(id, value) { const el = document.getElementById(id); if (el) el.textContent = value ?? '—'; }
-function toggleCompanyInfo() { document.getElementById('overview-card')?.classList.toggle('collapsed'); }
+function toggleSortMenu() {
+    const picker = document.getElementById('sort-picker'), trigger = document.getElementById('sort-trigger');
+    if (!picker || !trigger) return;
+    const open = picker.classList.toggle('open'); trigger.setAttribute('aria-expanded', String(open));
+}
+
+function selectSortOption(value) { changeSort(value); toggleSortMenu(); }
+
+async function addStock() {
+    const input = document.getElementById('stock-input');
+    if (!input) return;
+    const raw = input.value.trim().toUpperCase();
+    if (!raw) { input.focus(); return; }
+    if (!/^[A-Z0-9.\-=\/^]+$/.test(raw)) { alert('請輸入有效的代碼，例如 2330、SOXX、USDTWD、BTC、^TWII'); return; }
+
+    let symbol = raw;
+    if (isForexSymbol(raw)) symbol = 'USDTWD';
+    else if (isCryptoSymbol(raw)) symbol = raw.replace('-USD', '');
+    else if (isIndexSymbol(raw)) symbol = raw;
+    else if (/^\d{4,6}$/.test(raw)) {
+        try { const twRes = await fetchYahooData(`${raw}.TW`, '1d', '5d'); if (twRes) symbol = `${raw}.TW`; }
+        catch { try { const twoRes = await fetchYahooData(`${raw}.TWO`, '1d', '5d'); if (twoRes) symbol = `${raw}.TWO`; } catch { symbol = `${raw}.TW`; } }
+    }
+
+    if (watchlist.some(s => s.symbol === symbol || displaySymbol(s.symbol) === displaySymbol(symbol))) { alert(`${displaySymbol(symbol)} 已經在清單中了`); input.value = ''; return; }
+
+    const color = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
+    let name = SPECIAL_NAME_MAP[symbol] || displaySymbol(symbol);
+    if (isForexSymbol(symbol)) name = '美元/台幣匯率';
+    else if (isCryptoSymbol(symbol)) { const cryptoNames = { BTC: '比特幣', ETH: '以太幣', SOL: 'Solana', XRP: 'XRP', ADA: 'Cardano', DOGE: 'Dogecoin', BNB: 'BNB' }; name = cryptoNames[symbol] || symbol; }
+    else if (isTaiwanSymbol(symbol)) name = (await fetchTwseName(displaySymbol(symbol))) || displaySymbol(symbol);
+
+    watchlist.push({ symbol, name, color }); saveWatchlist(); renderWatchlist(); input.value = ''; await loadStock(symbol);
+}
+
+function removeStockBySymbol(symbol) { const index = watchlist.findIndex(s => s.symbol === symbol); if (index >= 0) removeStock(index); }
+
+function removeStock(index) {
+    const removed = watchlist[index]; if (!removed) return;
+    if (!confirm(`確定要移除 ${displaySymbol(removed.symbol)} 嗎？`)) return;
+    watchlist.splice(index, 1); delete quoteCache[removed.symbol]; saveWatchlist(); renderWatchlist();
+    if (currentSymbol === removed.symbol) {
+        currentSymbol = watchlist.length > 0 ? watchlist[0].symbol : null; currentChartData = []; saveWatchlist(); stopAutoRefresh();
+        if (currentSymbol) loadStock(currentSymbol);
+        else {
+            setText('stock-symbol-title', '—'); setText('stock-name', '選擇或新增股票以查看詳情');
+            ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume', 'last-update'].forEach(id => setText(id, '—'));
+            setChipVisibility(false);
+            resetFundamentals();
+        }
+    }
+}
 
 // ============================================================
 // 獨立多 Panes 實例系統
@@ -904,11 +433,100 @@ function updateVisibleSubPanes() {
     });
 }
 
+// 指標計算
+function calculateKDData(data, n = 9) {
+    const kList = [], dList = [];
+    let prevK = 50, prevD = 50;
+
+    data.forEach((item, idx) => {
+        if (idx < n - 1) {
+            kList.push({ time: item.time, value: 50 });
+            dList.push({ time: item.time, value: 50 });
+            return;
+        }
+
+        const slice = data.slice(idx - n + 1, idx + 1);
+        const highest = Math.max(...slice.map(d => d.high));
+        const lowest = Math.min(...slice.map(d => d.low));
+        const rsv = highest === lowest ? 50 : ((item.close - lowest) / (highest - lowest)) * 100;
+
+        const currentK = (2 / 3) * prevK + (1 / 3) * rsv;
+        const currentD = (2 / 3) * prevD + (1 / 3) * currentK;
+
+        prevK = currentK;
+        prevD = currentD;
+
+        kList.push({ time: item.time, value: Number(currentK.toFixed(2)) });
+        dList.push({ time: item.time, value: Number(currentD.toFixed(2)) });
+    });
+
+    return { kList, dList };
+}
+
+function calculateRSIData(data, period = 14) {
+    const result = [];
+    let gains = 0, losses = 0;
+
+    for (let i = 1; i < data.length; i++) {
+        const diff = data[i].close - data[i - 1].close;
+        if (i <= period) {
+            if (diff >= 0) gains += diff; else losses -= diff;
+            if (i === period) {
+                const avgGain = gains / period, avgLoss = losses / period;
+                const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+                result.push({ time: data[i].time, value: 100 - (100 / (1 + rs)) });
+            }
+        } else {
+            const gain = diff >= 0 ? diff : 0;
+            const loss = diff < 0 ? -diff : 0;
+            gains = (gains * (period - 1) + gain) / period;
+            losses = (losses * (period - 1) + loss) / period;
+            const rs = losses === 0 ? 100 : gains / losses;
+            result.push({ time: data[i].time, value: Number((100 - (100 / (1 + rs))).toFixed(2)) });
+        }
+    }
+    return result;
+}
+
+function calculateMACDData(data) {
+    const closes = data.map(d => d.close);
+    const emaSeries = (period) => {
+        const values = [], alpha = 2 / (period + 1);
+        let val = closes[0];
+        closes.forEach((close, i) => {
+            val = i === 0 ? close : close * alpha + val * (1 - alpha);
+            values.push(val);
+        });
+        return values;
+    };
+
+    const ema12 = emaSeries(12);
+    const ema26 = emaSeries(26);
+    const dif = closes.map((_, i) => ema12[i] - ema26[i]);
+
+    const dea = [];
+    let deaVal = dif[0];
+    const signalAlpha = 2 / 10;
+    dif.forEach((v, i) => {
+        deaVal = i === 0 ? v : v * signalAlpha + deaVal * (1 - signalAlpha);
+        dea.push(deaVal);
+    });
+
+    const histList = [], difList = [], deaList = [];
+    data.forEach((d, i) => {
+        const hist = (dif[i] - dea[i]) * 2;
+        histList.push({ time: d.time, value: Number(hist.toFixed(3)), color: hist >= 0 ? '#ef4444' : '#10b981' });
+        difList.push({ time: d.time, value: Number(dif[i].toFixed(3)) });
+        deaList.push({ time: d.time, value: Number(dea[i].toFixed(3)) });
+    });
+
+    return { histList, difList, deaList };
+}
+
 function updateChartIndicators(data) {
     if (!data.length) return;
     const close = item => item.close;
 
-    // 主圖指標
     ma5Series?.setData(mainIndicatorsState.ma ? calculateIndicatorData(data, 5, close, (item, avg) => ({ time: item.time, value: avg })) : []);
     ma20Series?.setData(mainIndicatorsState.ma ? calculateIndicatorData(data, 20, close, (item, avg) => ({ time: item.time, value: avg })) : []);
     ma60Series?.setData(mainIndicatorsState.ma ? calculateIndicatorData(data, 60, close, (item, avg) => ({ time: item.time, value: avg })) : []);
@@ -920,14 +538,12 @@ function updateChartIndicators(data) {
         upperBandSeries?.setData([]); lowerBandSeries?.setData([]);
     }
 
-    // 成交量
     volSeries?.setData(data.filter(d => Number(d.volume) > 0).map(d => ({
         time: d.time,
         value: Number(d.volume),
         color: d.close >= d.open ? 'rgba(239, 68, 68, 0.75)' : 'rgba(16, 185, 129, 0.75)'
     })));
 
-    // 副圖指標
     if (subIndicatorsState.kd) {
         const { kList, dList } = calculateKDData(data);
         kdSeriesK?.setData(kList);
@@ -947,7 +563,6 @@ function updateChartIndicators(data) {
     if (lastItem) updateChartHUD(lastItem);
 }
 
-// HUD 成交量精準解析
 function updateChartHUD(candle, timeStr) {
     if (!candle) return;
     const date = getChartDate(candle.time);
@@ -1431,13 +1046,15 @@ function updateChartColors(mode) {
 }
 
 // ============================================================
-// 全域導出 API
+// 全域導出 API (頂部全域綁定)
 // ============================================================
 window.loadStock = loadStock;
 window.addStock = addStock;
 window.removeStock = removeStock;
 window.removeStockBySymbol = removeStockBySymbol;
 window.changeSort = changeSort;
+window.toggleSortMenu = toggleSortMenu;
+window.selectSortOption = selectSortOption;
 window.togglePeriodMenu = togglePeriodMenu;
 window.toggleRangeMenu = toggleRangeMenu;
 window.toggleMainMenu = toggleMainMenu;
@@ -1457,3 +1074,4 @@ window.jumpToSection = jumpToSection;
 window.resetChartView = resetChartView;
 window.toggleChartFullscreen = toggleChartFullscreen;
 window.switchChipTab = switchChipTab;
+window.getAllActiveCharts = getAllActiveCharts;
