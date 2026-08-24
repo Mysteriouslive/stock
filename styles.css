@@ -251,18 +251,25 @@ body {
 .session-pre { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
 .session-post { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
 
-
 /* ============================================================
-   StockIntelli 風格微型下拉選單
+   StockIntelli 風格微型下拉選單 (Period, Range, Main, Sub)
    ============================================================ */
+.period-picker,
+.range-picker,
+#main-indicator-picker,
+#sub-indicator-picker {
+    position: relative;
+    z-index: 30;
+}
+
 .chart-mini-trigger {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 7px;
+    padding: 4px 8px;
     border-radius: 6px;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.035);
     color: #a1a1aa;
     font-size: 11px;
     font-weight: 600;
@@ -272,97 +279,38 @@ body {
 
 .chart-mini-trigger:hover,
 .period-picker.open .chart-mini-trigger,
-.range-picker.open .chart-mini-trigger {
+.range-picker.open .chart-mini-trigger,
+#main-indicator-picker.open .chart-mini-trigger,
+#sub-indicator-picker.open .chart-mini-trigger {
     background: rgba(59, 130, 246, 0.15);
     border-color: rgba(96, 165, 250, 0.4);
     color: #dbeafe;
 }
 
-/* 白天模式適配 */
-body.light-mode .chart-mini-trigger {
-    background: #edf4f1;
-    border-color: #c7d8d2;
-    color: #526760;
-}
-body.light-mode .chart-mini-trigger:hover {
-    background: #dceee7;
-    border-color: #159a78;
-    color: #087f62;
-}
-body.light-mode #chart-hud div,
-body.light-mode #chart-hud span {
-    color: #526760 !important;
-}
-body.light-mode #chart-hud b {
-    color: #172a26 !important;
-}
-
-
-/* ============================================================
-   圖表週期自訂毛玻璃下拉選單 (Period Picker)
-   ============================================================ */
-.period-picker {
-    position: relative;
-    min-width: 76px;
-    z-index: 25;
-}
-
-.period-trigger {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    padding: 5px 9px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 8px;
-    color: #60a5fa;
-    background: rgba(59, 130, 246, 0.08);
-    font-size: 11px;
-    font-weight: 700;
-    transition: all 0.2s ease;
-    cursor: pointer;
-}
-
-.period-trigger:hover, 
-.period-picker.open .period-trigger {
-    color: #bfdbfe;
-    border-color: rgba(96, 165, 250, 0.65);
-    background: rgba(59, 130, 246, 0.2);
-    box-shadow: 0 0 12px rgba(59, 130, 246, 0.15);
-}
-
-.period-chevron {
-    font-size: 11px;
-    line-height: 1;
-    transition: transform 0.2s ease;
-}
-
-.period-picker.open .period-chevron {
-    transform: rotate(180deg);
-}
-
 .period-menu {
     position: absolute;
     left: 0;
-    top: calc(100% + 6px);
-    z-index: 50;
-    width: 105px;
-    padding: 5px;
+    top: calc(100% + 5px);
+    z-index: 60;
+    width: 110px;
+    padding: 4px;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
+    border-radius: 10px;
     background: rgba(18, 18, 22, 0.95);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
     opacity: 0;
     visibility: hidden;
-    transform: translateY(-6px) scale(0.96);
+    transform: translateY(-4px) scale(0.96);
     transform-origin: top left;
-    transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
 }
 
-.period-picker.open .period-menu {
+.period-picker.open .period-menu,
+.range-picker.open .period-menu,
+#main-indicator-picker.open .period-menu,
+#sub-indicator-picker.open .period-menu {
     opacity: 1 !important;
     visibility: visible !important;
     transform: translateY(0) scale(1) !important;
@@ -373,8 +321,8 @@ body.light-mode #chart-hud b {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 7px 10px;
-    border-radius: 7px;
+    padding: 6px 9px;
+    border-radius: 6px;
     color: #a1a1aa;
     font-size: 11px;
     font-weight: 600;
@@ -382,7 +330,7 @@ body.light-mode #chart-hud b {
     background: transparent;
     border: none;
     cursor: pointer;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition: background 0.12s ease, color 0.12s ease;
 }
 
 .period-menu button:hover {
@@ -400,10 +348,9 @@ body.light-mode #chart-hud b {
     content: "✓";
     color: #60a5fa;
     font-weight: 700;
-    font-size: 12px;
 }
 
-/* 圖表工具列 */
+/* 圖表工具列按鈕 */
 .chart-tools { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .chart-tool-btn {
     min-width: 28px;
@@ -421,43 +368,6 @@ body.light-mode #chart-hud b {
 .chart-tool-btn.active { color: #60a5fa; border-color: rgba(96, 165, 250, 0.6); background: rgba(59, 130, 246, 0.16); }
 #chart-card:fullscreen { width: 100vw; height: 100vh; margin: 0; border-radius: 0; padding: 24px; background: #09090b; }
 #chart-card:fullscreen #chart-container { height: calc(100vh - 100px) !important; min-height: 0; }
-
-.chart-volume-readout {
-    position: absolute;
-    right: 12px;
-    bottom: 28px;
-    z-index: 4;
-    padding: 3px 7px;
-    border: 1px solid rgba(96, 165, 250, 0.2);
-    border-radius: 5px;
-    color: #94a3b8;
-    background: rgba(9, 9, 11, 0.72);
-    font-size: 10px;
-    pointer-events: none;
-}
-.chart-crosshair-tooltip {
-    position: absolute;
-    left: 12px;
-    top: 70px;
-    z-index: 5;
-    min-width: 165px;
-    padding: 8px 10px;
-    border: 1px solid rgba(96, 165, 250, 0.32);
-    border-radius: 8px;
-    color: #dbeafe;
-    background: rgba(9, 9, 11, 0.88);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
-    font-size: 10px;
-    opacity: 0;
-    transform: translateY(-4px);
-    transition: opacity 0.12s ease, transform 0.12s ease;
-    pointer-events: none;
-}
-.chart-crosshair-tooltip.visible { opacity: 1; transform: translateY(0); }
-.tooltip-time { margin-bottom: 5px; color: #93c5fd; font-weight: 700; }
-.tooltip-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; color: #a1a1aa; }
-.tooltip-grid b { color: #f4f4f5; font-weight: 700; }
-.tooltip-volume { grid-column: 1 / -1; color: #fbbf24; }
 
 .market-state-badge {
     display: inline-flex;
@@ -480,10 +390,10 @@ body.light-mode #chart-hud b {
 #chart-card { 
     display: flex;
     flex-direction: column;
-    height: 480px;
+    min-height: 480px;
     margin-bottom: 1.25rem;
 }
-#chart-container { flex: 1; width: 100%; min-height: 360px; }
+#chart-container { flex: 1; width: 100%; min-height: 380px; }
 .company-info-card.collapsed .company-info-body { display: none; }
 .company-info-item {
     background: rgba(255, 255, 255, 0.025);
@@ -544,11 +454,11 @@ body.light-mode #chart-hud b {
 
     .chart-tools { flex-wrap: wrap; gap: 4px; order: 3; width: 100%; margin-left: 0; justify-content: flex-end; }
     
-    #chart-card { min-height: 500px; height: 500px !important; flex: 0 0 500px !important; }
+    #chart-card { min-height: 480px; height: 480px !important; flex: 0 0 480px !important; }
     #chart-container {
-        flex: 0 0 320px !important;
-        height: 320px !important;
-        min-height: 320px;
+        flex: 0 0 350px !important;
+        height: 350px !important;
+        min-height: 350px;
         margin-bottom: 0;
     }
     #chart-card > .flex.items-center.justify-between { flex-wrap: wrap; }
@@ -565,7 +475,9 @@ body.light-mode #chart-hud b {
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
 
-/* 白天模式 (Light Mode) */
+/* ============================================================
+   白天模式 (Light Mode)
+   ============================================================ */
 body.light-mode {
     background-color: #f1f6f4 !important;
     color: #172a26 !important;
@@ -581,18 +493,19 @@ body.light-mode #chart-card {
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.03) !important;
 }
 
-/* 白天模式下的 Period Picker */
-body.light-mode .period-trigger {
+body.light-mode .chart-mini-trigger {
     background: #edf4f1;
     border-color: #c7d8d2;
-    color: #087f62;
+    color: #526760;
 }
-
-body.light-mode .period-trigger:hover,
-body.light-mode .period-picker.open .period-trigger {
-    background: #dff3eb;
+body.light-mode .chart-mini-trigger:hover,
+body.light-mode .period-picker.open .chart-mini-trigger,
+body.light-mode .range-picker.open .chart-mini-trigger,
+body.light-mode #main-indicator-picker.open .chart-mini-trigger,
+body.light-mode #sub-indicator-picker.open .chart-mini-trigger {
+    background: #dceee7;
     border-color: #159a78;
-    color: #065f46;
+    color: #087f62;
 }
 
 body.light-mode .period-menu {
@@ -600,23 +513,27 @@ body.light-mode .period-menu {
     border-color: #d1e0da;
     box-shadow: 0 16px 32px rgba(33, 68, 59, 0.15);
 }
-
 body.light-mode .period-menu button {
     color: #526760;
 }
-
 body.light-mode .period-menu button:hover {
     color: #172a26;
     background: #f1f7f4;
 }
-
 body.light-mode .period-menu button[aria-selected="true"] {
     color: #087f62;
     background: #e2f0ea;
 }
-
 body.light-mode .period-menu button[aria-selected="true"]::after {
     color: #087f62;
+}
+
+body.light-mode #chart-hud div,
+body.light-mode #chart-hud span {
+    color: #526760 !important;
+}
+body.light-mode #chart-hud b {
+    color: #172a26 !important;
 }
 
 body.light-mode #sidebar { background: rgba(251, 253, 252, 0.96) !important; border-right: 1px solid #d7e4df !important; }
