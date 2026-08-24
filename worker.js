@@ -165,7 +165,10 @@ export default {
       // Historical rows only need institutional trades.  Skipping the much
       // larger margin endpoint for every date keeps the Worker within its
       // execution budget and lets all requested days reach the frontend.
-      const BATCH_SIZE = source === 'twse_chip_history' ? 2 : 4;
+      // TWSE throttles repeated requests originating from the same Worker IP.
+      // Fetching history one trading date at a time is slower, but reliably
+      // returns every requested day instead of only the first successful row.
+      const BATCH_SIZE = source === 'twse_chip_history' ? 1 : 4;
 
       for (let i = 0; i < candidates.length && validList.length < days; i += BATCH_SIZE) {
         const batch = candidates.slice(i, i + BATCH_SIZE);
@@ -190,7 +193,7 @@ export default {
         const history = validList
           .sort((a, b) => a.date.localeCompare(b.date))
           .slice(-days);
-        return jsonResponse({ symbol: code, history: history.reverse(), source: 'TWSE Open Data' }, 200, { 'Cache-Control': 'public, max-age=600' });
+        return jsonResponse({ symbol: code, history: history.reverse(), source: 'TWSE Open Data' }, 200, { 'Cache-Control': 'public, max-age=60' });
       }
     }
 
@@ -324,7 +327,10 @@ async function fetchChipForDate(candidate, code, includeMargin = false) {
   let instFields = twseInst?.fields || [];
   let institutional = instRow ? parseInstitutionalRow(instFields, instRow) : null;
 
-  if (!institutional) {
+  // Do not call TPEx for weekends and exchange holidays; doing so repeatedly
+  // causes upstream throttling before the next valid TWSE date is reached.
+  const weekday = new Date(`${candidate.slice(0, 4)}-${candidate.slice(4, 6)}-${candidate.slice(6, 8)}T00:00:00Z`).getUTCDay();
+  if (!institutional && weekday !== 0 && weekday !== 6) {
     const tpexTable = await fetchTpexInstitutional(candidate);
     if (tpexTable && tpexTable.has(code)) {
       institutional = tpexTable.get(code);
