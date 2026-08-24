@@ -203,7 +203,7 @@ body {
 /* ============================================================
    StockIntelli 風格微型下拉選單 (Period, Range, Main, Sub)
    ============================================================ */
-.period-picker, .range-picker, #main-indicator-picker, #sub-indicator-picker {
+.period-picker, #main-indicator-picker, #sub-indicator-picker {
     position: relative;
     z-index: 30;
 }
@@ -225,7 +225,6 @@ body {
 
 .chart-mini-trigger:hover,
 .period-picker.open .chart-mini-trigger,
-.range-picker.open .chart-mini-trigger,
 #main-indicator-picker.open .chart-mini-trigger,
 #sub-indicator-picker.open .chart-mini-trigger {
     background: rgba(59, 130, 246, 0.15);
@@ -254,7 +253,6 @@ body {
 }
 
 .period-picker.open .period-menu,
-.range-picker.open .period-menu,
 #main-indicator-picker.open .period-menu,
 #sub-indicator-picker.open .period-menu {
     opacity: 1 !important;
@@ -411,7 +409,6 @@ body.light-mode .chart-mini-trigger {
 }
 body.light-mode .chart-mini-trigger:hover,
 body.light-mode .period-picker.open .chart-mini-trigger,
-body.light-mode .range-picker.open .chart-mini-trigger,
 body.light-mode #main-indicator-picker.open .chart-mini-trigger,
 body.light-mode #sub-indicator-picker.open .chart-mini-trigger {
     background: #dceee7;

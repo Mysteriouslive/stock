@@ -148,11 +148,14 @@ export default {
       const maxLookback = Math.ceil(days * 1.5) + 10;
       const candidates = recentTradingDates(maxLookback);
       const validList = [];
-      const BATCH_SIZE = 4; // 每批平行請求的日期數，兼顧速度與限流風險
+      // Historical rows only need institutional trades.  Skipping the much
+      // larger margin endpoint for every date keeps the Worker within its
+      // execution budget and lets all requested days reach the frontend.
+      const BATCH_SIZE = source === 'twse_chip_history' ? 2 : 4;
 
       for (let i = 0; i < candidates.length && validList.length < days; i += BATCH_SIZE) {
         const batch = candidates.slice(i, i + BATCH_SIZE);
-        const batchResults = await Promise.all(batch.map(candidate => fetchChipForDate(candidate, code)));
+        const batchResults = await Promise.all(batch.map(candidate => fetchChipForDate(candidate, code, source === 'twse_chip')));
         for (const result of batchResults) {
           if (result) validList.push(result);
         }
@@ -297,10 +300,10 @@ function parseNumber(value) {
 }
 
 // 新增:單一日期的籌碼資料查詢，抽成獨立函式供批次呼叫使用
-async function fetchChipForDate(candidate, code) {
+async function fetchChipForDate(candidate, code, includeMargin = false) {
   const [twseInst, twseMargin] = await Promise.all([
     fetchJson(`https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=${candidate}&selectType=ALL`, 600),
-    fetchJson(`https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&date=${candidate}&selectType=ALL`, 600)
+    includeMargin ? fetchJson(`https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&date=${candidate}&selectType=ALL`, 600) : Promise.resolve(null)
   ]);
 
   let instRow = twseInst?.data?.find(row => String(row?.[0] || '').trim() === code);

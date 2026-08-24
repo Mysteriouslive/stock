@@ -1110,10 +1110,18 @@ async function loadStock(symbol, isSilent = false) {
         let quote = null, chartData = [], yahooResult = null, yahooError = null;
 
         try {
-            yahooResult = await fetchYahooData(symbol);
+            // Quotes always come from the same daily request.  The selected
+            // K-line period only controls chart candles, never the price or
+            // its day-over-day change.
+            const quoteRequest = fetchYahooData(symbol, '1d', '5d');
+            const chartRequest = currentPeriod.interval === '1d' && currentPeriod.range === '5d'
+                ? quoteRequest
+                : fetchYahooData(symbol);
+            const [quoteResult, chartResult] = await Promise.all([quoteRequest, chartRequest]);
+            yahooResult = quoteResult || chartResult;
             if (yahooResult) {
                 try { quote = parseQuote(yahooResult, symbol); } catch {}
-                try { chartData = parseCandles(yahooResult); } catch {}
+                try { chartData = parseCandles(chartResult || yahooResult); } catch {}
             }
         } catch (error) { yahooError = error; }
 
@@ -1282,18 +1290,17 @@ function restartAutoRefresh() { stopAutoRefresh(); if (currentSymbol) startAutoR
 // 6. 微型選單控制
 // ============================================================
 function togglePeriodMenu() { closeAllMiniMenusExcept('period-picker'); document.getElementById('period-picker')?.classList.toggle('open'); }
-function toggleRangeMenu() { closeAllMiniMenusExcept('range-picker'); document.getElementById('range-picker')?.classList.toggle('open'); }
 function toggleMainMenu() { closeAllMiniMenusExcept('main-indicator-picker'); document.getElementById('main-indicator-picker')?.classList.toggle('open'); }
 function toggleSubMenu() { closeAllMiniMenusExcept('sub-indicator-picker'); document.getElementById('sub-indicator-picker')?.classList.toggle('open'); }
 
 function closeAllMiniMenusExcept(exceptId) {
-    ['period-picker', 'range-picker', 'main-indicator-picker', 'sub-indicator-picker'].forEach(id => {
+    ['period-picker', 'main-indicator-picker', 'sub-indicator-picker'].forEach(id => {
         if (id !== exceptId) document.getElementById(id)?.classList.remove('open');
     });
 }
 
 function closeAllMiniMenus() {
-    document.querySelectorAll('.period-picker, .range-picker, #main-indicator-picker, #sub-indicator-picker').forEach(el => el.classList.remove('open'));
+    document.querySelectorAll('.period-picker, #main-indicator-picker, #sub-indicator-picker').forEach(el => el.classList.remove('open'));
 }
 
 async function selectPeriodOption(value, label) {
@@ -1305,18 +1312,6 @@ async function selectPeriodOption(value, label) {
         btn.setAttribute('aria-selected', btn.dataset.period === value ? 'true' : 'false');
     });
     
-    closeAllMiniMenus();
-    if (currentSymbol) await loadStock(currentSymbol);
-}
-
-async function setChartRange(range, label) {
-    currentPeriod.range = range;
-    setText('range-label', label);
-    
-    document.querySelectorAll('#range-menu [role="option"]').forEach(btn => {
-        btn.setAttribute('aria-selected', btn.dataset.range === range ? 'true' : 'false');
-    });
-
     closeAllMiniMenus();
     if (currentSymbol) await loadStock(currentSymbol);
 }
@@ -1499,11 +1494,9 @@ window.changeSort = changeSort;
 window.toggleSortMenu = toggleSortMenu;
 window.selectSortOption = selectSortOption;
 window.togglePeriodMenu = togglePeriodMenu;
-window.toggleRangeMenu = toggleRangeMenu;
 window.toggleMainMenu = toggleMainMenu;
 window.toggleSubMenu = toggleSubMenu;
 window.selectPeriodOption = selectPeriodOption;
-window.setChartRange = setChartRange;
 window.toggleMainOption = toggleMainOption;
 window.toggleSubOption = toggleSubOption;
 window.toggleSidebar = toggleSidebar;
@@ -1521,7 +1514,7 @@ window.getAllActiveCharts = getAllActiveCharts;
 window.refreshCurrentStock = refreshCurrentStock;
 
 document.addEventListener('click', event => {
-    if (!event.target.closest('.period-picker, .range-picker, #main-indicator-picker, #sub-indicator-picker')) {
+    if (!event.target.closest('.period-picker, #main-indicator-picker, #sub-indicator-picker')) {
         closeAllMiniMenus();
     }
     const sortPicker = document.getElementById('sort-picker');
