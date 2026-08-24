@@ -73,6 +73,27 @@ export default {
         }
       } catch {}
 
+      // CoinGecko occasionally rate-limits public requests.  Keep the same
+      // response shape with Binance as a fallback so the dashboard remains
+      // usable instead of failing the entire crypto watchlist.
+      try {
+        const pairs = Object.fromEntries(Object.keys(cryptoMap).map(symbol => [symbol, `${symbol}USDT`]));
+        const entries = await Promise.all(Object.entries(pairs).map(async ([symbol, pair]) => {
+          const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${pair}`, {
+            headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0' },
+            cf: { cacheTtl: 60, cacheEverything: true }
+          });
+          if (!res.ok) return null;
+          const data = await res.json();
+          const usd = Number(data?.lastPrice), change = Number(data?.priceChangePercent);
+          return Number.isFinite(usd) ? [symbol, { usd, usd_24h_change: Number.isFinite(change) ? change : 0 }] : null;
+        }));
+        const result = Object.fromEntries(entries.filter(Boolean));
+        if (Object.keys(result).length > 0) {
+          return jsonResponse(result, 200, { 'Cache-Control': 'public, max-age=60' });
+        }
+      } catch {}
+
       return jsonResponse({ error: 'Crypto unavailable' }, 503);
     }
 

@@ -13,6 +13,7 @@ let rsiSeries = null;
 let macdHistSeries = null, macdLineSeries = null, macdSignalSeries = null;
 let sessionMarkers = null, currentChartData = [], isSyncingTimeScale = false;
 let autoRefreshTimer = null, isLoadingStock = false;
+let activeLoadRequest = 0;
 let chartAtRightEdge = true;
 
 const mainIndicatorsState = { ma: true, bollinger: false };
@@ -190,9 +191,11 @@ function parseCandles(result) {
 function applyCurrentPriceToQuote(quote, price, previousClose, symbol, fallbackPercent = NaN) {
     const current = Number(price), previous = Number(previousClose);
     if (!Number.isFinite(current) || current <= 0) return quote;
-    let percent = Number.isFinite(previous) && previous > 0 ? ((current - previous) / previous) * 100 : Number(fallbackPercent);
+    const suppliedPercent = Number(fallbackPercent);
+    const useSuppliedPercent = Number.isFinite(suppliedPercent);
+    let percent = useSuppliedPercent ? suppliedPercent : (Number.isFinite(previous) && previous > 0 ? ((current - previous) / previous) * 100 : NaN);
     if (!Number.isFinite(percent)) percent = 0;
-    const base = Number.isFinite(previous) && previous > 0 ? previous : current / (1 + percent / 100);
+    const base = !useSuppliedPercent && Number.isFinite(previous) && previous > 0 ? previous : current / (1 + percent / 100);
     const change = current - base, decimals = isForexSymbol(symbol) ? 4 : (isCryptoSymbol(symbol) && current < 1 ? 6 : 2);
     return { ...(quote || {}), latestPrice: formatPrice(current, symbol), change: change.toFixed(decimals), changePercent: percent.toFixed(2), isUp: change > 0, isFlat: change === 0, previousClose: formatPrice(base, symbol) };
 }
@@ -863,7 +866,14 @@ function updateVisibleSubPanes() {
 }
 
 function updateChartIndicators(data) {
-    if (!data.length) return;
+    if (!data.length) {
+        [ma5Series, ma20Series, ma60Series, upperBandSeries, lowerBandSeries, volSeries, kdSeriesK, kdSeriesD, rsiSeries, macdHistSeries, macdLineSeries, macdSignalSeries]
+            .filter(Boolean)
+            .forEach(series => series.setData([]));
+        ['hud-date', 'hud-open', 'hud-high', 'hud-low', 'hud-close', 'hud-volume', 'hud-ma5', 'hud-ma20', 'hud-ma60', 'hud-kd-k', 'hud-kd-d', 'hud-rsi-val', 'hud-macd-dif', 'hud-macd-dea', 'hud-macd-hist']
+            .forEach(id => setText(id, '—'));
+        return;
+    }
     const close = item => item.close;
 
     ma5Series?.setData(mainIndicatorsState.ma ? calculateIndicatorData(data, 5, close, (item, avg) => ({ time: item.time, value: avg })) : []);
@@ -964,8 +974,11 @@ function updateCrosshairHUD(param) {
 // 5. 標的資料載入主流程
 // ============================================================
 async function loadStock(symbol, isSilent = false) {
-    // Do not let slow, older responses overwrite the latest quote.
-    if (!symbol || isLoadingStock) return;
+    if (!symbol) return;
+    // Every request receives a sequence number.  A slower, older response is
+    // allowed to finish, but it must never overwrite the newly selected stock.
+    const requestId = ++activeLoadRequest;
+    const isCurrentRequest = () => requestId === activeLoadRequest;
     currentSymbol = symbol; saveWatchlist();
 
     const isTw = isTaiwanSymbol(symbol);
@@ -983,6 +996,9 @@ async function loadStock(symbol, isSilent = false) {
         const priceChange = document.getElementById('price-change'); if (priceChange) priceChange.className = 'text-sm sm:text-base font-bold px-2.5 py-1 rounded-lg bg-white/5 border border-white/5';
         const currentPrice = document.getElementById('current-price'); if (currentPrice) currentPrice.className = 'text-3xl sm:text-4xl font-black text-white tracking-tight leading-none transition-colors duration-300';
         resetFundamentals();
+        currentChartData = [];
+        if (candlestickSeries) candlestickSeries.setData([]);
+        updateChartIndicators([]);
         
         setChipVisibility(isTw);
     }
@@ -1002,11 +1018,11 @@ async function loadStock(symbol, isSilent = false) {
         if (isTw) {
             let twseMetricsData = null;
             try { twseMetricsData = await fetchTwseMetrics(symbol); } catch {}
-            if (twseMetricsData && !isSilent) {
+            if (twseMetricsData && !isSilent && isCurrentRequest()) {
                 const rawPrice = quote?.latestPrice ? Number(quote.latestPrice.replace(/,/g, '')) : NaN;
                 renderTwseMetrics(twseMetricsData, symbol, yahooResult, rawPrice);
             }
-            if (!isSilent && yahooResult) {
+            if (!isSilent && yahooResult && isCurrentRequest()) {
                 renderCompanyInfo(yahooResult, symbol, quote, `Yahoo Finance + ${String(symbol).toUpperCase().includes('.TWO') ? '櫃買中心' : '證交所'}`);
                 const stockItem = watchlist.find(s => s.symbol === symbol);
                 if (stockItem && (stockItem.name === displaySymbol(symbol) || !stockItem.name)) {
@@ -1021,11 +1037,18 @@ async function loadStock(symbol, isSilent = false) {
                 }
             }
             if (!isSilent) {
-                const [chipData, chipHistory] = await Promise.all([
+                // Chip data is supplementary.  Its upstream endpoint may be
+                // temporarily unavailable, so it must not invalidate a quote.
+                const [chipDataResult, chipHistoryResult] = await Promise.allSettled([
                     fetchTwseChipData(symbol),
                     fetchTwseChipHistory(symbol)
                 ]);
-                renderChipData(chipData, chipHistory);
+                if (isCurrentRequest()) {
+                    renderChipData(
+                        chipDataResult.status === 'fulfilled' ? chipDataResult.value : null,
+                        chipHistoryResult.status === 'fulfilled' ? chipHistoryResult.value : null
+                    );
+                }
             }
         } else {
             if (isForexSymbol(symbol)) {
@@ -1034,7 +1057,7 @@ async function loadStock(symbol, isSilent = false) {
                     if (forex?.rate) {
                         const prevClose = yahooResult?.meta?.regularMarketPreviousClose ?? yahooResult?.meta?.previousClose ?? yahooResult?.meta?.chartPreviousClose;
                         quote = applyCurrentPriceToQuote(quote, forex.rate, prevClose, symbol, forex.changePercent);
-                        if (!isSilent) renderCompanyInfo(yahooResult, symbol, quote, yahooResult ? 'Frankfurter 現價 + Yahoo Finance K線' : 'Frankfurter');
+                        if (!isSilent && isCurrentRequest()) renderCompanyInfo(yahooResult, symbol, quote, yahooResult ? 'Frankfurter 現價 + Yahoo Finance K線' : 'Frankfurter');
                     }
                 } catch {}
             } else if (isCryptoSymbol(symbol)) {
@@ -1044,12 +1067,12 @@ async function loadStock(symbol, isSilent = false) {
                         const currentPrice = Number(crypto.usd ?? crypto.price), cryptoChange = Number(crypto.usd_24h_change ?? crypto.changePercent ?? crypto.change_24h ?? NaN);
                         const previous = yahooResult?.meta?.regularMarketPreviousClose ?? yahooResult?.meta?.previousClose ?? yahooResult?.meta?.chartPreviousClose;
                         quote = applyCurrentPriceToQuote(quote, currentPrice, previous, symbol, cryptoChange);
-                        if (!isSilent) renderCompanyInfo(yahooResult, symbol, quote, yahooResult ? 'CoinGecko 現價 + Yahoo Finance K線' : 'CoinGecko');
+                        if (!isSilent && isCurrentRequest()) renderCompanyInfo(yahooResult, symbol, quote, yahooResult ? 'CoinGecko 現價 + Yahoo Finance K線' : 'CoinGecko');
                     }
                 } catch {}
             } else {
                 if (!quote && !isIndexSymbol(symbol)) { try { quote = await fetchFinnhubQuote(symbol); } catch {} }
-                if (!isSilent) {
+                if (!isSilent && isCurrentRequest()) {
                     if (isIndexSymbol(symbol)) renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
                     else {
                         const companyProfile = await fetchFinnhubCompanyProfile(symbol).catch(() => null), metricResult = await fetchFinnhubMetrics(symbol).catch(() => null);
@@ -1063,6 +1086,8 @@ async function loadStock(symbol, isSilent = false) {
 
         if (!quote && quoteCache[symbol]) quote = quoteCache[symbol];
         if (!quote) throw (yahooError || new Error('NO_QUOTE_DATA'));
+
+        if (!isCurrentRequest()) return;
 
         quoteCache[symbol] = quote; saveWatchlist();
 
@@ -1103,7 +1128,7 @@ async function loadStock(symbol, isSilent = false) {
 
     } catch (error) {
         console.error('loadStock error:', error);
-        if (!isSilent) {
+        if (!isSilent && isCurrentRequest()) {
             setText('stock-name', `找不到 ${displaySymbol(symbol)} 的資料，請確認代碼`);
             setText('current-price', '—');
             setText('price-change', '暫時無法取得資料');
@@ -1111,25 +1136,28 @@ async function loadStock(symbol, isSilent = false) {
             updateMarketState('', symbol);
         }
     } finally {
-        isLoadingStock = false;
-        if (!isSilent) { const loadingBadge = document.getElementById('loading-badge'); if (loadingBadge) loadingBadge.classList.add('hidden'); }
+        if (isCurrentRequest()) {
+            isLoadingStock = false;
+            if (!isSilent) { const loadingBadge = document.getElementById('loading-badge'); if (loadingBadge) loadingBadge.classList.add('hidden'); }
+        }
     }
 
-    if (!isSilent && window.innerWidth < 768) {
+    if (!isSilent && isCurrentRequest() && window.innerWidth < 768) {
         const sidebar = document.getElementById('sidebar'), overlay = document.getElementById('overlay');
         if (sidebar) sidebar.classList.remove('open'); if (overlay) overlay.classList.remove('show');
     }
 
-    restartAutoRefresh();
+    if (isCurrentRequest()) restartAutoRefresh();
 }
 
 async function refreshCurrentStock() {
-    if (!currentSymbol || isLoadingStock) return;
+    if (!currentSymbol) return;
+    const symbol = currentSymbol;
     const button = document.getElementById('refresh-stock-btn');
     button?.classList.add('is-refreshing');
     try {
-        await loadStock(currentSymbol);
-        await fetchMarketIndices();
+        await loadStock(symbol);
+        if (currentSymbol === symbol) await fetchMarketIndices();
     } finally {
         button?.classList.remove('is-refreshing');
     }
