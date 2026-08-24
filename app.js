@@ -165,7 +165,7 @@ function formatCompactNumber(value) {
     return n.toFixed(2);
 }
 function formatVolume(value) {
-    if (!Number.isFinite(Number(value)) || value === '') return '—';
+    if (!Number.isFinite(Number(value)) || value === '' || value === 0) return '—';
     const n = Number(value);
     if (n >= 100000000) return `${(n / 100000000).toFixed(2)} 億`;
     if (n >= 10000) return `${(n / 10000).toFixed(2)} 萬`;
@@ -256,16 +256,16 @@ function parseCandles(result) {
     const timestamps = result?.timestamp || [], quote = result?.indicators?.quote?.[0];
     if (!timestamps.length || !quote) throw new Error('NO_CANDLE_DATA');
 
+    const isDailyOrAbove = ['1d', '1wk', '1mo'].includes(currentPeriod.interval);
     const chartData = [];
     for (let i = 0; i < timestamps.length; i++) {
         const open = quote.open?.[i], high = quote.high?.[i], low = quote.low?.[i], close = quote.close?.[i];
         if ([open, high, low, close].some(v => v == null || !Number.isFinite(Number(v)))) continue;
         
-        // 關鍵修復：如果是日/週/月K，以 YYYY-MM-DD 格式呈現，時間軸不會再出現第幾小時
-        const isDailyOrAbove = ['1d', '1wk', '1mo'].includes(currentPeriod.interval);
         chartData.push({
             time: isDailyOrAbove ? new Date(timestamps[i] * 1000).toISOString().split('T')[0] : timestamps[i],
-            open: Number(open), high: Number(high), low: Number(low), close: Number(close), volume: Number(quote.volume?.[i]) || 0
+            open: Number(open), high: Number(high), low: Number(low), close: Number(close),
+            volume: Number(quote.volume?.[i]) || 0
         });
     }
     return chartData;
@@ -507,6 +507,7 @@ function renderChipContent() {
         } else {
             tableRows.innerHTML = `<div class="text-center py-6 text-gray-500 text-xs">暫無持股走勢資料</div>`;
         }
+
         renderHoldingChart(holdingList);
     }
 }
@@ -762,7 +763,6 @@ let quoteCache = JSON.parse(localStorage.getItem('stockQuoteCache') || '{}');
 let sortMode = localStorage.getItem('stockSortMode') || 'manual';
 let currentSymbol = localStorage.getItem('stockCurrentSymbol') || (watchlist.length > 0 ? watchlist[0].symbol : null);
 
-// 預設為日K、範圍6個月
 let currentPeriod = { interval: '1d', range: '6mo', label: '日K' };
 
 const COLOR_KEYS = ['orange', 'blue', 'green', 'cyan', 'purple', 'pink', 'yellow', 'red'];
@@ -909,7 +909,7 @@ function removeStock(index) {
 }
 
 // ============================================================
-// 圖表與指標系統 (StockIntelli 多重主副圖架構)
+// 圖表與指標系統 (獨立三層佈局 + 多附圖疊加)
 // ============================================================
 let chart = null, candlestickSeries = null, volumeSeries = null;
 let ma5Series = null, ma20Series = null, ma60Series = null, upperBandSeries = null, lowerBandSeries = null;
@@ -918,14 +918,11 @@ let macdHistSeries = null, macdLineSeries = null, macdSignalSeries = null;
 let sessionMarkers = null, currentChartData = [], chartResizeObserver = null, chartResizeHandler = null, autoRefreshTimer = null, isLoadingStock = false;
 let chartAtRightEdge = true;
 
-// 多重主圖覆蓋開關
-const mainIndicatorsState = {
-    ma: true,
-    bollinger: false
-};
+// 多重主圖覆蓋
+const mainIndicatorsState = { ma: true, bollinger: false };
 
-// 附圖（副圖）選擇
-let currentSubIndicator = 'kd';
+// 多重附圖疊加
+const subIndicatorsState = { kd: true, rsi: false, macd: false };
 
 function getChartDate(time) {
     if (typeof time === 'number') return new Date(time * 1000);
@@ -1082,13 +1079,13 @@ function updateChartIndicators(data) {
     if (!data.length) return;
     const close = item => item.close;
 
-    // 1. 主圖均線 (多重覆蓋)
+    // 1. 主圖均線
     const isMa = mainIndicatorsState.ma;
     ma5Series?.setData(isMa ? calculateIndicatorData(data, 5, close, (item, avg) => ({ time: item.time, value: avg })) : []);
     ma20Series?.setData(isMa ? calculateIndicatorData(data, 20, close, (item, avg) => ({ time: item.time, value: avg })) : []);
     ma60Series?.setData(isMa ? calculateIndicatorData(data, 60, close, (item, avg) => ({ time: item.time, value: avg })) : []);
 
-    // 2. 布林通道 (多重覆蓋)
+    // 2. 布林通道
     const isBB = mainIndicatorsState.bollinger;
     if (isBB) {
         upperBandSeries?.setData(calculateIndicatorData(data, 20, close, (item, avg, val) => ({ time: item.time, value: avg + Math.sqrt(val.reduce((sum, v) => sum + (v - avg) ** 2, 0) / 20) * 2 })));
@@ -1097,19 +1094,15 @@ function updateChartIndicators(data) {
         upperBandSeries?.setData([]); lowerBandSeries?.setData([]);
     }
 
-    // 3. 成交量柱狀圖 (放大比例：佔據中間下層空間)
+    // 3. 成交量柱狀圖 (獨立在中央專屬區間，不與主圖K線重疊)
     volumeSeries?.setData(data.filter(item => Number(item.volume) > 0).map(item => ({
         time: item.time,
         value: Number(item.volume),
-        color: item.close >= item.open ? 'rgba(239, 68, 68, 0.7)' : 'rgba(16, 185, 129, 0.7)'
+        color: item.close >= item.open ? 'rgba(239, 68, 68, 0.75)' : 'rgba(16, 185, 129, 0.75)'
     })));
 
-    // 4. 附圖 (KD / RSI / MACD)
-    const isKd = currentSubIndicator === 'kd';
-    const isRsi = currentSubIndicator === 'rsi';
-    const isMacd = currentSubIndicator === 'macd';
-
-    if (isKd) {
+    // 4. 多重附圖疊加渲染
+    if (subIndicatorsState.kd) {
         const { kList, dList } = calculateKDData(data);
         kdSeriesK?.setData(kList);
         kdSeriesD?.setData(dList);
@@ -1117,13 +1110,13 @@ function updateChartIndicators(data) {
         kdSeriesK?.setData([]); kdSeriesD?.setData([]);
     }
 
-    if (isRsi) {
+    if (subIndicatorsState.rsi) {
         rsiSeries?.setData(calculateRSIData(data));
     } else {
         rsiSeries?.setData([]);
     }
 
-    if (isMacd) {
+    if (subIndicatorsState.macd) {
         const { histList, difList, deaList } = calculateMACDData(data);
         macdHistSeries?.setData(histList);
         macdLineSeries?.setData(difList);
@@ -1138,6 +1131,7 @@ function updateChartIndicators(data) {
     if (lastItem) updateChartHUD(lastItem);
 }
 
+// 修正：HUD 成交量精準解析，杜絕「量 —」
 function updateChartHUD(candle, timeStr) {
     if (!candle) return;
     const date = getChartDate(candle.time);
@@ -1148,7 +1142,12 @@ function updateChartHUD(candle, timeStr) {
     setText('hud-open', formatPrice(candle.open, currentSymbol));
     setText('hud-high', formatPrice(candle.high, currentSymbol));
     setText('hud-low', formatPrice(candle.low, currentSymbol));
-    setText('hud-volume', candle.volume ? formatVolume(candle.volume) : '—');
+    
+    // 成交量精準取得
+    const volNumber = candle.volume != null && Number.isFinite(Number(candle.volume)) && Number(candle.volume) > 0
+        ? candle.volume
+        : (currentChartData.find(d => d.time === candle.time)?.volume || null);
+    setText('hud-volume', volNumber ? formatVolume(volNumber) : '—');
 
     const closeEl = document.getElementById('hud-close');
     if (closeEl) closeEl.className = candle.close >= candle.open ? 'text-[#ef4444] font-bold font-mono' : 'text-[#10b981] font-bold font-mono';
@@ -1161,28 +1160,29 @@ function updateChartHUD(candle, timeStr) {
             setText('hud-ma20', getMa(20));
             setText('hud-ma60', getMa(60));
 
-            const hudSubRow = document.getElementById('hud-sub-row');
-            if (currentSubIndicator === 'kd') {
+            // 多副圖 HUD 動態顯示
+            const hudKd = document.getElementById('hud-sub-kd');
+            const hudRsi = document.getElementById('hud-sub-rsi');
+            const hudMacd = document.getElementById('hud-sub-macd');
+
+            if (subIndicatorsState.kd && hudKd) {
                 const { kList, dList } = calculateKDData(currentChartData);
-                const kVal = kList[idx]?.value ?? '—';
-                const dVal = dList[idx]?.value ?? '—';
-                setText('hud-sub-val1', `K ${kVal}`);
-                setText('hud-sub-val2', `D ${dVal}`);
-                if (hudSubRow) hudSubRow.style.display = 'flex';
-            } else if (currentSubIndicator === 'rsi') {
+                hudKd.textContent = `K ${kList[idx]?.value ?? '—'} D ${dList[idx]?.value ?? '—'}`;
+                hudKd.classList.remove('hidden');
+            } else if (hudKd) hudKd.classList.add('hidden');
+
+            if (subIndicatorsState.rsi && hudRsi) {
                 const rsiList = calculateRSIData(currentChartData);
-                const rsiItem = rsiList.find(r => r.time === candle.time);
-                setText('hud-sub-val1', `RSI ${rsiItem ? rsiItem.value : '—'}`);
-                setText('hud-sub-val2', '');
-                if (hudSubRow) hudSubRow.style.display = 'flex';
-            } else if (currentSubIndicator === 'macd') {
-                const { histList, difList, deaList } = calculateMACDData(currentChartData);
-                setText('hud-sub-val1', `DIF ${difList[idx]?.value ?? '—'}`);
-                setText('hud-sub-val2', `DEA ${deaList[idx]?.value ?? '—'}`);
-                if (hudSubRow) hudSubRow.style.display = 'flex';
-            } else {
-                if (hudSubRow) hudSubRow.style.display = 'none';
-            }
+                const rsiVal = rsiList.find(r => r.time === candle.time)?.value ?? '—';
+                hudRsi.textContent = `RSI ${rsiVal}`;
+                hudRsi.classList.remove('hidden');
+            } else if (hudRsi) hudRsi.classList.add('hidden');
+
+            if (subIndicatorsState.macd && hudMacd) {
+                const { difList, deaList } = calculateMACDData(currentChartData);
+                hudMacd.textContent = `DIF ${difList[idx]?.value ?? '—'} DEA ${deaList[idx]?.value ?? '—'}`;
+                hudMacd.classList.remove('hidden');
+            } else if (hudMacd) hudMacd.classList.add('hidden');
         }
     }
 }
@@ -1202,10 +1202,11 @@ function formatChartTooltipTime(time) {
     return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
+// 核心佈局改造：主圖頂部 58%、成交量中間 18%、副圖底部 24%，徹底拉開間距
 function initChart() {
     const container = document.getElementById('chart-container');
     if (!container || typeof LightweightCharts === 'undefined' || chart) return false;
-    if (container.clientHeight <= 0) container.style.minHeight = window.innerWidth < 768 ? '360px' : '440px';
+    if (container.clientHeight <= 0) container.style.minHeight = window.innerWidth < 768 ? '380px' : '480px';
 
     const isMobile = window.innerWidth < 768;
     const gridColor = isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
@@ -1217,7 +1218,7 @@ function initChart() {
         grid: { vertLines: { color: gridColor }, horzLines: { color: gridColor } },
         crosshair: { mode: LightweightCharts.CrosshairMode.Normal, vertLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 }, horzLine: { color: 'rgba(255,255,255,0.2)', width: 1, style: 2 } },
         timeScale: { borderColor: scaleBorderColor, timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
-        rightPriceScale: { borderColor: scaleBorderColor, scaleMargins: { top: 0.08, bottom: 0.35 } },
+        rightPriceScale: { borderColor: scaleBorderColor, scaleMargins: { top: 0.05, bottom: 0.45 } }, // 主圖 K 線限制在最上方 55%
         handleScroll: { mouseWheel: false, pressedMouseMove: !isMobile, horzTouchDrag: true, vertTouchDrag: true },
         handleScale: { axisPressedMouseMove: !isMobile, mouseWheel: false, pinch: true }
     });
@@ -1228,14 +1229,14 @@ function initChart() {
         borderUpColor: '#ef4444', borderDownColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
     });
 
-    // 2. 主圖成交量：加大比例（從底端 28% 到 45% 高度，清晰可辨）
+    // 2. 中間獨立成交量 (配置在 56% ~ 74% 區間)
     volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, {
         priceFormat: { type: 'volume' },
         priceScaleId: 'volume_scale',
         color: 'rgba(96,165,250,0.35)'
     });
     chart.priceScale('volume_scale').applyOptions({
-        scaleMargins: { top: 0.55, bottom: 0.25 },
+        scaleMargins: { top: 0.58, bottom: 0.26 },
         visible: false
     });
 
@@ -1248,7 +1249,7 @@ function initChart() {
     upperBandSeries = chart.addSeries(LightweightCharts.LineSeries, { color: 'rgba(168,85,247,0.7)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     lowerBandSeries = chart.addSeries(LightweightCharts.LineSeries, { color: 'rgba(168,85,247,0.7)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
 
-    // 5. 獨立副圖層 (KD / RSI / MACD)：佔據最底部 23% 高度
+    // 5. 底部獨立附圖 (配置在 76% ~ 98% 區間)
     kdSeriesK = chart.addSeries(LightweightCharts.LineSeries, { color: '#38bdf8', lineWidth: 1.5, priceScaleId: 'sub_pane', priceLineVisible: false });
     kdSeriesD = chart.addSeries(LightweightCharts.LineSeries, { color: '#f87171', lineWidth: 1.5, priceScaleId: 'sub_pane', priceLineVisible: false });
     rsiSeries = chart.addSeries(LightweightCharts.LineSeries, { color: '#c084fc', lineWidth: 1.5, priceScaleId: 'sub_pane', priceLineVisible: false });
@@ -1258,7 +1259,7 @@ function initChart() {
     macdSignalSeries = chart.addSeries(LightweightCharts.LineSeries, { color: '#f87171', lineWidth: 1.5, priceScaleId: 'sub_pane', priceLineVisible: false });
 
     chart.priceScale('sub_pane').applyOptions({
-        scaleMargins: { top: 0.77, bottom: 0.01 },
+        scaleMargins: { top: 0.76, bottom: 0.02 },
         visible: true,
         borderVisible: true
     });
@@ -1284,7 +1285,7 @@ function setupChartResize(container) {
         if (!chart || !container) return;
         let width = container.clientWidth, height = container.clientHeight;
         if (width <= 0) return;
-        if (height <= 0) height = window.innerWidth < 768 ? 360 : 440;
+        if (height <= 0) height = window.innerWidth < 768 ? 380 : 480;
         if (width === lastWidth && height === lastHeight) return;
         lastWidth = width; lastHeight = height; chart.applyOptions({ width, height });
     };
@@ -1522,7 +1523,6 @@ document.addEventListener('click', event => {
     }
 });
 
-// 週期切換 (更新 Trigger 文字與選中打勾狀態)
 async function selectPeriodOption(value, label) {
     const [interval, range] = value.split('|');
     currentPeriod = { interval, range, label };
@@ -1537,7 +1537,6 @@ async function selectPeriodOption(value, label) {
     if (currentSymbol) await loadStock(currentSymbol);
 }
 
-// 範圍切換 (支援 1月、3月、6月、1年、全部，並更新打勾狀態)
 async function setChartRange(range, label) {
     currentPeriod.range = range;
     setText('range-label', label);
@@ -1551,7 +1550,7 @@ async function setChartRange(range, label) {
     if (currentSymbol) await loadStock(currentSymbol);
 }
 
-// 主圖指標：多選切換 (可同時覆蓋 MA 與 布林通道)
+// 主圖多選開關 (可同時開 MA 與 BB)
 function toggleMainOption(type) {
     mainIndicatorsState[type] = !mainIndicatorsState[type];
     
@@ -1560,7 +1559,6 @@ function toggleMainOption(type) {
     if (optMa) optMa.setAttribute('aria-selected', String(mainIndicatorsState.ma));
     if (optBB) optBB.setAttribute('aria-selected', String(mainIndicatorsState.bollinger));
 
-    // 更新 Trigger 標籤文字
     const activeList = [];
     if (mainIndicatorsState.ma) activeList.push('MA');
     if (mainIndicatorsState.bollinger) activeList.push('BB');
@@ -1572,18 +1570,20 @@ function toggleMainOption(type) {
     updateChartIndicators(currentChartData);
 }
 
-// 附圖（副圖）指標：單選切換並更新打勾狀態
-function setSubIndicator(type, label) {
-    currentSubIndicator = type;
-    setText('sub-indicator-label', label);
+// 附圖多選疊加開關 (可同時開 KD / RSI / MACD)
+function toggleSubOption(type) {
+    subIndicatorsState[type] = !subIndicatorsState[type];
     
-    ['kd', 'rsi', 'macd', 'none'].forEach(k => {
-        const btn = document.getElementById(`sub-opt-${k}`);
-        if (btn) btn.setAttribute('aria-selected', String(k === type));
-    });
+    const opt = document.getElementById(`sub-opt-${type}`);
+    if (opt) opt.setAttribute('aria-selected', String(subIndicatorsState[type]));
+
+    const activeList = [];
+    if (subIndicatorsState.kd) activeList.push('KD');
+    if (subIndicatorsState.rsi) activeList.push('RSI');
+    if (subIndicatorsState.macd) activeList.push('MACD');
+    setText('sub-indicator-label', activeList.length > 0 ? activeList.join('+') : '無');
 
     updateChartIndicators(currentChartData);
-    closeAllMiniMenus();
 }
 
 function resetChartView() { if (chart) chart.timeScale().fitContent(); }
@@ -1805,7 +1805,7 @@ window.addEventListener('resize', () => {
     requestAnimationFrame(() => {
         const width = container.clientWidth; let height = container.clientHeight;
         if (width <= 0) return;
-        if (height <= 0) height = window.innerWidth < 768 ? 360 : 440;
+        if (height <= 0) height = window.innerWidth < 768 ? 380 : 480;
         chart.applyOptions({ width, height });
     });
 });
@@ -1825,7 +1825,7 @@ window.toggleSubMenu = toggleSubMenu;
 window.selectPeriodOption = selectPeriodOption;
 window.setChartRange = setChartRange;
 window.toggleMainOption = toggleMainOption;
-window.setSubIndicator = setSubIndicator;
+window.toggleSubOption = toggleSubOption;
 window.toggleSidebar = toggleSidebar;
 window.openSettingsModal = openSettingsModal;
 window.openProfileModal = openProfileModal;

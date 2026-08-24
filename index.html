@@ -200,7 +200,7 @@
                 </div>
             </section>
 
-            <!-- K 線圖表區塊 (StockIntelli 風格) -->
+            <!-- K 線圖表區塊 (StockIntelli 多層分割風格) -->
             <div id="chart-card" class="glass rounded-2xl p-3 md:p-4 relative mb-5 flex flex-col">
                 <!-- 頂部微型工具列 -->
                 <div class="flex items-center justify-between gap-2 px-1 pb-2 shrink-0 border-b border-white/5 text-xs">
@@ -251,17 +251,16 @@
                             </div>
                         </div>
 
-                        <!-- 副圖指標切換 -->
+                        <!-- 副圖指標切換 (多選疊加) -->
                         <div id="sub-indicator-picker" class="relative inline-block">
                             <button type="button" class="chart-mini-trigger" onclick="toggleSubMenu()">
                                 <span>附圖 <b id="sub-indicator-label" class="text-purple-400">KD</b></span>
                                 <span>▾</span>
                             </button>
                             <div id="sub-indicator-menu" class="period-menu" role="listbox">
-                                <button type="button" role="option" id="sub-opt-kd" aria-selected="true" onclick="setSubIndicator('kd', 'KD')">KD 指標</button>
-                                <button type="button" role="option" id="sub-opt-rsi" aria-selected="false" onclick="setSubIndicator('rsi', 'RSI')">RSI 強弱</button>
-                                <button type="button" role="option" id="sub-opt-macd" aria-selected="false" onclick="setSubIndicator('macd', 'MACD')">MACD 柱狀</button>
-                                <button type="button" role="option" id="sub-opt-none" aria-selected="false" onclick="setSubIndicator('none', '隱藏')">隱藏附圖</button>
+                                <button type="button" role="option" id="sub-opt-kd" aria-selected="true" onclick="toggleSubOption('kd')">KD 指標</button>
+                                <button type="button" role="option" id="sub-opt-rsi" aria-selected="false" onclick="toggleSubOption('rsi')">RSI 強弱</button>
+                                <button type="button" role="option" id="sub-opt-macd" aria-selected="false" onclick="toggleSubOption('macd')">MACD 柱狀</button>
                             </div>
                         </div>
                     </div>
@@ -272,8 +271,8 @@
                     </div>
                 </div>
 
-                <!-- 圖表與 HUD 資訊面板 -->
-                <div class="relative w-full flex-1 min-h-[420px] overflow-hidden mt-1">
+                <!-- 圖表與 HUD 數據面板 -->
+                <div class="relative w-full flex-1 min-h-[460px] overflow-hidden mt-1">
                     <!-- HUD 主數據列 -->
                     <div id="chart-hud" class="absolute top-2 left-2 z-10 text-[11px] leading-relaxed pointer-events-none select-none">
                         <div class="flex items-center gap-3 text-gray-400 font-medium">
@@ -286,7 +285,6 @@
                             <span>高 <b id="hud-high" class="text-gray-300">—</b></span>
                             <span>低 <b id="hud-low" class="text-gray-300">—</b></span>
                         </div>
-                        <!-- 主圖指標數值 -->
                         <div id="hud-ma-row" class="flex items-center gap-3 text-[10px] font-mono mt-0.5 font-bold">
                             <span class="text-[#fb7185]">MA5 <b id="hud-ma5">—</b></span>
                             <span class="text-[#f59e0b]">MA20 <b id="hud-ma20">—</b></span>
@@ -299,13 +297,14 @@
                         <span id="hud-stock-title">—</span>
                     </div>
 
-                    <!-- 附圖 HUD 數值 -->
-                    <div id="hud-sub-row" class="absolute bottom-[24%] left-2 z-10 text-[10px] font-mono font-bold pointer-events-none flex items-center gap-3">
-                        <span id="hud-sub-val1" class="text-[#38bdf8]">K —</span>
-                        <span id="hud-sub-val2" class="text-[#f87171]">D —</span>
+                    <!-- 附圖 HUD 數值 (顯示各開啟副圖的即時指標) -->
+                    <div id="hud-sub-row" class="absolute bottom-[28%] left-2 z-10 text-[10px] font-mono font-bold pointer-events-none flex items-center gap-3">
+                        <span id="hud-sub-kd" class="text-[#38bdf8] hidden">K — D —</span>
+                        <span id="hud-sub-rsi" class="text-[#c084fc] hidden">RSI —</span>
+                        <span id="hud-sub-macd" class="text-[#f87171] hidden">DIF — DEA —</span>
                     </div>
 
-                    <div id="chart-container" class="w-full h-full min-h-[420px]"></div>
+                    <div id="chart-container" class="w-full h-full min-h-[460px]"></div>
                 </div>
             </div>
 
