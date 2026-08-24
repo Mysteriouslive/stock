@@ -315,7 +315,7 @@ function setChipVisibility(visible) {
 function renderChipContent() {
     const table = document.getElementById('chip-table-rows');
     if (!table) return;
-    if (!cachedChipHistory.length) { table.innerHTML = '<div class="text-center py-6 text-gray-500 text-xs">暫無籌碼資料</div>'; renderChipHistoryChart([]); return; }
+    if (!cachedChipHistory.length) { table.innerHTML = '<div class="text-center py-6 text-gray-500 text-xs">暫無籌碼資料</div>'; renderChipHistoryChart([]); renderHoldingPie([]); return; }
     let foreignHolding = 0, trustHolding = 0, dealerHolding = 0;
     const rows = [...cachedChipHistory].reverse().map(row => {
         const institutional = row.institutional || {};
@@ -332,6 +332,40 @@ function renderChipContent() {
         return `<div class="grid grid-cols-5 text-center py-2.5 px-1 hover:bg-white/[0.04] transition-colors items-center border-b border-white/5"><div class="text-gray-300 font-medium">${String(row.date).replace(/-/g, '/')}</div>${values.map(value => `<div class="font-semibold ${color(value)}">${signed(value)}</div>`).join('')}</div>`;
     }).join('');
     renderChipHistoryChart(rows);
+    renderHoldingPie(rows);
+}
+
+// The exchanges publish daily institutional trades, not a full breakdown of
+// each institution's registered shareholding. This chart therefore shows the
+// composition of the selected period's cumulative net buying.
+function renderHoldingPie(rows) {
+    const canvas = document.getElementById('chip-holding-pie');
+    const legend = document.getElementById('chip-holding-legend');
+    if (!canvas || !legend) return;
+    const width = Math.max(canvas.clientWidth, 1), height = Math.max(canvas.clientHeight, 1);
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+    const context = canvas.getContext('2d'); if (!context) return;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0); context.clearRect(0, 0, width, height);
+    const totals = rows.reduce((sum, row) => { sum[0] += row.foreign; sum[1] += row.trust; sum[2] += row.dealer; return sum; }, [0, 0, 0]);
+    const labels = ['外資', '投信', '自營商'], colors = ['#38bdf8', '#f87171', '#c084fc'];
+    const values = totals.map(value => Math.max(value, 0));
+    const total = values.reduce((sum, value) => sum + value, 0);
+    if (!total) {
+        context.fillStyle = 'rgba(148,163,184,.5)'; context.font = '12px sans-serif'; context.textAlign = 'center';
+        context.fillText('本期無法人淨買超資料', width / 2, height / 2); legend.innerHTML = ''; return;
+    }
+    const centerX = width / 2, centerY = height / 2, radius = Math.max(24, Math.min(width, height) / 2 - 8);
+    let start = -Math.PI / 2;
+    values.forEach((value, index) => {
+        const angle = value / total * Math.PI * 2;
+        context.beginPath(); context.moveTo(centerX, centerY); context.arc(centerX, centerY, radius, start, start + angle); context.closePath();
+        context.fillStyle = colors[index]; context.fill(); start += angle;
+    });
+    context.beginPath(); context.arc(centerX, centerY, radius * .58, 0, Math.PI * 2); context.fillStyle = isDarkMode ? '#131b1a' : '#f7fbf9'; context.fill();
+    context.fillStyle = isDarkMode ? '#e5e7eb' : '#172a26'; context.font = '600 11px sans-serif'; context.textAlign = 'center'; context.fillText('近 15 日', centerX, centerY - 3);
+    context.fillStyle = isDarkMode ? '#94a3b8' : '#687873'; context.font = '10px sans-serif'; context.fillText('淨買超占比', centerX, centerY + 12);
+    legend.innerHTML = labels.map((label, index) => `<span><i style="background:${colors[index]}"></i>${label} ${(values[index] / total * 100).toFixed(1)}%</span>`).join('');
 }
 
 function renderChipHistoryChart(rows) {
@@ -345,7 +379,7 @@ function renderChipHistoryChart(rows) {
     if (!rows.length) return;
     const values = rows.flatMap(row => [row.foreign, row.trust, row.dealer]);
     const max = Math.max(1, ...values.map(value => Math.abs(value)));
-    const middle = height / 2, padding = 18, drawable = middle - padding;
+    const middle = height / 2, padding = 22, drawable = middle - padding;
     context.strokeStyle = 'rgba(148,163,184,.28)'; context.lineWidth = 1;
     context.beginPath(); context.moveTo(0, middle); context.lineTo(width, middle); context.stroke();
     const colors = ['#38bdf8', '#f87171', '#c084fc'];
@@ -360,6 +394,10 @@ function renderChipHistoryChart(rows) {
         });
     });
     context.globalAlpha = 1;
+    context.fillStyle = 'rgba(148,163,184,.75)'; context.font = '10px sans-serif'; context.textAlign = 'left';
+    context.fillText(`+${Math.round(max).toLocaleString()}`, 3, padding - 5);
+    context.fillText(`-${Math.round(max).toLocaleString()}`, 3, height - 5);
+    if (rows.length > 1) { context.textAlign = 'center'; context.fillText(String(rows[0].date).slice(5).replace('-', '/'), groupWidth / 2, height - 5); context.fillText(String(rows.at(-1).date).slice(5).replace('-', '/'), width - groupWidth / 2, height - 5); }
 }
 function renderChipData(data, history) {
     cachedChipLatest = data || null; cachedChipHistory = history?.history || data?.history || [];
@@ -1200,7 +1238,9 @@ async function loadStock(symbol, isSilent = false) {
                     }
                 } catch {}
             } else {
-                if (!quote && !isIndexSymbol(symbol)) { try { quote = await fetchFinnhubQuote(symbol); } catch {} }
+                // Finnhub provides a regular-session last price and previous
+                // close, avoiding Yahoo extended-hours values in US returns.
+                if (!isIndexSymbol(symbol)) { try { quote = await fetchFinnhubQuote(symbol); } catch {} }
                 if (!isSilent && isCurrentRequest()) {
                     if (isIndexSymbol(symbol)) renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
                     else {

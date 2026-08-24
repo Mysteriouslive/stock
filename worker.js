@@ -337,7 +337,9 @@ async function fetchChipForDate(candidate, code, includeMargin = false) {
     }
   }
 
-  const marginTable = twseMargin?.tables?.find(table => table?.fields?.includes('代號') && table?.data?.some(row => String(row?.[0] || '').trim() === code));
+  // MI_MARGN has used both「證券代號」and「代號」as its first column. Select
+  // the security table by its actual stock-code row, not a volatile caption.
+  const marginTable = twseMargin?.tables?.find(table => table?.data?.some(row => String(row?.[0] || '').trim() === code && Array.isArray(row) && row.length >= 13));
   const marginRow = marginTable?.data?.find(row => String(row?.[0] || '').trim() === code);
   const margin = marginRow ? parseMarginRow(marginTable?.fields || [], marginRow) : null;
 
@@ -446,12 +448,23 @@ function parseMarginRow(fields, row) {
 
   const has = (index) => Number.isInteger(index) && index >= 0;
 
+  // Current TWSE layout uses 5/6 for financing and 11/12 for short selling.
+  // Header lookup remains primary; numeric positions protect against a
+  // temporary response-encoding or wording change.
+  const financePrev = has(financingPrevious) ? financingPrevious : (row.length > 6 ? 5 : -1);
+  const financeNow = has(financingBalance) ? financingBalance : (row.length > 6 ? 6 : -1);
+  const shortPrev = has(shortPrevious) ? shortPrevious : (row.length > 12 ? 11 : -1);
+  const shortNow = has(shortBalance) ? shortBalance : (row.length > 12 ? 12 : -1);
+  const change = (now, previous) => {
+    const current = parseNumber(row[now]), prior = parseNumber(row[previous]);
+    return current !== null && prior !== null ? current - prior : null;
+  };
   return {
     name: String(row[1] || '').trim(),
-    financingBalance: has(financingBalance) ? parseNumber(row[financingBalance]) : null,
-    financingChange: has(financingBalance) && has(financingPrevious) ? parseNumber(row[financingBalance]) - parseNumber(row[financingPrevious]) : null,
-    shortBalance: has(shortBalance) ? parseNumber(row[shortBalance]) : null,
-    shortChange: has(shortBalance) && has(shortPrevious) ? parseNumber(row[shortBalance]) - parseNumber(row[shortPrevious]) : null
+    financingBalance: has(financeNow) ? parseNumber(row[financeNow]) : null,
+    financingChange: has(financeNow) && has(financePrev) ? change(financeNow, financePrev) : null,
+    shortBalance: has(shortNow) ? parseNumber(row[shortNow]) : null,
+    shortChange: has(shortNow) && has(shortPrev) ? change(shortNow, shortPrev) : null
   };
 }
 

@@ -601,6 +601,20 @@ body.light-mode ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); }
 }
 .refresh-stock-btn svg { width: 12px; height: 12px; }
 .refresh-stock-btn:hover { color: #dbeafe; border-color: rgba(96, 165, 250, .55); background: rgba(59, 130, 246, .13); }
+.chip-subheading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:14px 0 10px; color:#e5e7eb; font-size:.875rem; font-weight:700; }
+.chip-subheading > span { display:flex; align-items:center; gap:8px; }
+.chip-subheading > span::before { content:''; width:3px; height:15px; border-radius:99px; background:#38bdf8; }
+.chip-margin-heading { margin-top:16px; margin-bottom:0; }
+.chip-margin-heading > span::before { background:#c084fc; }
+.chip-pie-panel { display:flex; align-items:center; justify-content:space-between; gap:16px; min-height:126px; padding:12px 14px; margin:10px 0 14px; border:1px solid rgba(255,255,255,.08); border-radius:12px; background:rgba(255,255,255,.025); }
+#chip-holding-pie { width:112px; height:112px; flex:none; }
+.chip-pie-legend { display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:10px; color:#a1a1aa; font-size:11px; }
+.chip-pie-legend span { white-space:nowrap; }
+.chip-pie-legend i { display:inline-block; width:7px; height:7px; margin-right:5px; border-radius:50%; vertical-align:1px; }
+body.light-mode .chip-subheading { color:#172a26; }
+body.light-mode .chip-pie-panel { border-color:#d7e5df; background:#f8fbf9; }
+@media (max-width:420px) { .chip-pie-panel { padding:10px; gap:8px; } #chip-holding-pie { width:96px; height:96px; } }
+
 .refresh-stock-btn:focus-visible, .chart-tool-btn:focus-visible, .chart-mini-trigger:focus-visible, .section-nav-btn:focus-visible {
     outline: 2px solid #60a5fa;
     outline-offset: 2px;
