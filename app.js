@@ -136,6 +136,198 @@ function setCompanyField(id, value) { const el = document.getElementById(id); if
 function toggleCompanyInfo() { document.getElementById('overview-card')?.classList.toggle('collapsed'); }
 
 // ============================================================
+// 自選股清單
+// ============================================================
+function saveWatchlist() {
+    localStorage.setItem('stockWatchlist', JSON.stringify(watchlist));
+    localStorage.setItem('stockSortMode', sortMode);
+    localStorage.setItem('stockQuoteCache', JSON.stringify(quoteCache));
+    if (currentSymbol) localStorage.setItem('stockCurrentSymbol', currentSymbol);
+    else localStorage.removeItem('stockCurrentSymbol');
+}
+
+const SORT_LABELS = {
+    manual: '自訂順序', 'symbol-asc': '代碼 ↑', 'symbol-desc': '代碼 ↓',
+    'name-asc': '名稱 ↑', 'name-desc': '名稱 ↓', 'price-desc': '價格 ↓',
+    'price-asc': '價格 ↑', 'change-desc': '漲幅 ↓', 'change-asc': '漲幅 ↑'
+};
+
+function changeSort(value) {
+    sortMode = SORT_LABELS[value] ? value : 'manual';
+    saveWatchlist();
+    const select = document.getElementById('sort-select');
+    const label = document.getElementById('sort-label');
+    if (select) select.value = sortMode;
+    if (label) label.textContent = SORT_LABELS[sortMode];
+    document.querySelectorAll('#sort-menu [role="option"]').forEach(option => {
+        option.setAttribute('aria-selected', String(option.dataset.sortValue === sortMode));
+    });
+    renderWatchlist();
+}
+
+function toggleSortMenu() {
+    const picker = document.getElementById('sort-picker');
+    const trigger = document.getElementById('sort-trigger');
+    if (!picker || !trigger) return;
+    const isOpen = picker.classList.toggle('open');
+    trigger.setAttribute('aria-expanded', String(isOpen));
+}
+
+function selectSortOption(value) {
+    changeSort(value);
+    document.getElementById('sort-picker')?.classList.remove('open');
+    document.getElementById('sort-trigger')?.setAttribute('aria-expanded', 'false');
+}
+
+function sortedWatchlist() {
+    const result = [...watchlist];
+    if (sortMode === 'manual') return result;
+    const price = stock => Number(String(quoteCache[stock.symbol]?.latestPrice ?? '').replace(/,/g, ''));
+    const change = stock => Number(quoteCache[stock.symbol]?.changePercent);
+    const numericCompare = (a, b, descending = false) => {
+        if (!Number.isFinite(a)) return Number.isFinite(b) ? 1 : 0;
+        if (!Number.isFinite(b)) return -1;
+        return descending ? b - a : a - b;
+    };
+    result.sort((a, b) => {
+        switch (sortMode) {
+            case 'symbol-asc': return a.symbol.localeCompare(b.symbol, undefined, { numeric: true });
+            case 'symbol-desc': return b.symbol.localeCompare(a.symbol, undefined, { numeric: true });
+            case 'name-asc': return (a.name || a.symbol).localeCompare(b.name || b.symbol, 'zh-Hant');
+            case 'name-desc': return (b.name || b.symbol).localeCompare(a.name || a.symbol, 'zh-Hant');
+            case 'price-asc': return numericCompare(price(a), price(b));
+            case 'price-desc': return numericCompare(price(a), price(b), true);
+            case 'change-asc': return numericCompare(change(a), change(b));
+            case 'change-desc': return numericCompare(change(a), change(b), true);
+            default: return 0;
+        }
+    });
+    return result;
+}
+
+function renderWatchlist() {
+    const list = document.getElementById('stock-list');
+    if (!list) return;
+    list.replaceChildren();
+    const stocks = sortedWatchlist();
+    if (!stocks.length) {
+        list.innerHTML = '<p class="text-center text-gray-600 text-sm py-8">尚未新增任何股票</p>';
+        return;
+    }
+
+    stocks.forEach(stock => {
+        const quote = quoteCache[stock.symbol];
+        const change = Number(quote?.changePercent);
+        const item = document.createElement('div');
+        item.className = `stock-btn w-full text-left px-3 py-2.5 rounded-xl text-gray-400 flex items-center gap-2 group ${currentSymbol === stock.symbol ? 'active bg-white/10 text-white' : ''}`;
+        item.dataset.symbol = stock.symbol;
+        item.tabIndex = 0;
+        item.setAttribute('role', 'button');
+        item.setAttribute('aria-label', `查看 ${stock.name || displaySymbol(stock.symbol)}`);
+        item.addEventListener('click', () => loadStock(stock.symbol));
+        item.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); loadStock(stock.symbol); }
+        });
+
+        const handle = document.createElement('span');
+        handle.className = `drag-handle text-lg px-2 py-1 ${sortMode === 'manual' ? 'cursor-grab hover:text-white' : 'opacity-30'}`;
+        handle.title = sortMode === 'manual' ? '拖曳排序' : '切換到自訂順序後可拖曳';
+        handle.textContent = '⋮';
+        const badge = document.createElement('span');
+        badge.className = `w-8 h-8 rounded-lg ${COLOR_MAP[stock.color] || COLOR_MAP.blue} flex items-center justify-center text-[10px] font-bold shrink-0`;
+        badge.textContent = displaySymbol(stock.symbol).slice(0, 4);
+        const details = document.createElement('div');
+        details.className = 'flex-1 min-w-0';
+        const name = document.createElement('div'); name.className = 'font-medium text-sm truncate'; name.textContent = stock.name || displaySymbol(stock.symbol);
+        const meta = document.createElement('div'); meta.className = 'text-[11px] text-gray-500 flex items-center gap-2';
+        const symbol = document.createElement('span'); symbol.textContent = displaySymbol(stock.symbol); meta.appendChild(symbol);
+        if (quote?.latestPrice) { const value = document.createElement('span'); value.className = 'text-[10px] text-gray-400'; value.textContent = quote.latestPrice; meta.appendChild(value); }
+        if (Number.isFinite(change)) { const value = document.createElement('span'); value.className = `text-[10px] ${change >= 0 ? 'price-up' : 'price-down'}`; value.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`; meta.appendChild(value); }
+        details.append(name, meta);
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'delete-btn text-gray-600 hover:text-red-400 p-1 rounded-lg hover:bg-red-500/10';
+        remove.title = '移除'; remove.setAttribute('aria-label', `移除 ${stock.name || displaySymbol(stock.symbol)}`);
+        remove.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+        remove.addEventListener('click', event => { event.stopPropagation(); removeStockBySymbol(stock.symbol); });
+        item.append(handle, badge, details, remove);
+        list.appendChild(item);
+    });
+
+    if (!sortableInstance && typeof Sortable !== 'undefined') {
+        sortableInstance = new Sortable(list, {
+            animation: 150, handle: '.drag-handle', disabled: sortMode !== 'manual',
+            onEnd() {
+                if (sortMode !== 'manual') return;
+                const order = [...list.children].map(item => item.dataset.symbol).filter(Boolean);
+                const reordered = order.map(symbol => watchlist.find(stock => stock.symbol === symbol)).filter(Boolean);
+                if (reordered.length === watchlist.length) { watchlist = reordered; saveWatchlist(); }
+            }
+        });
+    } else if (sortableInstance) sortableInstance.option('disabled', sortMode !== 'manual');
+}
+
+async function addStock() {
+    const input = document.getElementById('stock-input');
+    if (!input) return;
+    const raw = input.value.trim().toUpperCase();
+    if (!raw) { input.focus(); return; }
+    if (!/^[A-Z0-9.\-=\/^]+$/.test(raw)) { alert('請輸入有效的代碼，例如 2330、SOXX、USDTWD、BTC、^TWII'); return; }
+    let symbol = raw;
+    if (isForexSymbol(raw)) symbol = 'USDTWD';
+    else if (isCryptoSymbol(raw)) symbol = raw.replace('-USD', '');
+    else if (/^\d{4,6}$/.test(raw)) {
+        try { await fetchYahooData(`${raw}.TW`, '1d', '5d'); symbol = `${raw}.TW`; }
+        catch { try { await fetchYahooData(`${raw}.TWO`, '1d', '5d'); symbol = `${raw}.TWO`; } catch { symbol = `${raw}.TW`; } }
+    }
+    if (watchlist.some(item => item.symbol === symbol || displaySymbol(item.symbol) === displaySymbol(symbol))) {
+        alert(`${displaySymbol(symbol)} 已經在清單中了`); input.value = ''; return;
+    }
+    let name = SPECIAL_NAME_MAP[symbol] || displaySymbol(symbol);
+    if (isForexSymbol(symbol)) name = '美元／台幣匯率';
+    else if (isCryptoSymbol(symbol)) name = ({ BTC: '比特幣', ETH: '以太幣', SOL: 'Solana', XRP: 'XRP', ADA: 'Cardano', DOGE: 'Dogecoin', BNB: 'BNB' })[symbol] || symbol;
+    else if (isTaiwanSymbol(symbol)) name = (await fetchTwseName(displaySymbol(symbol))) || displaySymbol(symbol);
+    watchlist.push({ symbol, name, color: COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)] });
+    input.value = ''; saveWatchlist(); renderWatchlist(); await loadStock(symbol);
+}
+
+function removeStockBySymbol(symbol) { const index = watchlist.findIndex(stock => stock.symbol === symbol); if (index >= 0) removeStock(index); }
+function removeStock(index) {
+    const removed = watchlist[index];
+    if (!removed || !confirm(`確定要移除 ${displaySymbol(removed.symbol)} 嗎？`)) return;
+    watchlist.splice(index, 1); delete quoteCache[removed.symbol];
+    if (currentSymbol === removed.symbol) currentSymbol = watchlist[0]?.symbol || null;
+    saveWatchlist(); renderWatchlist();
+    if (currentSymbol) loadStock(currentSymbol);
+}
+
+function getAllActiveCharts() {
+    const charts = [mainChart, volChart];
+    if (subIndicatorsState.kd) charts.push(kdChart);
+    if (subIndicatorsState.rsi) charts.push(rsiChart);
+    if (subIndicatorsState.macd) charts.push(macdChart);
+    return charts.filter(Boolean);
+}
+
+function switchChipTab(tab) {
+    currentChipTab = tab === 'holding' ? 'holding' : 'flow';
+    const flowButton = document.getElementById('chip-tab-flow');
+    const holdingButton = document.getElementById('chip-tab-holding');
+    flowButton?.classList.toggle('bg-white/15', currentChipTab === 'flow');
+    flowButton?.classList.toggle('text-white', currentChipTab === 'flow');
+    flowButton?.classList.toggle('text-gray-400', currentChipTab !== 'flow');
+    holdingButton?.classList.toggle('bg-white/15', currentChipTab === 'holding');
+    holdingButton?.classList.toggle('text-white', currentChipTab === 'holding');
+    holdingButton?.classList.toggle('text-gray-400', currentChipTab !== 'holding');
+    renderChipContent();
+}
+
+function jumpToSection(id, button) {
+    document.querySelectorAll('.section-nav-btn').forEach(item => item.classList.remove('active'));
+    button?.classList.add('active');
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ============================================================
 // 3. 核心 API 請求
 // ============================================================
 async function fetchTwseName(code) {
