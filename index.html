@@ -204,18 +204,23 @@
             <div id="chart-card" class="glass rounded-2xl p-3 md:p-4 relative mb-5">
                 <div class="flex items-center justify-between gap-2 px-1 pb-3 shrink-0">
                     <div class="flex items-center gap-2">
-                        <!-- 週期下拉選單 -->
-                        <select id="period-dropdown" onchange="changePeriodDropdown(this.value)" 
-                                class="bg-white/5 border border-white/10 text-blue-400 text-xs font-bold rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500/50 cursor-pointer">
-                            <option value="1m|1d">1分K</option>
-                            <option value="5m|5d" selected>5分K</option>
-                            <option value="15m|1mo">15分K</option>
-                            <option value="30m|1mo">30分K</option>
-                            <option value="60m|3mo">60分K</option>
-                            <option value="1d|6mo">日K</option>
-                            <option value="1wk|2y">週K</option>
-                            <option value="1mo|max">月K</option>
-                        </select>
+                        <!-- 週期自訂毛玻璃下拉選單 -->
+                        <div id="period-picker" class="period-picker relative inline-block">
+                            <button type="button" id="period-trigger" class="period-trigger" onclick="togglePeriodMenu()" aria-expanded="false" aria-haspopup="listbox">
+                                <span id="period-label">5分K</span>
+                                <span class="period-chevron">▾</span>
+                            </button>
+                            <div id="period-menu" class="period-menu" role="listbox" aria-labelledby="period-trigger">
+                                <button type="button" role="option" data-period="1m|1d" onclick="selectPeriodOption('1m|1d', '1分K')">1分K</button>
+                                <button type="button" role="option" data-period="5m|5d" aria-selected="true" onclick="selectPeriodOption('5m|5d', '5分K')">5分K</button>
+                                <button type="button" role="option" data-period="15m|1mo" onclick="selectPeriodOption('15m|1mo', '15分K')">15分K</button>
+                                <button type="button" role="option" data-period="30m|1mo" onclick="selectPeriodOption('30m|1mo', '30分K')">30分K</button>
+                                <button type="button" role="option" data-period="60m|3mo" onclick="selectPeriodOption('60m|3mo', '60分K')">60分K</button>
+                                <button type="button" role="option" data-period="1d|6mo" onclick="selectPeriodOption('1d|6mo', '日K')">日K</button>
+                                <button type="button" role="option" data-period="1wk|2y" onclick="selectPeriodOption('1wk|2y', '週K')">週K</button>
+                                <button type="button" role="option" data-period="1mo|max" onclick="selectPeriodOption('1mo|max', '月K')">月K</button>
+                            </div>
+                        </div>
                         <span class="session-legend session-pre">盤前</span>
                         <span class="session-legend session-post">盤後</span>
                     </div>

@@ -1216,7 +1216,7 @@ async function loadStock(symbol, isSilent = false) {
         const currentPrice = document.getElementById('current-price'); if (currentPrice) currentPrice.className = 'text-3xl sm:text-4xl font-black text-white tracking-tight leading-none transition-colors duration-300';
         setText('chart-status', `${currentPeriod.label} · 載入中`); resetFundamentals();
         
-        // 狀態優先：切換時立刻隱藏非台股籌碼，避免殘留
+        // 狀態優先：立刻隱藏非台股籌碼，避免殘留
         setChipVisibility(isTw);
     }
 
@@ -1375,17 +1375,48 @@ document.addEventListener('visibilitychange', () => {
     else if (currentSymbol) { loadStock(currentSymbol, true); fetchMarketIndices(); startAutoRefresh(); }
 });
 
-// 新增：圖表週期下拉選單切換
-async function changePeriodDropdown(value) {
-    if (!value) return;
-    const [interval, range] = value.split('|');
-    const selectEl = document.getElementById('period-dropdown');
-    const label = selectEl ? selectEl.options[selectEl.selectedIndex].text : value;
-
-    currentPeriod = { interval, range, label };
-    setText('chart-status', `${currentPeriod.label} · 載入中`);
-    if (currentSymbol) await loadStock(currentSymbol);
+// ============================================================
+// 圖表週期自訂毛玻璃選單控制
+// ============================================================
+function togglePeriodMenu() {
+    const picker = document.getElementById('period-picker');
+    const trigger = document.getElementById('period-trigger');
+    if (!picker || !trigger) return;
+    const open = picker.classList.toggle('open');
+    trigger.setAttribute('aria-expanded', String(open));
 }
+
+async function selectPeriodOption(value, label) {
+    const [interval, range] = value.split('|');
+    currentPeriod = { interval, range, label };
+    
+    // 更新 Trigger 標籤文字
+    setText('period-label', label);
+    
+    // 更新勾選狀態
+    document.querySelectorAll('#period-menu [role="option"]').forEach(btn => {
+        btn.setAttribute('aria-selected', btn.dataset.period === value ? 'true' : 'false');
+    });
+
+    // 關閉選單
+    const picker = document.getElementById('period-picker');
+    if (picker) picker.classList.remove('open');
+    document.getElementById('period-trigger')?.setAttribute('aria-expanded', 'false');
+
+    setText('chart-status', `${currentPeriod.label} · 載入中`);
+    if (currentSymbol) {
+        await loadStock(currentSymbol);
+    }
+}
+
+// 點擊頁面其他地方自動關閉週期選單
+document.addEventListener('click', event => {
+    const picker = document.getElementById('period-picker');
+    if (picker && !picker.contains(event.target)) {
+        picker.classList.remove('open');
+        document.getElementById('period-trigger')?.setAttribute('aria-expanded', 'false');
+    }
+});
 
 async function changePeriod(button) {
     if (!button) return;
@@ -1631,7 +1662,8 @@ window.removeStock = removeStock;
 window.removeStockBySymbol = removeStockBySymbol;
 window.changeSort = changeSort;
 window.changePeriod = changePeriod;
-window.changePeriodDropdown = changePeriodDropdown;
+window.togglePeriodMenu = togglePeriodMenu;
+window.selectPeriodOption = selectPeriodOption;
 window.toggleSidebar = toggleSidebar;
 window.openSettingsModal = openSettingsModal;
 window.openProfileModal = openProfileModal;
