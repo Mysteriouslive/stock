@@ -623,15 +623,13 @@ function jumpToSection(id, button) {
 }
 
 function resetFundamentals() {
-    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth', 'metric-forward-pe', 'metric-peg', 'metric-ev-ebitda', 'metric-shares', 'profile-country', 'profile-industry', 'profile-ipo', 'profile-currency'].forEach(id => setMetric(id, '—'));
-    setMetric('fundamentals-status', '—'); setMetric('fundamentals-note', '—'); setMetric('profile-note', '—');
+    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth', 'metric-forward-pe', 'metric-peg', 'metric-ev-ebitda', 'metric-shares'].forEach(id => setMetric(id, '—'));
+    setMetric('fundamentals-status', '—');
     const subtitle = document.getElementById('fundamentals-subtitle'); if (subtitle) subtitle.textContent = 'Finnhub · Fundamental Metrics';
-    const desc = document.getElementById('profile-description'); if (desc) { desc.textContent = ''; desc.classList.add('hidden'); }
-    const link = document.getElementById('company-web-link'); if (link) { link.href = '#'; link.classList.add('hidden'); }
 }
 
 function renderFinnhubMetrics(result, profile, symbol) {
-    const m = result?.metric || {}, p = profile || {};
+    const m = result?.metric || {};
     setMetric('metric-pe', formatMetric(firstFinite(m, ['peNormalizedAnnual', 'peTTM', 'peBasicExclExtraTTM', 'peExclExtraTTM'])));
     setMetric('metric-eps', formatMetric(firstFinite(m, ['epsNormalizedAnnual', 'epsTTM', 'epsBasicExclExtraItemsTTM'])));
     setMetric('metric-marketcap', formatCompactNumber(firstFinite(m, ['marketCapitalization'])));
@@ -644,15 +642,7 @@ function renderFinnhubMetrics(result, profile, symbol) {
     setMetric('metric-op-margin', formatPercentMetric(firstFinite(m, ['operatingMarginTTM', 'operatingMargin5Y'])));
     setMetric('metric-net-margin', formatPercentMetric(firstFinite(m, ['netProfitMarginTTM', 'netProfitMargin5Y'])));
     setMetric('metric-revenue-growth', formatPercentMetric(firstFinite(m, ['revenueGrowthTTMYoy', 'revenueGrowth5Y'])));
-    setMetric('metric-forward-pe', formatMetric(firstFinite(m, ['forwardPE', 'peForwardAnnual'])));
-    setMetric('metric-peg', formatMetric(firstFinite(m, ['pegRatio', 'peRatio', 'PEG'])));
-    setMetric('metric-ev-ebitda', formatMetric(firstFinite(m, ['enterpriseValueEbitdaTTM', 'evToEbitda', 'evEbitda'])));
-    setMetric('metric-shares', formatCompactNumber(firstFinite(m, ['shareOutstanding'])));
-    setMetric('fundamentals-status', 'Finnhub 已載入'); setMetric('fundamentals-note', `資料來源：Finnhub · ${displaySymbol(symbol)}`);
-    setMetric('profile-country', p.country || '—'); setMetric('profile-industry', p.finnhubIndustry || '—'); setMetric('profile-ipo', p.ipo || '—'); setMetric('profile-currency', p.currency || '—');
-    const desc = document.getElementById('profile-description'); if (desc && p.name) { desc.textContent = `${p.name}${p.finnhubIndustry ? ` · ${p.finnhubIndustry}` : ''}`; desc.classList.add('hidden'); }
-    const link = document.getElementById('company-web-link'); if (link && p.weburl) { link.href = p.weburl; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.classList.remove('hidden'); }
-    setMetric('profile-note', `公司：${p.name || displaySymbol(symbol)} · 交易所：${p.exchange || '—'}`);
+    setMetric('fundamentals-status', 'Finnhub 已載入');
 }
 
 function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
@@ -662,17 +652,14 @@ function renderTwseMetrics(twseData, symbol, quoteResult, currentPrice) {
     const peVal = Number(twseData?.pe), priceVal = Number(String(currentPrice).replace(/,/g, ''));
     setMetric('metric-pe', twseData?.pe !== '0' && twseData?.pe ? twseData.pe : '—');
     if (Number.isFinite(priceVal) && Number.isFinite(peVal) && peVal > 0) setMetric('metric-eps', (priceVal / peVal).toFixed(2));
-    setMetric('metric-dividend', twseData?.dividendYield || '—'); setMetric('metric-shares', twseData?.pb || '—');
+    setMetric('metric-dividend', twseData?.dividendYield || '—');
     const meta = quoteResult?.meta || {}, quotes = quoteResult?.indicators?.quote?.[0] || {};
     let high52 = meta.fiftyTwoWeekHigh, low52 = meta.fiftyTwoWeekLow;
     if (!high52 && Array.isArray(quotes.high)) { const values = quotes.high.filter(v => v != null && Number.isFinite(Number(v))); if (values.length) high52 = Math.max(...values); }
     if (!low52 && Array.isArray(quotes.low)) { const values = quotes.low.filter(v => v != null && Number.isFinite(Number(v))); if (values.length) low52 = Math.min(...values); }
     setMetric('metric-52high', formatPrice(high52, symbol)); setMetric('metric-52low', formatPrice(low52, symbol));
     if (meta.marketCap) setMetric('metric-marketcap', formatCompactNumber(meta.marketCap));
-    setMetric('fundamentals-status', `${twseData?.source || marketName} 已載入`); setMetric('fundamentals-note', `資料來源：${twseData?.source || marketName} + Yahoo Finance · 代碼 ${displaySymbol(symbol)}`);
-    setMetric('profile-country', '台灣'); setMetric('profile-industry', meta.fullExchangeName || (isOtc ? '上櫃股票' : '上市股票')); setMetric('profile-currency', meta.currency || 'TWD');
-    const desc = document.getElementById('profile-description'); if (desc) { desc.textContent = `${meta.longName || displaySymbol(symbol)} - 台灣在地公開資訊。`; desc.classList.add('hidden'); }
-    setMetric('profile-note', `市場別：${marketName} · 代碼：${displaySymbol(symbol)}`);
+    setMetric('fundamentals-status', `${twseData?.source || marketName} 已載入`);
 }
 
 function renderCompanyInfo(result, symbol, quote, source = 'Yahoo Finance') {
@@ -899,8 +886,6 @@ function removeStock(index) {
         else {
             setText('stock-symbol-title', '—'); setText('stock-name', '選擇或新增股票以查看詳情');
             ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume', 'last-update'].forEach(id => setText(id, '—'));
-            const emptyState = document.getElementById('empty-state'); if (emptyState) emptyState.style.display = 'flex';
-            if (candlestickSeries) candlestickSeries.setData([]);
             setChipVisibility(false);
             resetFundamentals();
         }
@@ -1119,11 +1104,17 @@ function initChart() {
     // 1. 初始化各獨立圖表實例
     mainChart = createBaseChart(mainEl, false);
     volChart = createBaseChart(volEl, false);
+    
+    // 設定成交量獨立 PriceScale 邊界 (滿版呈現)
+    volChart.priceScale('right').applyOptions({
+        scaleMargins: { top: 0.05, bottom: 0.02 }
+    });
+
     kdChart = createBaseChart(kdEl, true);
     rsiChart = createBaseChart(rsiEl, true);
     macdChart = createBaseChart(macdEl, true);
 
-    // 2. 主圖 Series (使用標準 addCandlestickSeries / addLineSeries)
+    // 2. 主圖 Series
     candlestickSeries = mainChart.addCandlestickSeries({
         upColor: '#ef4444', downColor: '#10b981', borderVisible: true,
         borderUpColor: '#ef4444', borderDownColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
@@ -1191,7 +1182,15 @@ function updateVisibleSubPanes() {
     volChart?.applyOptions({ timeScale: { visible: activeSubKeys.length === 0 } });
 
     requestAnimationFrame(() => {
-        getAllActiveCharts().forEach(c => c.timeScale().fitContent());
+        const width = document.getElementById('panes-wrapper')?.clientWidth || 0;
+        if (width > 0) {
+            if (subIndicatorsState.kd && kdChart) { kdChart.applyOptions({ width, height: 110 }); kdChart.timeScale().fitContent(); }
+            if (subIndicatorsState.rsi && rsiChart) { rsiChart.applyOptions({ width, height: 110 }); rsiChart.timeScale().fitContent(); }
+            if (subIndicatorsState.macd && macdChart) { macdChart.applyOptions({ width, height: 120 }); macdChart.timeScale().fitContent(); }
+            volChart?.applyOptions({ width, height: 100 });
+            mainChart?.applyOptions({ width, height: 340 });
+        }
+        resetChartView();
     });
 }
 
@@ -1481,7 +1480,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ============================================================
-// 微型選單控制 (Period, Range, Main, Sub)
+// 微型選單控制
 // ============================================================
 function togglePeriodMenu() { closeAllMiniMenusExcept('period-picker'); document.getElementById('period-picker')?.classList.toggle('open'); }
 function toggleRangeMenu() { closeAllMiniMenusExcept('range-picker'); document.getElementById('range-picker')?.classList.toggle('open'); }
@@ -1529,7 +1528,6 @@ async function setChartRange(range, label) {
     if (currentSymbol) await loadStock(currentSymbol);
 }
 
-// 主圖多選開關
 function toggleMainOption(type) {
     mainIndicatorsState[type] = !mainIndicatorsState[type];
     
@@ -1549,7 +1547,6 @@ function toggleMainOption(type) {
     updateChartIndicators(currentChartData);
 }
 
-// 附圖多選開關與動態 Pane 伸展
 function toggleSubOption(type) {
     subIndicatorsState[type] = !subIndicatorsState[type];
 
@@ -1733,7 +1730,7 @@ function updateChartColors(mode) {
 }
 
 // ============================================================
-// 全域導出 API (確保 HTML 行內 onclick 百分之百可呼叫)
+// 全域導出 API
 // ============================================================
 window.loadStock = loadStock;
 window.addStock = addStock;
