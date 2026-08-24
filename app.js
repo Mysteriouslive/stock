@@ -199,8 +199,15 @@ function parseCandles(result) {
     const quote = result?.indicators?.quote?.[0], timestamps = result?.timestamp || [];
     if (!quote || !timestamps.length) return [];
     const daily = ['1d', '1wk', '1mo'].includes(currentPeriod.interval);
+    const liveDailyPrice = Number(result?.meta?.regularMarketPrice);
     return timestamps.flatMap((timestamp, index) => {
-        const [open, high, low, close] = [quote.open?.[index], quote.high?.[index], quote.low?.[index], quote.close?.[index]].map(Number);
+        const [open, high, low] = [quote.open?.[index], quote.high?.[index], quote.low?.[index]].map(Number);
+        let close = Number(quote.close?.[index]);
+        // Yahoo commonly leaves the current Taiwan session's daily close as
+        // null while already publishing its O/H/L and regular market price.
+        // Keep that in-progress candle instead of showing the previous day as
+        // the final bar (and disagreeing with the quote above the chart).
+        if (!Number.isFinite(close) && daily && index === timestamps.length - 1 && Number.isFinite(liveDailyPrice)) close = liveDailyPrice;
         if (![open, high, low, close].every(Number.isFinite)) return [];
         return [{ time: daily ? new Date(timestamp * 1000).toISOString().slice(0, 10) : timestamp, open, high, low, close, volume: Number(quote.volume?.[index]) || 0 }];
     });
