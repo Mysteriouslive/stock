@@ -622,6 +622,21 @@ async function fetchFinnhubWorker(symbol, endpoint, params = {}) {
     finnhubCache.set(cacheKey, { data, time: Date.now() });
     return data;
 }
+async function fetchTwseQuote(symbol) {
+    const res = await fetch(`${WORKER_URL}/?source=twse_quote&symbol=${encodeURIComponent(displaySymbol(symbol))}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`TWSE_QUOTE_${res.status}`);
+    return await res.json();
+}
+function applyTwseQuote(quote, official, symbol) {
+    const price = Number(official?.price), previous = Number(official?.previousClose), change = Number(official?.change);
+    if (!Number.isFinite(price) || !Number.isFinite(previous) || !Number.isFinite(change)) return quote;
+    const percent = Number.isFinite(Number(official.changePercent)) ? Number(official.changePercent) : (change / previous) * 100;
+    return {
+        ...(quote || {}),
+        latestPrice: formatPrice(price, symbol), previousClose: formatPrice(previous, symbol), change: change.toFixed(2), changePercent: percent.toFixed(2), isUp: change > 0, isFlat: change === 0,
+        open: formatPrice(official.open, symbol), high: formatPrice(official.high, symbol), low: formatPrice(official.low, symbol), volume: formatVolume(official.volume)
+    };
+}
 
 async function fetchFinnhubQuote(symbol) {
     const data = await fetchFinnhubWorker(symbol, 'quote');
@@ -1126,6 +1141,10 @@ async function loadStock(symbol, isSilent = false) {
         } catch (error) { yahooError = error; }
 
         if (isTw) {
+            try {
+                const officialQuote = await fetchTwseQuote(symbol);
+                quote = applyTwseQuote(quote, officialQuote, symbol);
+            } catch {}
             let twseMetricsData = null;
             try { twseMetricsData = await fetchTwseMetrics(symbol); } catch {}
             if (twseMetricsData && !isSilent && isCurrentRequest()) {

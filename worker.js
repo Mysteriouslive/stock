@@ -20,6 +20,20 @@ export default {
     const source = url.searchParams.get('source');
     const symbolParam = url.searchParams.get('symbol');
 
+    // Official TWSE end-of-day quote. Yahoo's chart metadata can lag or omit
+    // the previous close for Taiwan symbols, so use this for the dashboard's
+    // price-change and yesterday-close fields.
+    if (source === 'twse_quote') {
+      if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
+      const code = symbolParam.replace(/\.(TW|TWO)$/i, '').trim();
+      if (!/^\d{4,6}$/.test(code)) return jsonResponse({ error: 'Taiwan stock code required' }, 400);
+      for (const date of recentTradingDates(12)) {
+        const quote = await fetchTwseCloseForDate(date, code);
+        if (quote) return jsonResponse(quote, 200, { 'Cache-Control': 'public, max-age=60' });
+      }
+      return jsonResponse({ error: 'TWSE quote unavailable' }, 503);
+    }
+
     // 1. Forex (美元 / 台幣匯率)
     if (source === 'forex') {
       try {
@@ -466,4 +480,24 @@ function recentTradingDates(days) {
     dates.push(`${candidate.getUTCFullYear()}${String(candidate.getUTCMonth() + 1).padStart(2, '0')}${String(candidate.getUTCDate()).padStart(2, '0')}`);
   }
   return dates;
+}
+
+async function fetchTwseCloseForDate(date, code) {
+  const data = await fetchJson(`https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?response=json&date=${date}&type=ALLBUT0999`, 60);
+  const table = data?.tables?.find(item => item?.fields?.includes('證券代號') && item?.fields?.includes('收盤價'));
+  const row = table?.data?.find(item => String(item?.[0] || '').trim() === code);
+  if (!table || !row) return null;
+  const indexOf = field => table.fields.indexOf(field);
+  const close = parseNumber(row[indexOf('收盤價')]);
+  const open = parseNumber(row[indexOf('開盤價')]);
+  const high = parseNumber(row[indexOf('最高價')]);
+  const low = parseNumber(row[indexOf('最低價')]);
+  const volume = parseNumber(row[indexOf('成交股數')]);
+  const changeValue = parseNumber(row[indexOf('漲跌價差')]);
+  const signText = String(row[indexOf('漲跌(+/-)')] || '').replace(/<[^>]*>/g, '');
+  const sign = signText.includes('-') || signText.includes('green') ? -1 : 1;
+  if (!Number.isFinite(close)) return null;
+  const change = Number.isFinite(changeValue) ? Math.abs(changeValue) * sign : 0;
+  const previousClose = close - change;
+  return { symbol: code, date, price: close, previousClose, change, changePercent: previousClose > 0 ? change / previousClose * 100 : 0, open, high, low, volume };
 }
