@@ -622,7 +622,8 @@ function updateCrosshairHUD(param) {
 // 5. 標的資料載入主流程
 // ============================================================
 async function loadStock(symbol, isSilent = false) {
-    if (!symbol || (isLoadingStock && !isSilent)) return;
+    // Do not let slow, older responses overwrite the latest quote.
+    if (!symbol || isLoadingStock) return;
     currentSymbol = symbol; saveWatchlist();
 
     const isTw = isTaiwanSymbol(symbol);
@@ -761,7 +762,11 @@ async function loadStock(symbol, isSilent = false) {
     } catch (error) {
         console.error('loadStock error:', error);
         if (!isSilent) {
-            setText('stock-name', `找不到 ${displaySymbol(symbol)} 的資料，請確認代碼`); setText('price-change', '載入失敗');
+            setText('stock-name', `找不到 ${displaySymbol(symbol)} 的資料，請確認代碼`);
+            setText('current-price', '—');
+            setText('price-change', '暫時無法取得資料');
+            ['open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—'));
+            updateMarketState('', symbol);
         }
     } finally {
         isLoadingStock = false;
@@ -774,6 +779,18 @@ async function loadStock(symbol, isSilent = false) {
     }
 
     restartAutoRefresh();
+}
+
+async function refreshCurrentStock() {
+    if (!currentSymbol || isLoadingStock) return;
+    const button = document.getElementById('refresh-stock-btn');
+    button?.classList.add('is-refreshing');
+    try {
+        await loadStock(currentSymbol);
+        await fetchMarketIndices();
+    } finally {
+        button?.classList.remove('is-refreshing');
+    }
 }
 
 function startAutoRefresh() {
@@ -1028,6 +1045,7 @@ window.resetChartView = resetChartView;
 window.toggleChartFullscreen = toggleChartFullscreen;
 window.switchChipTab = switchChipTab;
 window.getAllActiveCharts = getAllActiveCharts;
+window.refreshCurrentStock = refreshCurrentStock;
 
 document.addEventListener('click', event => {
     if (!event.target.closest('.period-picker, .range-picker, #main-indicator-picker, #sub-indicator-picker')) {
