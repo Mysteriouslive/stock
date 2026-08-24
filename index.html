@@ -200,7 +200,7 @@
                 </div>
             </section>
 
-            <!-- K 線圖表區塊 (StockIntelli 多層分割風格) -->
+            <!-- K 線圖表區塊 (獨立 Panes 架構) -->
             <div id="chart-card" class="glass rounded-2xl p-3 md:p-4 relative mb-5 flex flex-col">
                 <!-- 頂部微型工具列 -->
                 <div class="flex items-center justify-between gap-2 px-1 pb-2 shrink-0 border-b border-white/5 text-xs">
@@ -251,7 +251,7 @@
                             </div>
                         </div>
 
-                        <!-- 副圖指標切換 (多選疊加) -->
+                        <!-- 副圖指標切換 (多選開關) -->
                         <div id="sub-indicator-picker" class="relative inline-block">
                             <button type="button" class="chart-mini-trigger" onclick="toggleSubMenu()">
                                 <span>附圖 <b id="sub-indicator-label" class="text-purple-400">KD</b></span>
@@ -271,43 +271,73 @@
                     </div>
                 </div>
 
-                <!-- 圖表與 HUD 數據面板 -->
-                <div class="relative w-full flex-1 min-h-[460px] overflow-hidden mt-1">
-                    <!-- HUD 主數據列 -->
-                    <div id="chart-hud" class="absolute top-2 left-2 z-10 text-[11px] leading-relaxed pointer-events-none select-none">
-                        <div class="flex items-center gap-3 text-gray-400 font-medium">
-                            <span id="hud-date" class="text-gray-300 font-mono">—</span>
-                            <span>收 <b id="hud-close" class="text-white font-mono">—</b></span>
-                            <span>量 <b id="hud-volume" class="text-white font-mono">—</b></span>
+                <!-- 獨立多 Panes 容器 -->
+                <div id="panes-wrapper" class="relative w-full flex flex-col gap-1.5 mt-2 overflow-hidden select-none">
+                    <!-- 1. 主圖 Pane -->
+                    <div class="relative w-full h-[320px] bg-white/[0.01] rounded-xl overflow-hidden">
+                        <!-- 主圖 HUD -->
+                        <div id="chart-hud" class="absolute top-2 left-2 z-10 text-[11px] leading-relaxed pointer-events-none">
+                            <div class="flex items-center gap-3 text-gray-400 font-medium">
+                                <span id="hud-date" class="text-gray-300 font-mono">—</span>
+                                <span>收 <b id="hud-close" class="text-white font-mono">—</b></span>
+                                <span>量 <b id="hud-volume" class="text-white font-mono">—</b></span>
+                            </div>
+                            <div class="flex items-center gap-2 text-[10px] text-gray-500 font-mono mt-0.5">
+                                <span>開 <b id="hud-open" class="text-gray-300">—</b></span>
+                                <span>高 <b id="hud-high" class="text-gray-300">—</b></span>
+                                <span>低 <b id="hud-low" class="text-gray-300">—</b></span>
+                            </div>
+                            <div id="hud-ma-row" class="flex items-center gap-3 text-[10px] font-mono mt-0.5 font-bold">
+                                <span class="text-[#fb7185]">MA5 <b id="hud-ma5">—</b></span>
+                                <span class="text-[#f59e0b]">MA20 <b id="hud-ma20">—</b></span>
+                                <span class="text-[#38bdf8]">MA60 <b id="hud-ma60">—</b></span>
+                            </div>
                         </div>
-                        <div class="flex items-center gap-2 text-[10px] text-gray-500 font-mono mt-0.5">
-                            <span>開 <b id="hud-open" class="text-gray-300">—</b></span>
-                            <span>高 <b id="hud-high" class="text-gray-300">—</b></span>
-                            <span>低 <b id="hud-low" class="text-gray-300">—</b></span>
+                        <div class="absolute top-2 right-3 z-10 text-xs font-bold text-gray-500/80 pointer-events-none tracking-wider">
+                            <span id="hud-stock-title">—</span>
                         </div>
-                        <div id="hud-ma-row" class="flex items-center gap-3 text-[10px] font-mono mt-0.5 font-bold">
-                            <span class="text-[#fb7185]">MA5 <b id="hud-ma5">—</b></span>
-                            <span class="text-[#f59e0b]">MA20 <b id="hud-ma20">—</b></span>
-                            <span class="text-[#38bdf8]">MA60 <b id="hud-ma60">—</b></span>
-                        </div>
+                        <div id="pane-main" class="w-full h-full"></div>
                     </div>
 
-                    <!-- 右上角標的浮水印 -->
-                    <div class="absolute top-2 right-3 z-10 text-xs font-bold text-gray-500/80 pointer-events-none tracking-wider">
-                        <span id="hud-stock-title">—</span>
+                    <!-- 2. 成交量 Pane (獨立) -->
+                    <div id="pane-vol-wrap" class="relative w-full h-[85px] bg-white/[0.01] rounded-xl overflow-hidden border-t border-white/5">
+                        <div class="absolute top-1 left-2 z-10 text-[10px] font-mono font-bold text-gray-400 pointer-events-none">
+                            VOL: <span id="hud-vol-val" class="text-white">—</span>
+                        </div>
+                        <div id="pane-vol" class="w-full h-full"></div>
                     </div>
 
-                    <!-- 附圖 HUD 數值 (顯示各開啟副圖的即時指標) -->
-                    <div id="hud-sub-row" class="absolute bottom-[28%] left-2 z-10 text-[10px] font-mono font-bold pointer-events-none flex items-center gap-3">
-                        <span id="hud-sub-kd" class="text-[#38bdf8] hidden">K — D —</span>
-                        <span id="hud-sub-rsi" class="text-[#c084fc] hidden">RSI —</span>
-                        <span id="hud-sub-macd" class="text-[#f87171] hidden">DIF — DEA —</span>
+                    <!-- 3. KD 副圖 Pane (獨立) -->
+                    <div id="pane-kd-wrap" class="relative w-full h-[95px] bg-white/[0.01] rounded-xl overflow-hidden border-t border-white/5">
+                        <div class="absolute top-1 left-2 z-10 text-[10px] font-mono font-bold pointer-events-none flex items-center gap-2">
+                            <span class="text-gray-400">KD (9,3,3)</span>
+                            <span class="text-[#38bdf8]">K: <b id="hud-kd-k">—</b></span>
+                            <span class="text-[#f87171]">D: <b id="hud-kd-d">—</b></span>
+                        </div>
+                        <div id="pane-kd" class="w-full h-full"></div>
                     </div>
 
-                    <div id="chart-container" class="w-full h-full min-h-[460px]"></div>
+                    <!-- 4. RSI 副圖 Pane (獨立) -->
+                    <div id="pane-rsi-wrap" class="relative w-full h-[95px] bg-white/[0.01] rounded-xl overflow-hidden border-t border-white/5 hidden">
+                        <div class="absolute top-1 left-2 z-10 text-[10px] font-mono font-bold pointer-events-none flex items-center gap-2">
+                            <span class="text-gray-400">RSI (14)</span>
+                            <span class="text-[#c084fc]">RSI: <b id="hud-rsi-val">—</b></span>
+                        </div>
+                        <div id="pane-rsi" class="w-full h-full"></div>
+                    </div>
+
+                    <!-- 5. MACD 副圖 Pane (獨立) -->
+                    <div id="pane-macd-wrap" class="relative w-full h-[105px] bg-white/[0.01] rounded-xl overflow-hidden border-t border-white/5 hidden">
+                        <div class="absolute top-1 left-2 z-10 text-[10px] font-mono font-bold pointer-events-none flex items-center gap-2">
+                            <span class="text-gray-400">MACD (12,26,9)</span>
+                            <span class="text-[#38bdf8]">DIF: <b id="hud-macd-dif">—</b></span>
+                            <span class="text-[#f87171]">DEA: <b id="hud-macd-dea">—</b></span>
+                            <span class="text-gray-200">MACD: <b id="hud-macd-hist">—</b></span>
+                        </div>
+                        <div id="pane-macd" class="w-full h-full"></div>
+                    </div>
                 </div>
             </div>
-
             <!-- 技術評估 -->
             <section id="assessment-card" class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
