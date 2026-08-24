@@ -251,6 +251,53 @@ body {
 .session-pre { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
 .session-post { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
 
+
+/* ============================================================
+   StockIntelli 風格微型下拉選單
+   ============================================================ */
+.chart-mini-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 7px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: #a1a1aa;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.18s ease;
+    cursor: pointer;
+}
+
+.chart-mini-trigger:hover,
+.period-picker.open .chart-mini-trigger,
+.range-picker.open .chart-mini-trigger {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(96, 165, 250, 0.4);
+    color: #dbeafe;
+}
+
+/* 白天模式適配 */
+body.light-mode .chart-mini-trigger {
+    background: #edf4f1;
+    border-color: #c7d8d2;
+    color: #526760;
+}
+body.light-mode .chart-mini-trigger:hover {
+    background: #dceee7;
+    border-color: #159a78;
+    color: #087f62;
+}
+body.light-mode #chart-hud div,
+body.light-mode #chart-hud span {
+    color: #526760 !important;
+}
+body.light-mode #chart-hud b {
+    color: #172a26 !important;
+}
+
+
 /* ============================================================
    圖表週期自訂毛玻璃下拉選單 (Period Picker)
    ============================================================ */

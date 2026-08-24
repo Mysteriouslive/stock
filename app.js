@@ -1487,6 +1487,63 @@ function applyDarkModeUI() {
     }
 }
 
+let currentMainIndicator = 'ma';
+let currentSubIndicator = 'kd';
+let kdSeriesK = null, kdSeriesD = null;
+
+// 切換主圖指標 (MA / BB / None)
+function setMainIndicator(type, label) {
+    currentMainIndicator = type;
+    setText('main-indicator-label', type.toUpperCase());
+    document.getElementById('hud-ma-row').style.display = type === 'ma' ? 'flex' : 'none';
+    
+    chartIndicators.ma5 = type === 'ma';
+    chartIndicators.ma20 = type === 'ma';
+    chartIndicators.ma60 = type === 'ma';
+    chartIndicators.bollinger = type === 'bollinger';
+    
+    updateChartIndicators(currentChartData);
+    closeAllMiniMenus();
+}
+
+// 切換副圖指標 (KD / RSI / MACD / None)
+function setSubIndicator(type, label) {
+    currentSubIndicator = type;
+    setText('sub-indicator-label', type.toUpperCase());
+    updateChartIndicators(currentChartData);
+    closeAllMiniMenus();
+}
+
+function toggleRangeMenu() { document.getElementById('range-picker')?.classList.toggle('open'); }
+function toggleMainMenu() { document.getElementById('main-indicator-picker')?.classList.toggle('open'); }
+function toggleSubMenu() { document.getElementById('sub-indicator-picker')?.classList.toggle('open'); }
+
+function closeAllMiniMenus() {
+    document.querySelectorAll('.period-picker, .range-picker, #main-indicator-picker, #sub-indicator-picker').forEach(el => el.classList.remove('open'));
+}
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.period-picker, .range-picker, #main-indicator-picker, #sub-indicator-picker')) {
+        closeAllMiniMenus();
+    }
+});
+
+// 十字準心即時更新 HUD
+function updateChartHUD(candle, volume, dateStr) {
+    if (!candle) return;
+    setText('hud-date', dateStr || '—');
+    setText('hud-close', formatPrice(candle.close, currentSymbol));
+    setText('hud-volume', volume ? formatVolume(volume.value || volume) : '—');
+    setText('hud-open', formatPrice(candle.open, currentSymbol));
+    setText('hud-high', formatPrice(candle.high, currentSymbol));
+    setText('hud-low', formatPrice(candle.low, currentSymbol));
+    
+    const closeEl = document.getElementById('hud-close');
+    if (closeEl) {
+        closeEl.className = candle.close >= candle.open ? 'price-up font-mono' : 'price-down font-mono';
+    }
+}
+
 // ============================================================
 // 初始化與事件綁定
 // ============================================================
