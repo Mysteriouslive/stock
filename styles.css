@@ -464,3 +464,112 @@ body.light-mode .stock-btn.active { background: #dceee7 !important; color: #176b
 body.light-mode #settings-modal, body.light-mode #profile-modal { background: #ffffff !important; border: 1px solid #e2e8f0 !important; box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15) !important; }
 body.light-mode #profile-modal .bg-white\/5 { background: #f8fafc !important; border-color: #e2e8f0 !important; }
 body.light-mode ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.15); }
+
+
+/* =========================================================
+   FINAL K-LINE LAYOUT FIX
+   這一段放在檔案最後，作為唯一的 K 線尺寸控制層。
+   ========================================================= */
+
+#chart-card {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    flex: 0 0 auto !important;
+    height: 440px !important;
+    min-height: 440px !important;
+    max-height: 440px !important;
+    padding: 14px !important;
+    margin-bottom: 20px !important;
+    overflow: hidden !important;
+}
+
+#chart-card .period-scroll,
+#chart-card #period-list {
+    flex-wrap: nowrap !important;
+    min-width: 0 !important;
+    max-width: calc(100% - 70px) !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    white-space: nowrap !important;
+    scrollbar-width: none !important;
+}
+
+#chart-card .period-scroll::-webkit-scrollbar,
+#chart-card #period-list::-webkit-scrollbar {
+    display: none !important;
+}
+
+#chart-container {
+    position: relative !important;
+    flex: 1 1 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+#chart-container > div {
+    max-width: 100% !important;
+}
+
+#chart-toolbar {
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+}
+
+#chart-status {
+    flex: 0 0 auto !important;
+    white-space: normal !important;
+}
+
+@media (max-width: 768px) {
+    #chart-card {
+        height: 400px !important;
+        min-height: 400px !important;
+        max-height: 400px !important;
+        padding: 12px !important;
+        overflow: hidden !important;
+    }
+
+    #chart-container {
+        flex: 1 1 0 !important;
+        min-height: 0 !important;
+        height: auto !important;
+        overflow: hidden !important;
+    }
+}
+
+@media (max-width: 520px) {
+    #chart-card {
+        height: 390px !important;
+        min-height: 390px !important;
+        max-height: 390px !important;
+        padding: 10px !important;
+    }
+}
+
+@media (max-width: 430px) {
+    #chart-card {
+        height: 380px !important;
+        min-height: 380px !important;
+        max-height: 380px !important;
+        padding: 9px !important;
+    }
+}
+
+@media (max-width: 390px) {
+    #chart-card {
+        height: 370px !important;
+        min-height: 370px !important;
+        max-height: 370px !important;
+    }
+}
