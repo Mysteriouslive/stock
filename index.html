@@ -202,10 +202,10 @@
 
             <!-- K 線圖表區塊 (StockIntelli 風格) -->
             <div id="chart-card" class="glass rounded-2xl p-3 md:p-4 relative mb-5 flex flex-col">
-                <!-- 1. 頂部微型下拉工具列 -->
+                <!-- 頂部微型工具列 -->
                 <div class="flex items-center justify-between gap-2 px-1 pb-2 shrink-0 border-b border-white/5 text-xs">
                     <div class="flex items-center gap-2 flex-wrap">
-                        <!-- 週期切換 (分K / 日 / 週 / 月) -->
+                        <!-- 週期切換 -->
                         <div id="period-picker" class="period-picker relative inline-block">
                             <button type="button" id="period-trigger" class="chart-mini-trigger" onclick="togglePeriodMenu()">
                                 <span id="period-label">日K</span>
@@ -229,26 +229,25 @@
                                 <span>▾</span>
                             </button>
                             <div id="range-menu" class="period-menu" role="listbox">
-                                <button type="button" onclick="setChartRange('1mo', '1月')">1月</button>
-                                <button type="button" onclick="setChartRange('3mo', '3月')">3月</button>
-                                <button type="button" onclick="setChartRange('6mo', '6月')">6月</button>
-                                <button type="button" onclick="setChartRange('1y', '1年')">1年</button>
-                                <button type="button" onclick="setChartRange('max', '全部')">全部</button>
+                                <button type="button" role="option" data-range="1mo" onclick="setChartRange('1mo', '1月')">1月</button>
+                                <button type="button" role="option" data-range="3mo" onclick="setChartRange('3mo', '3月')">3月</button>
+                                <button type="button" role="option" data-range="6mo" aria-selected="true" onclick="setChartRange('6mo', '6月')">6月</button>
+                                <button type="button" role="option" data-range="1y" onclick="setChartRange('1y', '1年')">1年</button>
+                                <button type="button" role="option" data-range="max" onclick="setChartRange('max', '全部')">全部</button>
                             </div>
                         </div>
 
                         <div class="h-3.5 w-px bg-white/10 mx-1"></div>
 
-                        <!-- 主圖指標切換 -->
+                        <!-- 主圖指標切換 (多選覆蓋) -->
                         <div id="main-indicator-picker" class="relative inline-block">
                             <button type="button" class="chart-mini-trigger" onclick="toggleMainMenu()">
                                 <span>主圖 <b id="main-indicator-label" class="text-blue-400">MA</b></span>
                                 <span>▾</span>
                             </button>
                             <div id="main-indicator-menu" class="period-menu" role="listbox">
-                                <button type="button" onclick="setMainIndicator('ma', 'MA 均線')">MA 均線</button>
-                                <button type="button" onclick="setMainIndicator('bollinger', '布林通道 BB')">布林通道</button>
-                                <button type="button" onclick="setMainIndicator('none', '無主圖指標')">隱藏主圖</button>
+                                <button type="button" role="option" id="main-opt-ma" aria-selected="true" onclick="toggleMainOption('ma')">MA 均線</button>
+                                <button type="button" role="option" id="main-opt-bollinger" aria-selected="false" onclick="toggleMainOption('bollinger')">布林通道 BB</button>
                             </div>
                         </div>
 
@@ -259,23 +258,23 @@
                                 <span>▾</span>
                             </button>
                             <div id="sub-indicator-menu" class="period-menu" role="listbox">
-                                <button type="button" onclick="setSubIndicator('kd', 'KD 指標')">KD 指標</button>
-                                <button type="button" onclick="setSubIndicator('rsi', 'RSI 指標')">RSI 強弱</button>
-                                <button type="button" onclick="setSubIndicator('macd', 'MACD 指標')">MACD 柱狀</button>
-                                <button type="button" onclick="setSubIndicator('none', '隱藏附圖')">隱藏附圖</button>
+                                <button type="button" role="option" id="sub-opt-kd" aria-selected="true" onclick="setSubIndicator('kd', 'KD')">KD 指標</button>
+                                <button type="button" role="option" id="sub-opt-rsi" aria-selected="false" onclick="setSubIndicator('rsi', 'RSI')">RSI 強弱</button>
+                                <button type="button" role="option" id="sub-opt-macd" aria-selected="false" onclick="setSubIndicator('macd', 'MACD')">MACD 柱狀</button>
+                                <button type="button" role="option" id="sub-opt-none" aria-selected="false" onclick="setSubIndicator('none', '隱藏')">隱藏附圖</button>
                             </div>
                         </div>
                     </div>
 
                     <div class="flex items-center gap-2">
-                        <button type="button" class="chart-tool-btn" onclick="resetChartView()" title="重置視圖">↺</button>
+                        <button type="button" class="chart-tool-btn" onclick="resetChartView()" title="重置縮放">↺</button>
                         <button type="button" class="chart-tool-btn" onclick="toggleChartFullscreen()" title="全螢幕">⛶</button>
                     </div>
                 </div>
 
-                <!-- 2. 圖表內嵌 HUD 數據列 (HUD Overlay) -->
-                <div class="relative w-full flex-1 min-h-[380px] overflow-hidden mt-1">
-                    <!-- HUD 資訊面板 -->
+                <!-- 圖表與 HUD 資訊面板 -->
+                <div class="relative w-full flex-1 min-h-[420px] overflow-hidden mt-1">
+                    <!-- HUD 主數據列 -->
                     <div id="chart-hud" class="absolute top-2 left-2 z-10 text-[11px] leading-relaxed pointer-events-none select-none">
                         <div class="flex items-center gap-3 text-gray-400 font-medium">
                             <span id="hud-date" class="text-gray-300 font-mono">—</span>
@@ -287,7 +286,7 @@
                             <span>高 <b id="hud-high" class="text-gray-300">—</b></span>
                             <span>低 <b id="hud-low" class="text-gray-300">—</b></span>
                         </div>
-                        <!-- 均線即時數值 -->
+                        <!-- 主圖指標數值 -->
                         <div id="hud-ma-row" class="flex items-center gap-3 text-[10px] font-mono mt-0.5 font-bold">
                             <span class="text-[#fb7185]">MA5 <b id="hud-ma5">—</b></span>
                             <span class="text-[#f59e0b]">MA20 <b id="hud-ma20">—</b></span>
@@ -300,14 +299,13 @@
                         <span id="hud-stock-title">—</span>
                     </div>
 
-                    <!-- 副圖 HUD (附圖左上角) -->
-                    <div id="hud-sub-row" class="absolute bottom-24 left-2 z-10 text-[10px] font-mono font-bold pointer-events-none flex items-center gap-3">
+                    <!-- 附圖 HUD 數值 -->
+                    <div id="hud-sub-row" class="absolute bottom-[24%] left-2 z-10 text-[10px] font-mono font-bold pointer-events-none flex items-center gap-3">
                         <span id="hud-sub-val1" class="text-[#38bdf8]">K —</span>
                         <span id="hud-sub-val2" class="text-[#f87171]">D —</span>
                     </div>
 
-                    <!-- Lightweight Charts 容器 -->
-                    <div id="chart-container" class="w-full h-full"></div>
+                    <div id="chart-container" class="w-full h-full min-h-[420px]"></div>
                 </div>
             </div>
 

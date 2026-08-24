@@ -350,6 +350,20 @@ body {
     font-weight: 700;
 }
 
+/* 選單選中勾選符號 (✓) */
+.period-menu button[aria-selected="true"] {
+    color: #60a5fa !important;
+    background: rgba(59, 130, 246, 0.15) !important;
+    font-weight: 700;
+}
+
+.period-menu button[aria-selected="true"]::after {
+    content: "✓";
+    color: #60a5fa;
+    font-weight: 700;
+    font-size: 11px;
+}
+
 /* 圖表工具列按鈕 */
 .chart-tools { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .chart-tool-btn {
