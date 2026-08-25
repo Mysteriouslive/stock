@@ -247,7 +247,7 @@ function applyCurrentPriceToQuote(quote, price, previousClose, symbol, fallbackP
 }
 
 function resetFundamentals() {
-    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-revenue-growth', 'metric-current-ratio'].forEach(id => setMetric(id, '—'));
+    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-dividend', 'metric-52high', 'metric-52low', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-revenue-growth', 'metric-current-ratio'].forEach(id => setMetric(id, '—'));
     setMetric('fundamentals-status', '—');
 }
 
@@ -733,6 +733,14 @@ async function fetchFinnhubMetrics(symbol) {
     return await fetchFinnhubWorker(symbol, 'metric', { metric: 'all' }).catch(() => null); 
 }
 
+// 新增：向 Worker 請求 FMP 資料
+async function fetchFmpData(symbol, type) {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=fmp&symbol=${encodeURIComponent(displaySymbol(symbol))}&type=${type}`);
+        return res.ok ? await res.json() : null;
+    } catch { return null; }
+}
+
 //將 Finnhub 數據渲染到畫面上
 function renderFinnhubMetrics(result) {
     const metric = result?.metric || {};
@@ -921,7 +929,6 @@ async function fetchNewsData(symbol) {
         listEl.innerHTML = '<div class="text-center py-6 text-red-500 text-xs font-sans">新聞載入失敗</div>';
     }
 }
-
 
 // ============================================================
 // 4. 指標演算法與圖表管理
@@ -1395,7 +1402,7 @@ async function loadStock(symbol, isSilent = false) {
                         const [companyProfile, metricResult, incomeStatement] = await Promise.all([
                             fetchFinnhubCompanyProfile(symbol).catch(() => null),
                             fetchFinnhubMetrics(symbol).catch(() => null),
-                            fetchFmpData(symbol, 'income-statement').catch(() => null) // 抓取 FMP 損益表
+                            fetchFmpData(symbol, 'income-statement').catch(() => null)
                         ]);
 
                         if (companyProfile) renderFinnhubCompanyInfo(companyProfile, symbol, quote);
