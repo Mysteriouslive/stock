@@ -1464,9 +1464,12 @@ async function loadStock(symbol, isSilent = false) {
     } catch (error) {
         console.error('loadStock error:', error);
         if (!isSilent && isCurrentRequest()) {
-            setText('stock-name', `找不到 ${displaySymbol(symbol)} 的資料，請確認代碼`);
+            // 修正：把錯誤訊息顯示在大標題，保持小標籤的代碼乾淨
+            setText('stock-symbol-title', `⚠️ 暫時無法取得資料`);
+            setText('stock-name', displaySymbol(symbol)); 
+            
             setText('current-price', '—');
-            setText('price-change', '暫時無法取得資料');
+            setText('price-change', '等待自動重新連線...');
             ['open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—')); renderExtendedSessionQuote(null);
             updateMarketState('', symbol);
         }
