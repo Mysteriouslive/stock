@@ -315,6 +315,25 @@ body {
 .state-post { color: #7c3aed; background: rgba(139, 92, 246, 0.12); }
 .state-closed, .state-unknown { color: #64748b; background: rgba(100, 116, 139, 0.1); }
 
+/* 盤前／盤後最新成交價：與正常盤主報價並列，避免誤認為正常盤價格。 */
+.extended-session-quote {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    padding-left: 10px;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.extended-session-quote .extended-session-label { color: #94a3b8; font-size: 10px; font-weight: 600; }
+.extended-session-quote .extended-session-change { font-size: 10px; }
+
+@media (max-width: 640px) {
+    .extended-session-quote { width: 100%; padding-left: 0; border-left: 0; }
+}
+
 @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
 .loading-pulse { animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 

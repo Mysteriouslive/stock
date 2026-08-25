@@ -195,6 +195,35 @@ function parseQuote(result, symbol = '') {
     };
 }
 
+function parseExtendedSessionQuote(result, symbol = '') {
+    const meta = result?.meta || {}, quote = result?.indicators?.quote?.[0] || {};
+    const state = String(meta.marketState || '').toUpperCase();
+    // 正常盤與休市時不以最後一根延長交易 K 線混淆使用者。
+    if (!['PRE', 'PREPRE', 'POST', 'POSTPOST'].includes(state)) return null;
+    const index = Array.isArray(quote.close) ? quote.close.map(Number).findLastIndex(Number.isFinite) : -1;
+    const price = Number(quote.close?.[index]), regular = Number(meta.regularMarketPrice);
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(regular) || regular <= 0) return null;
+    const change = price - regular, percent = (change / regular) * 100;
+    const label = state.startsWith('PRE') ? '盤前' : '盤後', sign = change > 0 ? '+' : '';
+    return {
+        label, price: formatPrice(price, symbol),
+        changeText: `${sign}${change.toFixed(isForexSymbol(symbol) ? 4 : 2)} (${sign}${percent.toFixed(2)}%)`,
+        tone: change > 0 ? 'price-up' : (change < 0 ? 'price-down' : 'text-gray-400')
+    };
+}
+
+function renderExtendedSessionQuote(session) {
+    const el = document.getElementById('extended-session-quote');
+    if (!el) return;
+    if (!session) {
+        el.textContent = '';
+        el.className = 'extended-session-quote hidden';
+        return;
+    }
+    el.className = 'extended-session-quote';
+    el.innerHTML = `<span class="extended-session-label">${session.label}</span><span>${session.price}</span><span class="extended-session-change ${session.tone}">${session.changeText}</span>`;
+}
+
 function parseCandles(result) {
     const quote = result?.indicators?.quote?.[0], timestamps = result?.timestamp || [];
     if (!quote || !timestamps.length) return [];
@@ -1177,7 +1206,7 @@ async function loadStock(symbol, isSilent = false) {
         setText('hud-stock-title', `${displaySymbol(symbol)} ${stockItem?.name || ''}`);
         
         const loadingBadge = document.getElementById('loading-badge'); if (loadingBadge) loadingBadge.classList.remove('hidden');
-        ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—')); updateMarketState('', symbol);
+        ['current-price', 'price-change', 'open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—')); renderExtendedSessionQuote(null); updateMarketState('', symbol);
         const priceChange = document.getElementById('price-change'); if (priceChange) priceChange.className = 'text-sm sm:text-base font-bold px-2.5 py-1 rounded-lg bg-white/5 border border-white/5';
         const currentPrice = document.getElementById('current-price'); if (currentPrice) currentPrice.className = 'text-3xl sm:text-4xl font-black text-white tracking-tight leading-none transition-colors duration-300';
         resetFundamentals();
@@ -1201,12 +1230,17 @@ async function loadStock(symbol, isSilent = false) {
             const chartRequest = currentPeriod.interval === '1d' && currentPeriod.range === '5d'
                 ? quoteRequest
                 : fetchYahooData(symbol);
-            const [quoteResult, chartResult] = await Promise.all([quoteRequest, chartRequest]);
+            const extendedRequest = !isTw && !isIndexSymbol(symbol) && !isForexSymbol(symbol) && !isCryptoSymbol(symbol)
+                ? fetchYahooData(symbol, '1m', '1d').catch(() => null)
+                : Promise.resolve(null);
+            const [quoteResult, chartResult, extendedResult] = await Promise.all([quoteRequest, chartRequest, extendedRequest]);
             yahooResult = quoteResult || chartResult;
             if (yahooResult) {
                 try { quote = parseQuote(yahooResult, symbol); } catch {}
                 try { chartData = parseCandles(chartResult || yahooResult); } catch {}
             }
+            const extendedSession = parseExtendedSessionQuote(extendedResult, symbol);
+            if (quote && extendedSession) quote.extendedSession = extendedSession;
         } catch (error) { yahooError = error; }
 
         if (isTw) {
@@ -1277,7 +1311,13 @@ async function loadStock(symbol, isSilent = false) {
             } else {
                 // Finnhub provides a regular-session last price and previous
                 // close, avoiding Yahoo extended-hours values in US returns.
-                if (!isIndexSymbol(symbol)) { try { quote = await fetchFinnhubQuote(symbol); } catch {} }
+                if (!isIndexSymbol(symbol)) {
+                    try {
+                        const extendedSession = quote?.extendedSession;
+                        quote = await fetchFinnhubQuote(symbol);
+                        if (extendedSession) quote.extendedSession = extendedSession;
+                    } catch {}
+                }
                 if (!isSilent && isCurrentRequest()) {
                     if (isIndexSymbol(symbol)) renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
                     else {
@@ -1297,7 +1337,7 @@ async function loadStock(symbol, isSilent = false) {
 
         quoteCache[symbol] = quote; saveWatchlist();
 
-        setText('current-price', quote.latestPrice); setText('open-price', quote.open); setText('high-price', quote.high); setText('low-price', quote.low); setText('previous-close', quote.previousClose); setText('volume', quote.volume); updateMarketState(yahooResult?.meta?.marketState, symbol);
+        setText('current-price', quote.latestPrice); setText('open-price', quote.open); setText('high-price', quote.high); setText('low-price', quote.low); setText('previous-close', quote.previousClose); setText('volume', quote.volume); renderExtendedSessionQuote(quote.extendedSession); updateMarketState(yahooResult?.meta?.marketState, symbol);
 
         const changeEl = document.getElementById('price-change'), changeNumber = Number(quote.change), changePercent = Number(quote.changePercent);
         const isUp = Number.isFinite(changeNumber) && changeNumber > 0, isDown = Number.isFinite(changeNumber) && changeNumber < 0, isFlat = !isUp && !isDown, sign = isUp ? '+' : '';
@@ -1339,7 +1379,7 @@ async function loadStock(symbol, isSilent = false) {
             setText('stock-name', `找不到 ${displaySymbol(symbol)} 的資料，請確認代碼`);
             setText('current-price', '—');
             setText('price-change', '暫時無法取得資料');
-            ['open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—'));
+            ['open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—')); renderExtendedSessionQuote(null);
             updateMarketState('', symbol);
         }
     } finally {
