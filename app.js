@@ -197,7 +197,11 @@ function parseQuote(result, symbol = '') {
 
 function parseExtendedSessionQuote(result, symbol = '') {
     const meta = result?.meta || {}, quote = result?.indicators?.quote?.[0] || {};
-    const state = String(meta.marketState || '').toUpperCase();
+    // chart API 常常不回傳 marketState；以交易時段的 Unix 時間判斷目前是否在盤前／盤後。
+    const now = Math.floor(Date.now() / 1000), periods = meta.currentTradingPeriod || {};
+    const detectedState = now >= Number(periods.pre?.start) && now < Number(periods.pre?.end) ? 'PRE'
+        : (now >= Number(periods.post?.start) && now < Number(periods.post?.end) ? 'POST' : '');
+    const state = String(meta.marketState || detectedState).toUpperCase();
     // 正常盤與休市時不以最後一根延長交易 K 線混淆使用者。
     if (!['PRE', 'PREPRE', 'POST', 'POSTPOST'].includes(state)) return null;
     const index = Array.isArray(quote.close) ? quote.close.map(Number).findLastIndex(Number.isFinite) : -1;
