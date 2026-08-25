@@ -1317,8 +1317,11 @@ async function loadStock(symbol, isSilent = false) {
                 // close, avoiding Yahoo extended-hours values in US returns.
                 if (!isIndexSymbol(symbol)) {
                     try {
-                        const extendedSession = quote?.extendedSession;
-                        quote = await fetchFinnhubQuote(symbol);
+                        const regularQuote = quote, extendedSession = regularQuote?.extendedSession;
+                        const finnhubQuote = await fetchFinnhubQuote(symbol);
+                        // Finnhub quote API 未提供成交量；維持 Yahoo 同一正常盤的成交量，
+                        // 避免在盤中顯示成空白。
+                        quote = { ...finnhubQuote, volume: regularQuote?.volume || finnhubQuote.volume };
                         if (extendedSession) quote.extendedSession = extendedSession;
                     } catch {}
                 }
