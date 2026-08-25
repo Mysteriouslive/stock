@@ -657,19 +657,15 @@ async function fetchFinnhubWorker(symbol, endpoint, params = {}) {
     const query = new URLSearchParams({ source: 'finnhub', symbol: finnhubSymbol(symbol), endpoint, ...params });
     const cacheKey = query.toString();
     const ttl = endpoint === 'quote' ? 30_000 : 6 * 60 * 60 * 1000;
-    
     const cached = finnhubCache.get(cacheKey);
     if (cached && Date.now() - cached.time < ttl) return cached.data;
-    
     if (Date.now() < finnhubBackoffUntil) {
         if (cached) return cached.data;
         throw new Error('FINNHUB_RATE_LIMITED');
     }
-    
     const res = await fetch(`${WORKER_URL}/?${query.toString()}`, { cache: 'no-store' });
     if (!res.ok) {
         if (res.status === 429) {
-            // 修正：確保沒有取得 header 時，確實預設等待 60 秒 (60000ms)，避免瘋狂重試
             const headerVal = res.headers.get('retry-after');
             const retryAfter = headerVal ? Number(headerVal) : NaN;
             finnhubBackoffUntil = Date.now() + (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 60_000);
@@ -733,12 +729,10 @@ async function fetchFinnhubQuote(symbol) {
 
 async function fetchFinnhubCompanyProfile(symbol) { return await fetchFinnhubWorker(symbol, 'profile2').catch(() => null); }
 
-//抓取 Finnhub 基本面數據
 async function fetchFinnhubMetrics(symbol) { 
     return await fetchFinnhubWorker(symbol, 'metric', { metric: 'all' }).catch(() => null); 
 }
 
-// 新增：向 Worker 請求 FMP 資料
 async function fetchFmpData(symbol, type) {
     try {
         const res = await fetch(`${WORKER_URL}/?source=fmp&symbol=${encodeURIComponent(displaySymbol(symbol))}&type=${type}`);
@@ -746,7 +740,6 @@ async function fetchFmpData(symbol, type) {
     } catch { return null; }
 }
 
-//將 Finnhub 數據渲染到畫面上
 function renderFinnhubMetrics(result) {
     const metric = result?.metric || {};
     if (!metric || Object.keys(metric).length === 0) { resetFundamentals(); return; }
@@ -845,61 +838,77 @@ async function fetchYahooData(symbol, interval = currentPeriod.interval, range =
     }
 }
 
+// 統一且安全的 fetchMarketIndices
 async function fetchMarketIndices() {
-    await Promise.all(INDICES_CONFIG.map(async idx => {
+    const jobs = INDICES_CONFIG.map(async idx => {
         try {
-            let quote;
+            let quote = null;
             if (idx.symbol === '^TWII') {
-                try { quote = applyTwseQuote(null, await fetchTwseRealtimeQuote(idx.symbol), idx.symbol); }
-                catch { const data = await fetchYahooData(idx.symbol, '1d', '5d'); quote = data ? parseQuote(data, idx.symbol) : null; }
+                try {
+                    const twse = await fetchTwseRealtimeQuote(idx.symbol);
+                    if (twse) quote = applyTwseQuote(null, twse, idx.symbol);
+                } catch {
+                    const data = await fetchYahooData(idx.symbol, '1d', '5d');
+                    quote = data ? parseQuote(data, idx.symbol) : null;
+                }
             } else {
-                // 修正：大盤指數 (SOXX, IXIC, GSPC) 強制使用 Yahoo Finance，不再浪費 Finnhub 額度
-                const data = await fetchYahooData(idx.symbol, '1d', '5d'); 
+                const data = await fetchYahooData(idx.symbol, '1d', '5d');
                 quote = data ? parseQuote(data, idx.symbol) : null;
             }
-            
+
             if (!quote) return;
             const priceEl = document.getElementById(`idx-${idx.id}-price`);
             const changeEl = document.getElementById(`idx-${idx.id}-change`);
-            if (priceEl) priceEl.textContent = quote.latestPrice;
+            if (priceEl) priceEl.textContent = quote.latestPrice || '—';
             if (changeEl) {
-                const sign = quote.isUp ? '+' : '';
-                changeEl.textContent = `${sign}${quote.change} (${sign}${quote.changePercent}%)`;
-                changeEl.className = `text-[10px] mt-0.5 font-medium ${quote.isFlat ? 'text-gray-500' : (quote.isUp ? 'price-up' : 'price-down')}`;
+                const change = Number(quote.change);
+                const percent = Number(quote.changePercent);
+                const isUp = change > 0, isDown = change < 0, sign = isUp ? '+' : '';
+                changeEl.textContent = `${sign}${Number.isFinite(change) ? quote.change : '0'} (${sign}${Number.isFinite(percent) ? quote.changePercent : '0.00'}%)`;
+                changeEl.className = `text-[10px] mt-0.5 font-medium ${isUp ? 'price-up' : (isDown ? 'price-down' : 'text-gray-500')}`;
             }
-        } catch (e) {}
-    }));
+        } catch (error) {
+            console.warn(`[INDEX] ${idx.symbol} unavailable`, error);
+        }
+    });
+    await Promise.allSettled(jobs);
 }
 
 // ==========================================
-// 新增：總經數據、新聞與 FMP 財報 API 處理
+// 總經數據與新聞
 // ==========================================
-
 async function fetchMacroData() {
     const fetchFred = async (seriesId) => {
-        const res = await fetch(`${WORKER_URL}/?source=fred&series_id=${seriesId}`);
-        return res.ok ? await res.json() : null;
+        try {
+            const res = await fetch(`${WORKER_URL}/?source=fred&series_id=${encodeURIComponent(seriesId)}`, { cache: 'no-store' });
+            if (!res.ok) return null;
+            return await res.json();
+        } catch { return null; }
     };
+
     try {
         const [cpi, unrate, fed, twMacroRes] = await Promise.all([
             fetchFred('CPIAUCSL'),
             fetchFred('UNRATE'),
             fetchFred('FEDFUNDS'),
-            fetch(`${WORKER_URL}/?source=tw_macro`).catch(() => null)
+            fetch(`${WORKER_URL}/?source=tw_macro`, { cache: 'no-store' }).catch(() => null)
         ]);
 
-        if (cpi?.observations?.[0]) setMetric('macro-cpi', `${cpi.observations[0].value}`);
-        if (unrate?.observations?.[0]) setMetric('macro-unrate', `${unrate.observations[0].value}%`);
-        if (fed?.observations?.[0]) setMetric('macro-fed', `${fed.observations[0].value}%`);
+        const cpiValue = Number(cpi?.observations?.[0]?.value);
+        const unrateValue = Number(unrate?.observations?.[0]?.value);
+        const fedValue = Number(fed?.observations?.[0]?.value);
+
+        if (Number.isFinite(cpiValue)) setMetric('macro-cpi', cpiValue.toFixed(1));
+        if (Number.isFinite(unrateValue)) setMetric('macro-unrate', `${unrateValue.toFixed(1)}%`);
+        if (Number.isFinite(fedValue)) setMetric('macro-fed', `${fedValue.toFixed(2)}%`);
 
         if (twMacroRes?.ok) {
-            const twMacro = await twMacroRes.json();
-            if (twMacro?.data?.[0]) {
-                setMetric('macro-tw-vol', formatVolume(twMacro.data[0].tradeValue));
-            }
+            const twMacro = await twMacroRes.json().catch(() => null);
+            const tradeValue = Number(twMacro?.data?.[0]?.tradeValue);
+            if (Number.isFinite(tradeValue)) setMetric('macro-tw-vol', formatVolume(tradeValue));
         }
-    } catch (e) {
-        console.error('Macro data fetch error:', e);
+    } catch (error) {
+        console.warn('Macro data unavailable:', error);
     }
 }
 
@@ -1278,13 +1287,24 @@ function updateCrosshairHUD(param) {
 }
 
 // ============================================================
-// 5. 標的資料載入主流程
+// 5. 標的資料載入主流程 (結合統一的 Yahoo/Finnhub Fallback)
 // ============================================================
+function persistCurrentSymbol(symbol) {
+    if (!symbol) return;
+    currentSymbol = symbol;
+    try {
+        localStorage.setItem('stockCurrentSymbol', symbol);
+    } catch (error) {
+        console.warn('Unable to persist current symbol', error);
+    }
+}
+
 async function loadStock(symbol, isSilent = false) {
     if (!symbol) return;
     const requestId = ++activeLoadRequest;
     const isCurrentRequest = () => requestId === activeLoadRequest;
-    currentSymbol = symbol; saveWatchlist();
+    persistCurrentSymbol(symbol);
+    saveWatchlist();
 
     const isTw = isTaiwanSymbol(symbol);
 
@@ -1314,6 +1334,9 @@ async function loadStock(symbol, isSilent = false) {
     try {
         let quote = null, chartData = [], yahooResult = null, yahooError = null;
 
+        // ========================================================
+        // 第一層：Yahoo Finance (K線 + 報價)
+        // ========================================================
         try {
             const quoteRequest = fetchYahooData(symbol, '1d', '5d');
             const chartRequest = currentPeriod.interval === '1d' && currentPeriod.range === '5d'
@@ -1394,18 +1417,26 @@ async function loadStock(symbol, isSilent = false) {
                     }
                 } catch {}
             } else {
-                if (!isIndexSymbol(symbol)) {
+                // ========================================================
+                // 第二層：Finnhub 報價 Fallback (若 Yahoo 失敗)
+                // ========================================================
+                if (!quote && !isIndexSymbol(symbol)) {
                     try {
-                        const regularQuote = quote, extendedSession = regularQuote?.extendedSession;
                         const finnhubQuote = await fetchFinnhubQuote(symbol);
-                        quote = { ...finnhubQuote, volume: regularQuote?.volume || finnhubQuote.volume };
-                        if (extendedSession) quote.extendedSession = extendedSession;
+                        quote = finnhubQuote;
                     } catch {}
                 }
+
+                // ========================================================
+                // 第三層：LocalStorage 快取最後防線
+                // ========================================================
+                if (!quote && quoteCache[symbol]) {
+                    quote = quoteCache[symbol];
+                }
+
                 if (!isSilent && isCurrentRequest()) {
                     if (isIndexSymbol(symbol)) renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
                     else {
-                        // 同時向 Finnhub 與 FMP 請求公司資料與財報數據
                         const [companyProfile, metricResult, incomeStatement] = await Promise.all([
                             fetchFinnhubCompanyProfile(symbol).catch(() => null),
                             fetchFinnhubMetrics(symbol).catch(() => null),
@@ -1415,7 +1446,6 @@ async function loadStock(symbol, isSilent = false) {
                         if (companyProfile) renderFinnhubCompanyInfo(companyProfile, symbol, quote);
                         else if (yahooResult) renderCompanyInfo(yahooResult, symbol, quote);
                         
-                        // 渲染基礎財報與 FMP 損益表
                         if (metricResult) renderFinnhubMetrics(metricResult);
                         else resetFundamentals();
                         
@@ -1425,8 +1455,7 @@ async function loadStock(symbol, isSilent = false) {
             }
         }
 
-        if (!quote && quoteCache[symbol]) quote = quoteCache[symbol];
-        if (!quote) throw (yahooError || new Error('NO_QUOTE_DATA'));
+        if (!quote) throw (yahooError || new Error(`無法取得 ${symbol} 報價`));
 
         if (!isCurrentRequest()) return;
 
@@ -1471,10 +1500,8 @@ async function loadStock(symbol, isSilent = false) {
     } catch (error) {
         console.error('loadStock error:', error);
         if (!isSilent && isCurrentRequest()) {
-            // 修正：把錯誤訊息顯示在大標題，保持小標籤的代碼乾淨
             setText('stock-symbol-title', `⚠️ 暫時無法取得資料`);
-            setText('stock-name', displaySymbol(symbol)); 
-            
+            setText('stock-name', displaySymbol(symbol));
             setText('current-price', '—');
             setText('price-change', '等待自動重新連線...');
             ['open-price', 'high-price', 'low-price', 'previous-close', 'volume'].forEach(id => setText(id, '—')); renderExtendedSessionQuote(null);
@@ -1716,7 +1743,7 @@ function openProfileModal() { toggleModal('profile-modal', true); }
 function closeModals() { toggleModal('settings-modal', false); toggleModal('profile-modal', false); }
 
 // ============================================================
-// 9. 全域 API 掛載與啟動入口
+// 9. 全域 API 掛載與啟動入口 (完美修正初始化與記憶股票)
 // ============================================================
 window.loadStock = loadStock;
 window.addStock = addStock;
@@ -1769,24 +1796,38 @@ window.addEventListener('DOMContentLoaded', async () => {
     changeSort(sortMode);
     loadUserPreferences(); 
     renderWatchlist(); 
-    fetchMarketIndices();
+
+    // 取得 localStorage 的最後瀏覽股票，確保重新整理後不會跳掉
+    const savedSymbol = localStorage.getItem('stockCurrentSymbol');
+    if (savedSymbol && watchlist.some(stock => stock.symbol === savedSymbol)) {
+        currentSymbol = savedSymbol;
+    } else if (!currentSymbol || !watchlist.some(stock => stock.symbol === currentSymbol)) {
+        currentSymbol = watchlist[0]?.symbol || null;
+        if (currentSymbol) persistCurrentSymbol(currentSymbol);
+    }
     
-    // 初始化總經數據載入
-    fetchMacroData();
+    // 平行載入大盤與總經
+    void Promise.allSettled([
+        fetchMarketIndices(),
+        fetchMacroData()
+    ]);
     
     for (const stock of watchlist) {
         if (isTaiwanSymbol(stock.symbol)) {
             const code = displaySymbol(stock.symbol);
             if (stock.name === code || !stock.name || /^\d+$/.test(stock.name)) {
-                const fetchedName = await fetchTwseName(code); 
-                if (fetchedName) stock.name = fetchedName;
+                try {
+                    const fetchedName = await fetchTwseName(code); 
+                    if (fetchedName) stock.name = fetchedName;
+                } catch {}
             }
         }
     }
     saveWatchlist(); 
     renderWatchlist();
 
-    if (currentSymbol && watchlist.some(stock => stock.symbol === currentSymbol)) await loadStock(currentSymbol);
-    else if (watchlist.length > 0) { currentSymbol = watchlist[0].symbol; await loadStock(currentSymbol); }
+    if (currentSymbol) {
+        await loadStock(currentSymbol);
+    }
     startAutoRefresh();
 });
