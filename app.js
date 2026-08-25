@@ -733,12 +733,6 @@ async function fetchFinnhubMetrics(symbol) {
     return await fetchFinnhubWorker(symbol, 'metric', { metric: 'all' }).catch(() => null); 
 }
 
-async function fetchFmpData(symbol, type) {
-    try {
-        const res = await fetch(`${WORKER_URL}/?source=fmp&symbol=${encodeURIComponent(displaySymbol(symbol))}&type=${type}`);
-        return res.ok ? await res.json() : null;
-    } catch { return null; }
-}
 
 function renderFinnhubMetrics(result) {
     const metric = result?.metric || {};
@@ -758,26 +752,6 @@ function renderFinnhubMetrics(result) {
     setMetric('fundamentals-status', 'Finnhub 已載入');
 }
 
-function renderFmpIncomeStatement(data) {
-    const tbody = document.getElementById('fmp-income-statement-body');
-    if (!tbody) return;
-    if (!Array.isArray(data) || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-gray-500 font-sans">無歷年財報資料</td></tr>';
-        return;
-    }
-
-    tbody.innerHTML = data.slice(0, 5).map(item => {
-        return `
-        <tr class="hover:bg-white/[0.02] transition-colors">
-            <td class="py-3 text-gray-300">${item.calendarYear || String(item.date).slice(0, 4)}</td>
-            <td class="py-3 text-right">${formatCompactNumber(item.revenue)}</td>
-            <td class="py-3 text-right">${formatCompactNumber(item.grossProfit)}</td>
-            <td class="py-3 text-right">${formatCompactNumber(item.operatingIncome)}</td>
-            <td class="py-3 text-right text-gray-200 font-bold">${formatCompactNumber(item.netIncome)}</td>
-            <td class="py-3 text-right text-[#38bdf8]">${formatMetric(item.eps)}</td>
-        </tr>`;
-    }).join('');
-}
 
 async function fetchForexData() {
     try {
@@ -1437,10 +1411,9 @@ async function loadStock(symbol, isSilent = false) {
                 if (!isSilent && isCurrentRequest()) {
                     if (isIndexSymbol(symbol)) renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
                     else {
-                        const [companyProfile, metricResult, incomeStatement] = await Promise.all([
+                        const [companyProfile, metricResult] = await Promise.all([
                             fetchFinnhubCompanyProfile(symbol).catch(() => null),
-                            fetchFinnhubMetrics(symbol).catch(() => null),
-                            fetchFmpData(symbol, 'income-statement').catch(() => null)
+                            fetchFinnhubMetrics(symbol).catch(() => null)
                         ]);
 
                         if (companyProfile) renderFinnhubCompanyInfo(companyProfile, symbol, quote);
@@ -1449,7 +1422,6 @@ async function loadStock(symbol, isSilent = false) {
                         if (metricResult) renderFinnhubMetrics(metricResult);
                         else resetFundamentals();
                         
-                        renderFmpIncomeStatement(incomeStatement);
                     }
                 }
             }
