@@ -728,6 +728,30 @@ async function fetchFinnhubQuote(symbol) {
 
 async function fetchFinnhubCompanyProfile(symbol) { return await fetchFinnhubWorker(symbol, 'profile2').catch(() => null); }
 
+//抓取 Finnhub 基本面數據
+async function fetchFinnhubMetrics(symbol) { 
+    return await fetchFinnhubWorker(symbol, 'metric', { metric: 'all' }).catch(() => null); 
+}
+
+//將 Finnhub 數據渲染到畫面上
+function renderFinnhubMetrics(result) {
+    const metric = result?.metric || {};
+    if (!metric || Object.keys(metric).length === 0) { resetFundamentals(); return; }
+
+    setMetric('metric-pe', formatMetric(firstFinite(metric, ['peNormalizedAnnual', 'peTTM'])));
+    setMetric('metric-eps', formatMetric(firstFinite(metric, ['epsNormalizedAnnual', 'epsTTM'])));
+    setMetric('metric-marketcap', formatCompactNumber(firstFinite(metric, ['marketCapitalization'])));
+    setMetric('metric-beta', formatMetric(firstFinite(metric, ['beta'])));
+    setMetric('metric-52high', formatMetric(firstFinite(metric, ['52WeekHigh'])));
+    setMetric('metric-52low', formatMetric(firstFinite(metric, ['52WeekLow'])));
+    setMetric('metric-dividend', formatPercentMetric(firstFinite(metric, ['dividendYieldIndicatedAnnual', 'dividendYieldTTM'])));
+    setMetric('metric-roe', formatPercentMetric(firstFinite(metric, ['roeTTM', 'roeRfy'])));
+    setMetric('metric-gross-margin', formatPercentMetric(firstFinite(metric, ['grossMarginTTM', 'grossMarginAnnual'])));
+    setMetric('metric-op-margin', formatPercentMetric(firstFinite(metric, ['operatingMarginTTM', 'operatingMarginAnnual'])));
+    
+    setMetric('fundamentals-status', 'Finnhub 已載入');
+}
+
 async function fetchForexData() {
     try {
         const res = await fetch(`${WORKER_URL}/?source=forex`, { cache: 'no-store' });
@@ -877,31 +901,6 @@ async function fetchNewsData(symbol) {
     }
 }
 
-async function fetchFmpData(symbol, type) {
-    try {
-        const res = await fetch(`${WORKER_URL}/?source=fmp&symbol=${encodeURIComponent(displaySymbol(symbol))}&type=${type}`);
-        return res.ok ? await res.json() : null;
-    } catch { return null; }
-}
-
-function renderFmpMetrics(metricsData, profileData) {
-    const m = Array.isArray(metricsData) ? metricsData[0] : metricsData;
-    if (!m) { resetFundamentals(); return; }
-    
-    setMetric('metric-pe', formatMetric(m.peRatioTTM));
-    setMetric('metric-eps', formatMetric(m.netIncomePerShareTTM));
-    setMetric('metric-marketcap', formatCompactNumber(m.marketCapTTM || profileData?.[0]?.mktCap));
-    setMetric('metric-beta', profileData?.[0]?.beta ? formatMetric(profileData[0].beta) : '—');
-    setMetric('metric-dividend', formatPercentMetric(m.dividendYieldTTM ? m.dividendYieldTTM * 100 : (m.dividendYieldPercentageTTM || 0)));
-    setMetric('metric-roe', formatPercentMetric(m.roeTTM ? m.roeTTM * 100 : NaN));
-    
-    setMetric('metric-gross-margin', formatPercentMetric(m.grossProfitMarginTTM ? m.grossProfitMarginTTM * 100 : NaN));
-    setMetric('metric-op-margin', formatPercentMetric(m.operatingProfitMarginTTM ? m.operatingProfitMarginTTM * 100 : NaN));
-    setMetric('metric-revenue-growth', formatPercentMetric(m.revenueGrowthTTM ? m.revenueGrowthTTM * 100 : NaN));
-    setMetric('metric-current-ratio', formatMetric(m.currentRatioTTM));
-    
-    setMetric('fundamentals-status', 'FMP 已載入');
-}
 
 // ============================================================
 // 4. 指標演算法與圖表管理
@@ -1371,16 +1370,17 @@ async function loadStock(symbol, isSilent = false) {
                 if (!isSilent && isCurrentRequest()) {
                     if (isIndexSymbol(symbol)) renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
                     else {
-                        const companyProfile = await fetchFinnhubCompanyProfile(symbol).catch(() => null);
-                        const [fmpMetrics, fmpProfile] = await Promise.all([
-                            fetchFmpData(symbol, 'metrics'),
-                            fetchFmpData(symbol, 'profile')
+                        // 同時向 Finnhub 請求公司資料與財報數據
+                        const [companyProfile, metricResult] = await Promise.all([
+                            fetchFinnhubCompanyProfile(symbol).catch(() => null),
+                            fetchFinnhubMetrics(symbol).catch(() => null)
                         ]);
 
                         if (companyProfile) renderFinnhubCompanyInfo(companyProfile, symbol, quote);
                         else if (yahooResult) renderCompanyInfo(yahooResult, symbol, quote);
                         
-                        if (fmpMetrics) renderFmpMetrics(fmpMetrics, fmpProfile);
+                        // 渲染財報
+                        if (metricResult) renderFinnhubMetrics(metricResult);
                         else resetFundamentals();
                     }
                 }
