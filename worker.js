@@ -20,6 +20,40 @@ export default {
     const source = url.searchParams.get('source');
     const symbolParam = url.searchParams.get('symbol');
 
+    // Official TWSE real-time quote.  Use this for listed shares and the
+    // TAIEX; Yahoo remains the historical-candle provider.
+    if (source === 'twse_realtime') {
+      if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
+      const symbol = symbolParam.trim().toUpperCase();
+      const code = symbol.replace(/\.(TW|TWO)$/i, '');
+      const isTaiex = code === '^TWII' || code === 'TWII' || code === 'T00';
+      if (!isTaiex && !/^\d{4,6}$/.test(code)) return jsonResponse({ error: 'Taiwan symbol required' }, 400);
+      const channels = isTaiex ? ['tse_t00.tw'] : [`tse_${code}.tw`, `otc_${code}.tw`];
+      try {
+        const liveUrl = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${encodeURIComponent(channels.join('|'))}&json=1&delay=0&_=${Date.now()}`;
+        const response = await fetch(liveUrl, {
+          headers: { Accept: 'application/json', Referer: 'https://mis.twse.com.tw/stock/index.jsp', 'User-Agent': 'Mozilla/5.0' },
+          cf: { cacheTtl: 0, cacheEverything: false }
+        });
+        const payload = await response.json();
+        const item = (payload?.msgArray || []).find(entry => {
+          const last = parseNumber(entry?.z);
+          return Number.isFinite(last) && last > 0;
+        });
+        if (!item) return jsonResponse({ error: 'TWSE realtime quote unavailable' }, 503);
+        const price = parseNumber(item.z), previousClose = parseNumber(item.y);
+        const change = Number.isFinite(previousClose) ? price - previousClose : 0;
+        return jsonResponse({
+          symbol: isTaiex ? '^TWII' : code, date: item.d || null, time: item.t || null,
+          price, previousClose, change, changePercent: previousClose > 0 ? change / previousClose * 100 : 0,
+          open: parseNumber(item.o), high: parseNumber(item.h), low: parseNumber(item.l),
+          volume: (parseNumber(item.v) ?? 0) * 1000, source: 'TWSE MIS'
+        }, 200, { 'Cache-Control': 'no-store, max-age=0' });
+      } catch (error) {
+        return jsonResponse({ error: 'TWSE realtime quote error', message: String(error) }, 503);
+      }
+    }
+
     // Official TWSE end-of-day quote. Yahoo's chart metadata can lag or omit
     // the previous close for Taiwan symbols, so use this for the dashboard's
     // price-change and yesterday-close fields.

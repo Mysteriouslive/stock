@@ -672,6 +672,11 @@ async function fetchTwseQuote(symbol) {
     if (!res.ok) throw new Error(`TWSE_QUOTE_${res.status}`);
     return await res.json();
 }
+async function fetchTwseRealtimeQuote(symbol) {
+    const res = await fetch(`${WORKER_URL}/?source=twse_realtime&symbol=${encodeURIComponent(symbol)}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`TWSE_REALTIME_${res.status}`);
+    return await res.json();
+}
 function applyTwseQuote(quote, official, symbol) {
     const price = Number(official?.price), previous = Number(official?.previousClose), change = Number(official?.change);
     if (!Number.isFinite(price) || !Number.isFinite(previous) || !Number.isFinite(change)) return quote;
@@ -681,6 +686,20 @@ function applyTwseQuote(quote, official, symbol) {
         latestPrice: formatPrice(price, symbol), previousClose: formatPrice(previous, symbol), change: change.toFixed(2), changePercent: percent.toFixed(2), isUp: change > 0, isFlat: change === 0,
         open: formatPrice(official.open, symbol), high: formatPrice(official.high, symbol), low: formatPrice(official.low, symbol), volume: formatVolume(official.volume)
     };
+}
+
+function applyTaiwanRealtimeCandle(data, quote) {
+    if (currentPeriod.interval !== '1d' || !quote?.date) return data;
+    const dateText = String(quote.date).replace(/\D/g, '');
+    const price = Number(quote.price), open = Number(quote.open), high = Number(quote.high), low = Number(quote.low);
+    if (dateText.length !== 8 || ![price, open, high, low].every(Number.isFinite)) return data;
+    const time = `${dateText.slice(0, 4)}-${dateText.slice(4, 6)}-${dateText.slice(6, 8)}`;
+    const candle = { time, open, high, low, close: price, volume: Number(quote.volume) || 0 };
+    const next = [...data];
+    const index = next.findIndex(item => item.time === time);
+    if (index >= 0) next[index] = candle;
+    else if (!next.length || String(next.at(-1).time) < time) next.push(candle);
+    return next;
 }
 
 async function fetchFinnhubQuote(symbol) {
@@ -762,22 +781,27 @@ async function fetchYahooData(symbol, interval = currentPeriod.interval, range =
 }
 
 async function fetchMarketIndices() {
-    for (const idx of INDICES_CONFIG) {
+    await Promise.all(INDICES_CONFIG.map(async idx => {
         try {
-            const data = await fetchYahooData(idx.symbol, '1d', '5d');
-            if (data) {
-                const quote = parseQuote(data, idx.symbol);
-                const priceEl = document.getElementById(`idx-${idx.id}-price`);
-                const changeEl = document.getElementById(`idx-${idx.id}-change`);
-                if (priceEl) priceEl.textContent = quote.latestPrice;
-                if (changeEl) {
-                    const sign = quote.isUp ? '+' : '';
-                    changeEl.textContent = `${sign}${quote.change} (${sign}${quote.changePercent}%)`;
-                    changeEl.className = `text-[10px] mt-0.5 font-medium ${quote.isFlat ? 'text-gray-500' : (quote.isUp ? 'price-up' : 'price-down')}`;
-                }
+            let quote;
+            if (idx.symbol === '^TWII') {
+                try { quote = applyTwseQuote(null, await fetchTwseRealtimeQuote(idx.symbol), idx.symbol); }
+                catch { const data = await fetchYahooData(idx.symbol, '1d', '5d'); quote = data ? parseQuote(data, idx.symbol) : null; }
+            } else {
+                try { quote = await fetchFinnhubQuote(idx.symbol); }
+                catch { const data = await fetchYahooData(idx.symbol, '1d', '5d'); quote = data ? parseQuote(data, idx.symbol) : null; }
+            }
+            if (!quote) return;
+            const priceEl = document.getElementById(`idx-${idx.id}-price`);
+            const changeEl = document.getElementById(`idx-${idx.id}-change`);
+            if (priceEl) priceEl.textContent = quote.latestPrice;
+            if (changeEl) {
+                const sign = quote.isUp ? '+' : '';
+                changeEl.textContent = `${sign}${quote.change} (${sign}${quote.changePercent}%)`;
+                changeEl.className = `text-[10px] mt-0.5 font-medium ${quote.isFlat ? 'text-gray-500' : (quote.isUp ? 'price-up' : 'price-down')}`;
             }
         } catch (e) {}
-    }
+    }));
 }
 
 // ============================================================
@@ -1186,10 +1210,16 @@ async function loadStock(symbol, isSilent = false) {
         } catch (error) { yahooError = error; }
 
         if (isTw) {
+            let officialQuote = null;
             try {
-                const officialQuote = await fetchTwseQuote(symbol);
+                officialQuote = await fetchTwseRealtimeQuote(symbol);
                 quote = applyTwseQuote(quote, officialQuote, symbol);
-            } catch {}
+            } catch {
+                // The end-of-day API is the fallback when the MIS market feed
+                // is unavailable (for example during its maintenance window).
+                try { officialQuote = await fetchTwseQuote(symbol); quote = applyTwseQuote(quote, officialQuote, symbol); } catch {}
+            }
+            chartData = applyTaiwanRealtimeCandle(chartData, officialQuote);
             let twseMetricsData = null;
             try { twseMetricsData = await fetchTwseMetrics(symbol); } catch {}
             if (twseMetricsData && !isSilent && isCurrentRequest()) {
@@ -1333,8 +1363,7 @@ async function refreshCurrentStock() {
     const button = document.getElementById('refresh-stock-btn');
     button?.classList.add('is-refreshing');
     try {
-        await loadStock(symbol);
-        if (currentSymbol === symbol) await fetchMarketIndices();
+        await Promise.all([loadStock(symbol), fetchMarketIndices()]);
     } finally {
         button?.classList.remove('is-refreshing');
     }
@@ -1344,10 +1373,9 @@ function startAutoRefresh() {
     stopAutoRefresh(); if (!currentSymbol) return;
     autoRefreshTimer = setInterval(() => {
         if (!document.hidden) {
-            if (currentSymbol) loadStock(currentSymbol, true);
-            fetchMarketIndices();
+            Promise.all([currentSymbol ? loadStock(currentSymbol, true) : Promise.resolve(), fetchMarketIndices()]);
         }
-    }, Math.max(AUTO_REFRESH_INTERVAL, 30_000));
+    }, Math.max(AUTO_REFRESH_INTERVAL, 3_000));
 }
 function stopAutoRefresh() { if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; } }
 function restartAutoRefresh() { stopAutoRefresh(); if (currentSymbol) startAutoRefresh(); }
