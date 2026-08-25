@@ -845,30 +845,52 @@ async function fetchYahooData(symbol, interval = currentPeriod.interval, range =
     }
 }
 
-async function fetchMarketIndices() {
-    await Promise.all(INDICES_CONFIG.map(async idx => {
+async function fetchMacroData() {
+    const fetchFred = async (seriesId) => {
         try {
-            let quote;
-            if (idx.symbol === '^TWII') {
-                try { quote = applyTwseQuote(null, await fetchTwseRealtimeQuote(idx.symbol), idx.symbol); }
-                catch { const data = await fetchYahooData(idx.symbol, '1d', '5d'); quote = data ? parseQuote(data, idx.symbol) : null; }
-            } else {
-                // 修正：大盤指數 (SOXX, IXIC, GSPC) 強制使用 Yahoo Finance，不再浪費 Finnhub 額度
-                const data = await fetchYahooData(idx.symbol, '1d', '5d'); 
-                quote = data ? parseQuote(data, idx.symbol) : null;
+            const res = await fetch(`${WORKER_URL}/?source=fred&series_id=${seriesId}`);
+            if (!res.ok) {
+                console.warn(`FRED ${seriesId} error status:`, res.status);
+                return null;
             }
-            
-            if (!quote) return;
-            const priceEl = document.getElementById(`idx-${idx.id}-price`);
-            const changeEl = document.getElementById(`idx-${idx.id}-change`);
-            if (priceEl) priceEl.textContent = quote.latestPrice;
-            if (changeEl) {
-                const sign = quote.isUp ? '+' : '';
-                changeEl.textContent = `${sign}${quote.change} (${sign}${quote.changePercent}%)`;
-                changeEl.className = `text-[10px] mt-0.5 font-medium ${quote.isFlat ? 'text-gray-500' : (quote.isUp ? 'price-up' : 'price-down')}`;
+            return await res.json();
+        } catch (err) {
+            console.warn(`FRED ${seriesId} fetch exception:`, err);
+            return null;
+        }
+    };
+
+    try {
+        const [cpi, unrate, fed, twMacroRes] = await Promise.all([
+            fetchFred('CPIAUCSL'),
+            fetchFred('UNRATE'),
+            fetchFred('FEDFUNDS'),
+            fetch(`${WORKER_URL}/?source=tw_macro`).catch(() => null)
+        ]);
+
+        // 檢查並安全地取出最新一筆觀測值
+        if (cpi?.observations && cpi.observations.length > 0) {
+            const val = cpi.observations[0].value;
+            if (Number.isFinite(val)) setMetric('macro-cpi', val.toFixed(1));
+        }
+        if (unrate?.observations && unrate.observations.length > 0) {
+            const val = unrate.observations[0].value;
+            if (Number.isFinite(val)) setMetric('macro-unrate', `${val.toFixed(1)}%`);
+        }
+        if (fed?.observations && fed.observations.length > 0) {
+            const val = fed.observations[0].value;
+            if (Number.isFinite(val)) setMetric('macro-fed', `${val.toFixed(2)}%`);
+        }
+
+        if (twMacroRes?.ok) {
+            const twMacro = await twMacroRes.json();
+            if (twMacro?.data?.[0]?.tradeValue) {
+                setMetric('macro-tw-vol', formatVolume(twMacro.data[0].tradeValue));
             }
-        } catch (e) {}
-    }));
+        }
+    } catch (e) {
+        console.error('Macro data render error:', e);
+    }
 }
 
 // ==========================================
