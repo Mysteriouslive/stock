@@ -123,12 +123,41 @@
 
         <div class="flex-1 min-w-0 flex flex-col p-3 sm:p-4 md:p-6 overflow-y-auto relative z-10">
             <!-- 頂部四大指數小卡 -->
-            <div class="index-strip glass rounded-2xl p-3 sm:p-4 mb-4 relative z-20 shrink-0">
+            <div class="index-strip glass rounded-2xl p-3 sm:p-4 mb-3 relative z-20 shrink-0">
                 <div class="index-strip-grid">
                     <div onclick="loadStock('^TWII')" class="index-card cursor-pointer"><div class="index-card-head"><span>加權指數</span><small>TWSE</small></div><div id="idx-twii-price">—</div><div id="idx-twii-change" class="text-[10px] mt-0.5 font-medium text-gray-500">—</div></div>
                     <div onclick="loadStock('SOXX')" class="index-card cursor-pointer"><div class="index-card-head"><span>費城半導體</span><small>SOXX</small></div><div id="idx-soxx-price">—</div><div id="idx-soxx-change" class="text-[10px] mt-0.5 font-medium text-gray-500">—</div></div>
                     <div onclick="loadStock('^IXIC')" class="index-card cursor-pointer"><div class="index-card-head"><span>NASDAQ</span><small>科技</small></div><div id="idx-ixic-price">—</div><div id="idx-ixic-change" class="text-[10px] mt-0.5 font-medium text-gray-500">—</div></div>
                     <div onclick="loadStock('^GSPC')" class="index-card cursor-pointer"><div class="index-card-head"><span>S&amp;P 500</span><small>大盤</small></div><div id="idx-gspc-price">—</div><div id="idx-gspc-change" class="text-[10px] mt-0.5 font-medium text-gray-500">—</div></div>
+                </div>
+            </div>
+
+            <!-- 總體經濟數據橫幅 -->
+            <div class="glass rounded-2xl px-4 py-3 mb-4 relative z-20 shrink-0 flex items-center justify-between border border-white/5 overflow-x-auto scrollbar-hide shadow-lg">
+                <div class="flex items-center gap-2 mr-6 hidden md:flex shrink-0">
+                    <span class="text-base">🌍</span>
+                    <span class="text-xs font-bold text-gray-400 tracking-wider">總體經濟</span>
+                </div>
+                <div class="flex items-center gap-5 sm:gap-8 flex-1 w-full text-center md:text-left">
+                    <div class="flex flex-col min-w-max">
+                        <span class="text-[10px] text-gray-500 mb-0.5">美國 CPI</span>
+                        <span id="macro-cpi" class="text-sm font-bold text-gray-200">—</span>
+                    </div>
+                    <div class="w-px h-6 bg-white/10 shrink-0"></div>
+                    <div class="flex flex-col min-w-max">
+                        <span class="text-[10px] text-gray-500 mb-0.5">美國失業率</span>
+                        <span id="macro-unrate" class="text-sm font-bold text-gray-200">—</span>
+                    </div>
+                    <div class="w-px h-6 bg-white/10 shrink-0"></div>
+                    <div class="flex flex-col min-w-max">
+                        <span class="text-[10px] text-gray-500 mb-0.5">聯準會利率</span>
+                        <span id="macro-fed" class="text-sm font-bold text-gray-200">—</span>
+                    </div>
+                    <div class="w-px h-6 bg-white/10 shrink-0"></div>
+                    <div class="flex flex-col min-w-max">
+                        <span class="text-[10px] text-gray-500 mb-0.5">台股近期成交值</span>
+                        <span id="macro-tw-vol" class="text-sm font-bold text-gray-200">—</span>
+                    </div>
                 </div>
             </div>
 
@@ -171,12 +200,13 @@
                 </div>
             </header>
 
-            <!-- 頁籤導覽列 (美股時隱藏籌碼) -->
-            <nav id="main-section-nav" class="section-nav" aria-label="資料分類">
+            <!-- 頁籤導覽列 -->
+            <nav id="main-section-nav" class="section-nav mb-4" aria-label="資料分類">
                 <button type="button" class="section-nav-btn active" onclick="jumpToSection('overview-card', this)">總覽</button>
                 <button type="button" class="section-nav-btn" onclick="jumpToSection('chart-card', this)">圖表</button>
                 <button type="button" id="nav-chip-btn" class="section-nav-btn hidden" onclick="jumpToSection('chip-card', this)">籌碼</button>
                 <button type="button" class="section-nav-btn" onclick="jumpToSection('fundamentals-card', this)">財報</button>
+                <button type="button" class="section-nav-btn" onclick="jumpToSection('news-card', this)">新聞</button>
             </nav>
 
             <!-- 公司資訊 -->
@@ -205,12 +235,10 @@
                 </div>
             </section>
 
-            <!-- K 線圖表區塊 (StockIntelli 獨立 Panes 分層架構) -->
+            <!-- K 線圖表區塊 -->
             <div id="chart-card" class="glass rounded-2xl p-3 md:p-4 relative mb-5 flex flex-col">
-                <!-- 頂部微型工具列 -->
                 <div class="flex items-center justify-between gap-2 px-1 pb-2 shrink-0 border-b border-white/5 text-xs">
                     <div class="flex items-center gap-2 flex-wrap">
-                        <!-- 週期切換 -->
                         <div id="period-picker" class="period-picker relative inline-block">
                             <button type="button" id="period-trigger" class="chart-mini-trigger" onclick="togglePeriodMenu()">
                                 <span id="period-label">日K</span>
@@ -226,10 +254,7 @@
                                 <button type="button" role="option" data-period="1mo|max" onclick="selectPeriodOption('1mo|max', '月K')">月K</button>
                             </div>
                         </div>
-
                         <div class="h-3.5 w-px bg-white/10 mx-1"></div>
-
-                        <!-- 主圖指標切換 (多選覆蓋) -->
                         <div id="main-indicator-picker" class="relative inline-block">
                             <button type="button" class="chart-mini-trigger" onclick="toggleMainMenu()">
                                 <span>主圖 <b id="main-indicator-label" class="text-blue-400">MA</b></span>
@@ -240,8 +265,6 @@
                                 <button type="button" role="option" id="main-opt-bollinger" aria-selected="false" onclick="toggleMainOption('bollinger')">布林通道 BB</button>
                             </div>
                         </div>
-
-                        <!-- 副圖指標切換 (多選開關) -->
                         <div id="sub-indicator-picker" class="relative inline-block">
                             <button type="button" class="chart-mini-trigger" onclick="toggleSubMenu()">
                                 <span>附圖 <b id="sub-indicator-label" class="text-purple-400">KD</b></span>
@@ -254,18 +277,13 @@
                             </div>
                         </div>
                     </div>
-
                     <div class="flex items-center gap-2">
                         <button type="button" class="chart-tool-btn" onclick="resetChartView()" title="重置縮放">↺</button>
                         <button type="button" class="chart-tool-btn" onclick="toggleChartFullscreen()" title="全螢幕">⛶</button>
                     </div>
                 </div>
-
-                <!-- 獨立多 Panes 容器 (自適應高度) -->
                 <div id="panes-wrapper" class="relative w-full flex flex-col gap-2 mt-2 select-none">
-                    <!-- 1. 主圖 Pane (300px) -->
                     <div id="pane-main-wrap" class="pane-container h-[300px]">
-                        <!-- 主圖 HUD -->
                         <div id="chart-hud" class="absolute top-2 left-2 z-10 text-[11px] leading-relaxed pointer-events-none">
                             <div class="flex items-center gap-3 text-gray-400 font-medium">
                                 <span id="hud-date" class="text-gray-300 font-mono">—</span>
@@ -288,16 +306,12 @@
                         </div>
                         <div id="pane-main" class="w-full h-full"></div>
                     </div>
-
-                    <!-- 2. 成交量 Pane (獨立 65px) -->
                     <div id="pane-vol-wrap" class="pane-container h-[65px]">
                         <div class="absolute top-1.5 left-2.5 z-10 text-[10px] font-mono font-bold text-gray-400 pointer-events-none">
                             VOL: <span id="hud-vol-val" class="text-white font-bold">—</span>
                         </div>
                         <div id="pane-vol" class="w-full h-full"></div>
                     </div>
-
-                    <!-- 3. KD 副圖 Pane (獨立 75px) -->
                     <div id="pane-kd-wrap" class="pane-container h-[75px]">
                         <div class="absolute top-1.5 left-2.5 z-10 text-[10px] font-mono font-bold pointer-events-none flex items-center gap-2">
                             <span class="text-gray-400">KD (9,3,3)</span>
@@ -306,8 +320,6 @@
                         </div>
                         <div id="pane-kd" class="w-full h-full"></div>
                     </div>
-
-                    <!-- 4. RSI 副圖 Pane (獨立 75px) -->
                     <div id="pane-rsi-wrap" class="pane-container h-[75px] hidden">
                         <div class="absolute top-1.5 left-2.5 z-10 text-[10px] font-mono font-bold pointer-events-none flex items-center gap-2">
                             <span class="text-gray-400">RSI (14)</span>
@@ -315,8 +327,6 @@
                         </div>
                         <div id="pane-rsi" class="w-full h-full"></div>
                     </div>
-
-                    <!-- 5. MACD 副圖 Pane (獨立 80px) -->
                     <div id="pane-macd-wrap" class="pane-container h-[80px] hidden">
                         <div class="absolute top-1.5 left-2.5 z-10 text-[10px] font-mono font-bold pointer-events-none flex items-center gap-2">
                             <span class="text-gray-400">MACD (12,26,9)</span>
@@ -346,7 +356,7 @@
                 <div id="assessment-reasons" class="assessment-reasons">—</div>
             </section>
 
-            <!-- 三竹風格三大法人籌碼分析 (僅台股顯示) -->
+            <!-- 三大法人籌碼分析 -->
             <section id="chip-card" class="section-card p-4 md:p-5 mb-5 hidden">
                 <div class="flex items-center justify-between gap-3 mb-3 pb-3 border-b border-white/10">
                     <div class="flex items-center gap-3">
@@ -357,7 +367,6 @@
                         <span id="chip-date" class="text-[11px] text-gray-400 font-mono">—</span>
                     </div>
                 </div>
-
                 <div class="chip-subheading">
                     <span>三大法人</span>
                     <div class="flex bg-black/40 p-0.5 rounded-lg border border-white/10 text-xs">
@@ -365,16 +374,13 @@
                             <button id="chip-tab-holding" onclick="switchChipTab('holding')" class="px-3 py-1 text-gray-400 hover:text-white rounded-md font-medium transition-colors">累計</button>
                     </div>
                 </div>
-
                 <div class="chip-pie-panel">
                     <div><div class="text-xs font-semibold text-gray-200">持股比例</div><div class="text-[10px] text-gray-500 mt-0.5">以近 15 日法人累計淨買超計算</div><div id="chip-holding-legend" class="chip-pie-legend"></div></div>
                     <canvas id="chip-holding-pie" width="120" height="120" aria-label="近十五日法人累計淨買超占比圓餅圖"></canvas>
                 </div>
-
                 <div class="relative w-full h-[180px] mb-3">
                     <canvas id="chip-history-chart" class="w-full h-full"></canvas>
                 </div>
-
                 <div class="grid grid-cols-5 text-center text-xs font-semibold py-2 px-1 bg-white/[0.04] rounded-lg text-gray-400 mb-1 border border-white/5">
                     <div>日期</div>
                     <div class="text-[#38bdf8] flex items-center justify-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-[#38bdf8]"></span>外資</div>
@@ -382,11 +388,9 @@
                     <div class="text-[#c084fc] flex items-center justify-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-[#c084fc]"></span>自營商</div>
                     <div class="text-gray-200">合計</div>
                 </div>
-
                 <div id="chip-table-rows" class="divide-y divide-white/5 text-xs sm:text-sm font-mono max-h-[320px] overflow-y-auto">
                     <div class="text-center py-6 text-gray-500 text-xs font-sans">載入中...</div>
                 </div>
-
                 <div class="chip-subheading chip-margin-heading"><span>融資融券</span></div>
                 <div class="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-white/10">
                     <div class="bg-white/[0.02] border border-white/5 rounded-xl p-3 flex items-center justify-between">
@@ -404,32 +408,42 @@
                         </div>
                     </div>
                 </div>
-
                 <div id="chip-source-note" class="text-[10px] text-gray-500 mt-2 text-right">資料來源：TWSE 臺灣證券交易所</div>
             </section>
 
-            <!-- 基本面與財報 -->
+            <!-- 財報與基本面 (FMP 增強版) -->
             <section id="fundamentals-card" class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
-                        <div class="section-title theme-text-primary">📊 基本面</div>
-                        <div class="section-subtitle" id="fundamentals-subtitle">Finnhub · Fundamental Metrics</div>
+                        <div class="section-title theme-text-primary">📊 財報與基本面</div>
+                        <div class="section-subtitle" id="fundamentals-subtitle">Financial Modeling Prep (FMP)</div>
                     </div>
                     <span id="fundamentals-status" class="text-[10px] text-gray-500">—</span>
                 </div>
-                <div class="fundamentals-grid">
-                    <div class="fundamental-card"><div class="fundamental-label">本益比 P/E</div><div id="metric-pe" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">每股盈餘 EPS</div><div id="metric-eps" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">市值</div><div id="metric-marketcap" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">Beta</div><div id="metric-beta" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">52週最高</div><div id="metric-52high" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">52週最低</div><div id="metric-52low" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">股息殖利率</div><div id="metric-dividend" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">ROE</div><div id="metric-roe" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">毛利率</div><div id="metric-gross-margin" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">營業利益率</div><div id="metric-op-margin" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">淨利率</div><div id="metric-net-margin" class="fundamental-value">—</div></div>
-                    <div class="fundamental-card"><div class="fundamental-label">營收成長</div><div id="metric-revenue-growth" class="fundamental-value">—</div></div>
+                <div class="fundamentals-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    <div class="fundamental-card"><div class="fundamental-label">本益比 P/E</div><div id="metric-pe" class="fundamental-value font-mono font-bold">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">每股盈餘 EPS</div><div id="metric-eps" class="fundamental-value font-mono font-bold">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">市值</div><div id="metric-marketcap" class="fundamental-value font-mono font-bold">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">Beta</div><div id="metric-beta" class="fundamental-value font-mono font-bold">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">股息殖利率</div><div id="metric-dividend" class="fundamental-value font-mono font-bold">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">ROE</div><div id="metric-roe" class="fundamental-value font-mono font-bold">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">毛利率</div><div id="metric-gross-margin" class="fundamental-value font-mono font-bold">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">營業利益率</div><div id="metric-op-margin" class="fundamental-value font-mono font-bold">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">營收成長率</div><div id="metric-revenue-growth" class="fundamental-value font-mono font-bold">—</div></div>
+                    <div class="fundamental-card"><div class="fundamental-label">流動比率</div><div id="metric-current-ratio" class="fundamental-value font-mono font-bold">—</div></div>
+                </div>
+            </section>
+
+            <!-- 最新新聞 (Finnhub) -->
+            <section id="news-card" class="section-card p-4 md:p-5 mb-5">
+                <div class="flex items-center justify-between gap-3 mb-4">
+                    <div>
+                        <div class="section-title theme-text-primary">📰 最新新聞</div>
+                        <div class="section-subtitle">Finnhub · Market News</div>
+                    </div>
+                </div>
+                <div id="news-list" class="flex flex-col gap-3 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin">
+                    <div class="text-center py-6 text-gray-500 text-xs font-sans">等待載入新聞...</div>
                 </div>
             </section>
         </div>

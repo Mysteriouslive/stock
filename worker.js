@@ -20,8 +20,7 @@ export default {
     const source = url.searchParams.get('source');
     const symbolParam = url.searchParams.get('symbol');
 
-    // Official TWSE real-time quote.  Use this for listed shares and the
-    // TAIEX; Yahoo remains the historical-candle provider.
+    // 1. TWSE 即時報價
     if (source === 'twse_realtime') {
       if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
       const symbol = symbolParam.trim().toUpperCase();
@@ -54,9 +53,7 @@ export default {
       }
     }
 
-    // Official TWSE end-of-day quote. Yahoo's chart metadata can lag or omit
-    // the previous close for Taiwan symbols, so use this for the dashboard's
-    // price-change and yesterday-close fields.
+    // 2. TWSE / TPEx 收盤報價 (含上櫃備援)
     if (source === 'twse_quote') {
       if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
       const code = symbolParam.replace(/\.(TW|TWO)$/i, '').trim();
@@ -65,10 +62,10 @@ export default {
         const quote = await fetchTwseCloseForDate(date, code);
         if (quote) return jsonResponse(quote, 200, { 'Cache-Control': 'public, max-age=60' });
       }
-      return jsonResponse({ error: 'TWSE quote unavailable' }, 503);
+      return jsonResponse({ error: 'TWSE/TPEx quote unavailable' }, 503);
     }
 
-    // 1. Forex (美元 / 台幣匯率)
+    // 3. Forex (美元 / 台幣匯率)
     if (source === 'forex') {
       try {
         const res = await fetch('https://api.frankfurter.dev/v2/rate/USD/TWD', {
@@ -97,7 +94,7 @@ export default {
       return jsonResponse({ error: 'Forex unavailable' }, 503);
     }
 
-    // 2. Crypto (加密貨幣行情)
+    // 4. Crypto (加密貨幣行情)
     if (source === 'crypto') {
       const cryptoMap = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', XRP: 'ripple', ADA: 'cardano', DOGE: 'dogecoin', BNB: 'binancecoin' };
       try {
@@ -121,9 +118,6 @@ export default {
         }
       } catch {}
 
-      // CoinGecko occasionally rate-limits public requests.  Keep the same
-      // response shape with Binance as a fallback so the dashboard remains
-      // usable instead of failing the entire crypto watchlist.
       try {
         const pairs = Object.fromEntries(Object.keys(cryptoMap).map(symbol => [symbol, `${symbol}USDT`]));
         const entries = await Promise.all(Object.entries(pairs).map(async ([symbol, pair]) => {
@@ -145,7 +139,7 @@ export default {
       return jsonResponse({ error: 'Crypto unavailable' }, 503);
     }
 
-    // 3. TWSE Metrics (本益比、殖利率、淨值比)
+    // 5. TWSE Metrics (本益比、殖利率、淨值比)
     if (source === 'twse_metrics') {
       if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
       const code = symbolParam.replace(/\.(TW|TWO)$/i, '').replace(/^\^/, '').trim();
@@ -182,26 +176,16 @@ export default {
       return jsonResponse({ pe: '—', dividendYield: '—', pb: '—', source: '—' });
     }
 
-    // 4. TWSE / TPEx Chip & History (三大法人與資券)
+    // 6. TWSE / TPEx Chip & History (三大法人與資券)
     if (source === 'twse_chip' || source === 'twse_chip_history') {
       if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
       const code = symbolParam.replace(/\.(TW|TWO)$/i, '').trim();
       if (!/^\d{4,6}$/.test(code)) return jsonResponse({ error: 'Taiwan stock code required' }, 400);
 
       const days = source === 'twse_chip_history' ? Math.min(Math.max(Number(url.searchParams.get('days')) || 15, 5), 30) : 7;
-
-      // 修正:改用「循序嘗試、抓滿即停」取代一次全部平行送出，
-      // 避免同時對 TWSE/TPEx 發出過多請求觸發限流或超過 Worker 執行時間。
-      // 回溯緩衝加大到 days*1.5+10，涵蓋連續假期(如春節)造成的多日無交易資料狀況。
       const maxLookback = Math.ceil(days * 1.5) + 10;
       const candidates = recentTradingDates(maxLookback);
       const validList = [];
-      // Historical rows only need institutional trades.  Skipping the much
-      // larger margin endpoint for every date keeps the Worker within its
-      // execution budget and lets all requested days reach the frontend.
-      // TWSE throttles repeated requests originating from the same Worker IP.
-      // Fetching history one trading date at a time is slower, but reliably
-      // returns every requested day instead of only the first successful row.
       const BATCH_SIZE = source === 'twse_chip_history' ? 1 : 4;
 
       for (let i = 0; i < candidates.length && validList.length < days; i += BATCH_SIZE) {
@@ -231,7 +215,7 @@ export default {
       }
     }
 
-    // 5. TWSE Name
+    // 7. TWSE Name
     if (source === 'twse_name') {
       if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
       const code = symbolParam.replace(/\.(TW|TWO)$/i, '').replace(/^\^/, '').trim();
@@ -262,7 +246,7 @@ export default {
       return jsonResponse({ code, name: null });
     }
 
-    // 6. Finnhub
+    // 8. Finnhub 報價與數據
     if (source === 'finnhub') {
       const finnhubApiKey = env.FINNHUB_API_KEY || '';
       if (!finnhubApiKey) return jsonResponse({ error: 'Finnhub API Key not configured' }, 500);
@@ -286,7 +270,99 @@ export default {
       }
     }
 
-    // 7. Yahoo Finance
+    // 9. Finnhub News (股市新聞)
+    if (source === 'news') {
+      const finnhubApiKey = env.FINNHUB_API_KEY || '';
+      if (!finnhubApiKey) return jsonResponse({ error: 'Finnhub API Key not configured' }, 500);
+
+      let fetchUrl = '';
+      if (symbolParam) {
+        const to = new Date();
+        const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const toStr = to.toISOString().split('T')[0];
+        const fromStr = from.toISOString().split('T')[0];
+        fetchUrl = `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(symbolParam)}&from=${fromStr}&to=${toStr}&token=${finnhubApiKey}`;
+      } else {
+        fetchUrl = `https://finnhub.io/api/v1/news?category=general&token=${finnhubApiKey}`;
+      }
+
+      try {
+        const resp = await fetch(fetchUrl, { headers: { Accept: 'application/json' }, cf: { cacheTtl: 300 } });
+        const data = await resp.json();
+        return jsonResponse(Array.isArray(data) ? data.slice(0, 10) : data, 200, { 'Cache-Control': 'public, max-age=300' });
+      } catch (error) {
+        return jsonResponse({ error: 'Finnhub news fetch failed' }, 503);
+      }
+    }
+
+    // 10. FRED 總經指標 (聯準會經濟數據)
+    if (source === 'fred') {
+      const fredApiKey = env.FRED_API_KEY || '';
+      if (!fredApiKey) return jsonResponse({ error: 'FRED API Key not configured' }, 500);
+
+      const seriesId = url.searchParams.get('series_id') || 'CPIAUCSL'; 
+      const limit = url.searchParams.get('limit') || '12';
+      const fredUrl = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${fredApiKey}&file_type=json&sort_order=desc&limit=${limit}`;
+
+      try {
+        const resp = await fetch(fredUrl, { headers: { Accept: 'application/json' }, cf: { cacheTtl: 86400 } });
+        const data = await resp.json();
+        return jsonResponse({
+          series_id: seriesId,
+          observations: (data?.observations || []).map(obs => ({ date: obs.date, value: parseNumber(obs.value) })),
+          source: 'FRED'
+        }, 200, { 'Cache-Control': 'public, max-age=86400' });
+      } catch (error) {
+        return jsonResponse({ error: 'FRED macro data fetch failed' }, 503);
+      }
+    }
+
+    // 11. FMP 美股基本面與財務比率
+    if (source === 'fmp') {
+      const fmpApiKey = env.FMP_API_KEY || '';
+      if (!fmpApiKey) return jsonResponse({ error: 'FMP API Key not configured' }, 500);
+      if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
+
+      const symbol = symbolParam.trim().toUpperCase();
+      const type = url.searchParams.get('type') || 'profile';
+
+      let fmpUrl = `https://financialmodelingprep.com/api/v3/profile/${encodeURIComponent(symbol)}?apikey=${fmpApiKey}`;
+      if (type === 'metrics') {
+        fmpUrl = `https://financialmodelingprep.com/api/v3/key-metrics-ttm/${encodeURIComponent(symbol)}?apikey=${fmpApiKey}`;
+      } else if (type === 'ratios') {
+        fmpUrl = `https://financialmodelingprep.com/api/v3/ratios-ttm/${encodeURIComponent(symbol)}?apikey=${fmpApiKey}`;
+      }
+
+      try {
+        const resp = await fetch(fmpUrl, { headers: { Accept: 'application/json' }, cf: { cacheTtl: 3600, cacheEverything: true } });
+        const data = await resp.json();
+        return jsonResponse(data, 200, { 'Cache-Control': 'public, max-age=3600' });
+      } catch (err) {
+        return jsonResponse({ error: 'FMP fetch error', message: String(err) }, 500);
+      }
+    }
+
+    // 12. 台灣大盤與總體資訊 (TWSE Open Data)
+    if (source === 'tw_macro') {
+      try {
+        const resp = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/FMTQIK', {
+          headers: { Accept: 'application/json' },
+          cf: { cacheTtl: 3600 }
+        });
+        const data = await resp.json();
+        const recent = (Array.isArray(data) ? data : []).slice(-10).map(item => ({
+          date: item.Date,
+          tradeVolume: parseNumber(item.TradeVolume),
+          tradeValue: parseNumber(item.TradeValue),
+          taiex: parseNumber(item.TAIEX)
+        }));
+        return jsonResponse({ data: recent.reverse(), source: 'TWSE Open Data' }, 200, { 'Cache-Control': 'public, max-age=3600' });
+      } catch (error) {
+        return jsonResponse({ error: 'TW Macro fetch failed' }, 503);
+      }
+    }
+
+    // 13. Yahoo Finance (歷史 K 線)
     if (!symbolParam) return jsonResponse({ error: 'Missing symbol' }, 400);
     const interval = url.searchParams.get('interval') || '1d';
     const range = url.searchParams.get('range') || '5d';
@@ -314,8 +390,6 @@ export default {
   }
 };
 
-// 修正:PE/PB 的比對關鍵字太短(如 'pe'、'pb')容易誤中其他英文欄位名稱
-// (例如包含 "type"、"open" 之類字串)。改用更完整、不易誤判的關鍵字。
 function extractPeDyPb(item) {
   let pe = '—', dy = '—', pb = '—';
   for (const [k, v] of Object.entries(item)) {
@@ -350,7 +424,6 @@ function parseNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-// 新增:單一日期的籌碼資料查詢，抽成獨立函式供批次呼叫使用
 async function fetchChipForDate(candidate, code, includeMargin = false) {
   const [twseInst, twseMargin] = await Promise.all([
     fetchJson(`https://www.twse.com.tw/rwd/zh/fund/T86?response=json&date=${candidate}&selectType=ALL`, 600),
@@ -361,8 +434,6 @@ async function fetchChipForDate(candidate, code, includeMargin = false) {
   let instFields = twseInst?.fields || [];
   let institutional = instRow ? parseInstitutionalRow(instFields, instRow) : null;
 
-  // Do not call TPEx for weekends and exchange holidays; doing so repeatedly
-  // causes upstream throttling before the next valid TWSE date is reached.
   const weekday = new Date(`${candidate.slice(0, 4)}-${candidate.slice(4, 6)}-${candidate.slice(6, 8)}T00:00:00Z`).getUTCDay();
   if (!institutional && weekday !== 0 && weekday !== 6) {
     const tpexTable = await fetchTpexInstitutional(candidate);
@@ -371,8 +442,6 @@ async function fetchChipForDate(candidate, code, includeMargin = false) {
     }
   }
 
-  // MI_MARGN has used both「證券代號」and「代號」as its first column. Select
-  // the security table by its actual stock-code row, not a volatile caption.
   const marginTable = twseMargin?.tables?.find(table => table?.data?.some(row => String(row?.[0] || '').trim() === code && Array.isArray(row) && row.length >= 13));
   const marginRow = marginTable?.data?.find(row => String(row?.[0] || '').trim() === code);
   const margin = marginRow ? parseMarginRow(marginTable?.fields || [], marginRow) : null;
@@ -380,24 +449,19 @@ async function fetchChipForDate(candidate, code, includeMargin = false) {
   return (institutional || margin) ? { date: candidate, institutional, margin } : null;
 }
 
-// 核心修正：外資精準抓取「不含外資自營商」，自營商抓「自行買賣 + 避險」
 function parseInstitutionalRow(fields, row) {
   const read = (index) => (index >= 0 ? parseNumber(row[index]) : null);
-
   const cleanFields = fields.map(f => String(f || '').replace(/\s+/g, ''));
 
-  // 1. 外資：匹配「不含外資自營商」或 TWSE/TPEx 標準外資欄位
   let foreignIdx = cleanFields.findIndex(f => f.includes('不含外資自營商') && f.includes('買賣超'));
   if (foreignIdx < 0) {
     foreignIdx = cleanFields.findIndex(f => (f.includes('外陸資') || f.includes('外資及陸資') || f.includes('外資')) && f.includes('買賣超') && !f.includes('外資自營商買賣超'));
   }
   const foreign = read(foreignIdx) ?? 0;
 
-  // 2. 投信：匹配「投信」買賣超
   const trustIdx = cleanFields.findIndex(f => f.includes('投信') && f.includes('買賣超'));
   const trust = read(trustIdx) ?? 0;
 
-  // 3. 自營商：優先找合計欄位，若無則加總 (自行買賣 + 避險)
   let dealer = null;
   const dealerTotalIdx = cleanFields.findIndex(f => f.includes('自營商買賣超股數合計') || (f.includes('自營商') && f.includes('合計') && f.includes('買賣超')));
   if (dealerTotalIdx >= 0) {
@@ -407,18 +471,14 @@ function parseInstitutionalRow(fields, row) {
   if (dealer === null) {
     const propIdx = cleanFields.findIndex(f => f.includes('自營商') && f.includes('自行買賣'));
     const hedgeIdx = cleanFields.findIndex(f => f.includes('自營商') && f.includes('避險'));
-
     const propVal = read(propIdx);
     const hedgeVal = read(hedgeIdx);
-
     if (propVal !== null || hedgeVal !== null) {
       dealer = (propVal ?? 0) + (hedgeVal ?? 0);
     }
   }
 
   const dealerNet = dealer ?? 0;
-
-  // 4. 三大法人合計
   const totalIdx = cleanFields.findIndex(f => f.includes('三大法人') && f.includes('買賣超'));
   const total = read(totalIdx) ?? (foreign + trust + dealerNet);
 
@@ -462,16 +522,8 @@ async function fetchTpexInstitutional(date) {
   return result;
 }
 
-// 修正核心 bug:TWSE MI_MARGN (selectType=ALL) 回傳的欄位固定為
-// ["代號","名稱","買進","賣出","現金(券)償還","前日餘額","今日餘額","次一營業日限額",
-//  "買進","賣出","現券償還","前日餘額","今日餘額","次一營業日限額","資券互抵","註記"]
-// 融資與融券的「前日餘額」「今日餘額」欄位名稱完全相同、本身不含「融資」「融券」字樣，
-// 只能靠出現順序區分：第一次出現＝融資群組，第二次出現＝融券群組(官方固定順序：資在前、券在後)。
-// 原本用 findIndex('融資', '今日餘額') 這種名稱比對永遠找不到融資欄位，導致融資餘額顯示為 null，
-// 融券餘額卻誤抓到本屬於融資的數值。
 function parseMarginRow(fields, row) {
   const cleanFields = fields.map(f => String(f || '').replace(/\s+/g, ''));
-
   const findAllIndexes = (label) => cleanFields.reduce((acc, field, index) => {
     if (field.includes(label)) acc.push(index);
     return acc;
@@ -479,12 +531,8 @@ function parseMarginRow(fields, row) {
 
   const [financingBalance, shortBalance] = findAllIndexes('今日餘額');
   const [financingPrevious, shortPrevious] = findAllIndexes('前日餘額');
-
   const has = (index) => Number.isInteger(index) && index >= 0;
 
-  // Current TWSE layout uses 5/6 for financing and 11/12 for short selling.
-  // Header lookup remains primary; numeric positions protect against a
-  // temporary response-encoding or wording change.
   const financePrev = has(financingPrevious) ? financingPrevious : (row.length > 6 ? 5 : -1);
   const financeNow = has(financingBalance) ? financingBalance : (row.length > 6 ? 6 : -1);
   const shortPrev = has(shortPrevious) ? shortPrevious : (row.length > 12 ? 11 : -1);
@@ -493,6 +541,7 @@ function parseMarginRow(fields, row) {
     const current = parseNumber(row[now]), prior = parseNumber(row[previous]);
     return current !== null && prior !== null ? current - prior : null;
   };
+
   return {
     name: String(row[1] || '').trim(),
     financingBalance: has(financeNow) ? parseNumber(row[financeNow]) : null,
@@ -527,30 +576,74 @@ function toRocDate(dateStr) {
 }
 
 function recentTradingDates(days) {
-  const dates = [], date = new Date(Date.now() + 8 * 60 * 60 * 1000);
-  for (let offset = 0; offset < days; offset++) {
-    const candidate = new Date(date); candidate.setUTCDate(candidate.getUTCDate() - offset);
+  const dates = [];
+  const date = new Date(Date.now() + 8 * 60 * 60 * 1000);
+  let offset = 0;
+  
+  while (dates.length < days && offset < 60) {
+    const candidate = new Date(date); 
+    candidate.setUTCDate(candidate.getUTCDate() - offset);
+    offset++;
+    
+    const dayOfWeek = candidate.getUTCDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+    
     dates.push(`${candidate.getUTCFullYear()}${String(candidate.getUTCMonth() + 1).padStart(2, '0')}${String(candidate.getUTCDate()).padStart(2, '0')}`);
   }
   return dates;
 }
 
 async function fetchTwseCloseForDate(date, code) {
-  const data = await fetchJson(`https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?response=json&date=${date}&type=ALLBUT0999`, 60);
-  const table = data?.tables?.find(item => item?.fields?.includes('證券代號') && item?.fields?.includes('收盤價'));
-  const row = table?.data?.find(item => String(item?.[0] || '').trim() === code);
-  if (!table || !row) return null;
-  const indexOf = field => table.fields.indexOf(field);
-  const close = parseNumber(row[indexOf('收盤價')]);
-  const open = parseNumber(row[indexOf('開盤價')]);
-  const high = parseNumber(row[indexOf('最高價')]);
-  const low = parseNumber(row[indexOf('最低價')]);
-  const volume = parseNumber(row[indexOf('成交股數')]);
-  const changeValue = parseNumber(row[indexOf('漲跌價差')]);
-  const signText = String(row[indexOf('漲跌(+/-)')] || '').replace(/<[^>]*>/g, '');
-  const sign = signText.includes('-') || signText.includes('green') ? -1 : 1;
+  const twseData = await fetchJson(`https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX?response=json&date=${date}&type=ALLBUT0999`, 60);
+  const twseTable = twseData?.tables?.find(item => item?.fields?.includes('證券代號') && item?.fields?.includes('收盤價'));
+  const twseRow = twseTable?.data?.find(item => String(item?.[0] || '').trim() === code);
+
+  let close, open, high, low, volume, changeValue, signText;
+
+  if (twseTable && twseRow) {
+    const indexOf = field => twseTable.fields.indexOf(field);
+    close = parseNumber(twseRow[indexOf('收盤價')]);
+    open = parseNumber(twseRow[indexOf('開盤價')]);
+    high = parseNumber(twseRow[indexOf('最高價')]);
+    low = parseNumber(twseRow[indexOf('最低價')]);
+    volume = parseNumber(twseRow[indexOf('成交股數')]);
+    changeValue = parseNumber(twseRow[indexOf('漲跌價差')]);
+    signText = String(twseRow[indexOf('漲跌(+/-)')] || '').replace(/<[^>]*>/g, '');
+  } else {
+    const rocDate = toRocDate(date);
+    const tpexData = await fetchJson(`https://www.tpex.org.tw/www/zh-tw/afterTrading/dailyQuotes?date=${rocDate}&response=json`, 60);
+    const tpexTable = tpexData?.tables?.find(t => t.title && t.title.includes('收盤行情')) || tpexData?.tables?.[0];
+    const tpexRow = tpexTable?.data?.find(item => String(item?.[0] || '').trim() === code);
+    
+    if (!tpexRow) return null;
+
+    close = parseNumber(tpexRow[2]);
+    open = parseNumber(tpexRow[4]);
+    high = parseNumber(tpexRow[5]);
+    low = parseNumber(tpexRow[6]);
+    volume = parseNumber(tpexRow[8]);
+    
+    const rawChange = String(tpexRow[3] || '').replace(/<[^>]*>/g, '').trim();
+    signText = rawChange;
+    changeValue = parseNumber(rawChange.replace(/[+-]/g, ''));
+  }
+
   if (!Number.isFinite(close)) return null;
+
+  const sign = (signText.includes('-') || signText.includes('green') || signText.includes('跌')) ? -1 : 1;
   const change = Number.isFinite(changeValue) ? Math.abs(changeValue) * sign : 0;
   const previousClose = close - change;
-  return { symbol: code, date, price: close, previousClose, change, changePercent: previousClose > 0 ? change / previousClose * 100 : 0, open, high, low, volume };
+  
+  return { 
+    symbol: code, 
+    date, 
+    price: close, 
+    previousClose, 
+    change, 
+    changePercent: previousClose > 0 ? change / previousClose * 100 : 0, 
+    open, 
+    high, 
+    low, 
+    volume 
+  };
 }

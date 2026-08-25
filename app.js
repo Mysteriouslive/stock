@@ -165,9 +165,6 @@ function parseQuote(result, symbol = '') {
     const index = Array.isArray(quote.close) ? quote.close.map(Number).findLastIndex(Number.isFinite) : -1;
     const close = Number(meta.regularMarketPrice ?? quote.close?.[index]);
     if (!Number.isFinite(close)) throw new Error('NO_QUOTE_DATA');
-    // Yahoo's chart response is not fully consistent across Taiwan, US and
-    // index symbols. Prefer its explicit regular-session change, then fall
-    // back to the previous close fields only when needed.
     const finiteValue = value => value === null || value === undefined || value === '' ? NaN : Number(value);
     const reportedChange = finiteValue(meta.regularMarketChange);
     const reportedPercent = finiteValue(meta.regularMarketChangePercent);
@@ -176,9 +173,6 @@ function parseQuote(result, symbol = '') {
     const priorCandleClose = index > 0 ? finiteValue(quote.close?.slice(0, index).map(Number).findLast(Number.isFinite)) : NaN;
     let previous = explicitPrevious;
     if (!Number.isFinite(previous) && Number.isFinite(latestCandleClose)) {
-        // During a live session Yahoo may give the current price in `meta`
-        // while the current daily candle has no close yet. In that case the
-        // latest completed candle is the correct previous close.
         const sameAsLatestCandle = Math.abs(close - latestCandleClose) <= Math.max(Math.abs(close), 1) * 1e-8;
         previous = sameAsLatestCandle && Number.isFinite(priorCandleClose) ? priorCandleClose : latestCandleClose;
     }
@@ -197,12 +191,10 @@ function parseQuote(result, symbol = '') {
 
 function parseExtendedSessionQuote(result, symbol = '') {
     const meta = result?.meta || {}, quote = result?.indicators?.quote?.[0] || {};
-    // chart API 常常不回傳 marketState；以交易時段的 Unix 時間判斷目前是否在盤前／盤後。
     const now = Math.floor(Date.now() / 1000), periods = meta.currentTradingPeriod || {};
     const detectedState = now >= Number(periods.pre?.start) && now < Number(periods.pre?.end) ? 'PRE'
         : (now >= Number(periods.post?.start) && now < Number(periods.post?.end) ? 'POST' : '');
     const state = String(meta.marketState || detectedState).toUpperCase();
-    // 正常盤與休市時不以最後一根延長交易 K 線混淆使用者。
     if (!['PRE', 'PREPRE', 'POST', 'POSTPOST'].includes(state)) return null;
     const index = Array.isArray(quote.close) ? quote.close.map(Number).findLastIndex(Number.isFinite) : -1;
     const price = Number(quote.close?.[index]), regular = Number(meta.regularMarketPrice);
@@ -236,10 +228,6 @@ function parseCandles(result) {
     return timestamps.flatMap((timestamp, index) => {
         const [open, high, low] = [quote.open?.[index], quote.high?.[index], quote.low?.[index]].map(Number);
         let close = Number(quote.close?.[index]);
-        // Yahoo commonly leaves the current Taiwan session's daily close as
-        // null while already publishing its O/H/L and regular market price.
-        // Keep that in-progress candle instead of showing the previous day as
-        // the final bar (and disagreeing with the quote above the chart).
         if (!Number.isFinite(close) && daily && index === timestamps.length - 1 && Number.isFinite(liveDailyPrice)) close = liveDailyPrice;
         if (![open, high, low, close].every(Number.isFinite)) return [];
         return [{ time: daily ? new Date(timestamp * 1000).toISOString().slice(0, 10) : timestamp, open, high, low, close, volume: Number(quote.volume?.[index]) || 0 }];
@@ -259,7 +247,7 @@ function applyCurrentPriceToQuote(quote, price, previousClose, symbol, fallbackP
 }
 
 function resetFundamentals() {
-    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-52high', 'metric-52low', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-net-margin', 'metric-revenue-growth'].forEach(id => setMetric(id, '—'));
+    ['metric-pe', 'metric-eps', 'metric-marketcap', 'metric-beta', 'metric-dividend', 'metric-roe', 'metric-gross-margin', 'metric-op-margin', 'metric-revenue-growth', 'metric-current-ratio'].forEach(id => setMetric(id, '—'));
     setMetric('fundamentals-status', '—');
 }
 
@@ -332,19 +320,9 @@ function renderFinnhubCompanyInfo(profile, symbol, quote) {
     setCompanyField('company-symbol', finnhubSymbol(symbol)); setCompanyField('company-price', quote?.latestPrice || '—');
 }
 
-function renderFinnhubMetrics(result) {
-    const metric = result?.metric || {};
-    setMetric('metric-pe', formatMetric(firstFinite(metric, ['peNormalizedAnnual', 'peTTM']))); setMetric('metric-eps', formatMetric(firstFinite(metric, ['epsNormalizedAnnual', 'epsTTM'])));
-    setMetric('metric-marketcap', formatCompactNumber(firstFinite(metric, ['marketCapitalization']))); setMetric('metric-beta', formatMetric(firstFinite(metric, ['beta'])));
-    setMetric('metric-52high', formatMetric(firstFinite(metric, ['52WeekHigh']))); setMetric('metric-52low', formatMetric(firstFinite(metric, ['52WeekLow'])));
-    setMetric('metric-dividend', formatPercentMetric(firstFinite(metric, ['dividendYieldIndicatedAnnual', 'dividendYieldTTM']))); setMetric('metric-roe', formatPercentMetric(firstFinite(metric, ['roeTTM', 'roeRfy'])));
-    setMetric('metric-gross-margin', formatPercentMetric(firstFinite(metric, ['grossMarginTTM']))); setMetric('metric-op-margin', formatPercentMetric(firstFinite(metric, ['operatingMarginTTM'])));
-    setMetric('metric-net-margin', formatPercentMetric(firstFinite(metric, ['netProfitMarginTTM']))); setMetric('metric-revenue-growth', formatPercentMetric(firstFinite(metric, ['revenueGrowthTTMYoy']))); setMetric('fundamentals-status', 'Finnhub 已載入');
-}
-
 function renderTwseMetrics(data, symbol, result, currentPrice) {
     const meta = result?.meta || {}; resetFundamentals();
-    setMetric('metric-pe', data?.pe || '—'); setMetric('metric-dividend', data?.dividendYield || '—'); setMetric('metric-52high', formatPrice(meta.fiftyTwoWeekHigh, symbol)); setMetric('metric-52low', formatPrice(meta.fiftyTwoWeekLow, symbol));
+    setMetric('metric-pe', data?.pe || '—'); setMetric('metric-dividend', data?.dividendYield || '—');
     setMetric('metric-marketcap', formatCompactNumber(meta.marketCap)); setMetric('fundamentals-status', `${data?.source || 'TWSE'} 已載入`);
 }
 
@@ -375,9 +353,6 @@ function renderChipContent() {
     renderHoldingPie(rows);
 }
 
-// The exchanges publish daily institutional trades, not a full breakdown of
-// each institution's registered shareholding. This chart therefore shows the
-// composition of the selected period's cumulative net buying.
 function renderHoldingPie(rows) {
     const canvas = document.getElementById('chip-holding-pie');
     const legend = document.getElementById('chip-holding-legend');
@@ -752,7 +727,6 @@ async function fetchFinnhubQuote(symbol) {
 }
 
 async function fetchFinnhubCompanyProfile(symbol) { return await fetchFinnhubWorker(symbol, 'profile2').catch(() => null); }
-async function fetchFinnhubMetrics(symbol) { return await fetchFinnhubWorker(symbol, 'metric', { metric: 'all' }).catch(() => null); }
 
 async function fetchForexData() {
     try {
@@ -835,6 +809,98 @@ async function fetchMarketIndices() {
             }
         } catch (e) {}
     }));
+}
+
+// ==========================================
+// 新增：總經數據、新聞與 FMP 財報 API 處理
+// ==========================================
+
+async function fetchMacroData() {
+    const fetchFred = async (seriesId) => {
+        const res = await fetch(`${WORKER_URL}/?source=fred&series_id=${seriesId}`);
+        return res.ok ? await res.json() : null;
+    };
+    try {
+        const [cpi, unrate, fed, twMacroRes] = await Promise.all([
+            fetchFred('CPIAUCSL'),
+            fetchFred('UNRATE'),
+            fetchFred('FEDFUNDS'),
+            fetch(`${WORKER_URL}/?source=tw_macro`).catch(() => null)
+        ]);
+
+        if (cpi?.observations?.[0]) setMetric('macro-cpi', `${cpi.observations[0].value}`);
+        if (unrate?.observations?.[0]) setMetric('macro-unrate', `${unrate.observations[0].value}%`);
+        if (fed?.observations?.[0]) setMetric('macro-fed', `${fed.observations[0].value}%`);
+
+        if (twMacroRes?.ok) {
+            const twMacro = await twMacroRes.json();
+            if (twMacro?.data?.[0]) {
+                setMetric('macro-tw-vol', formatVolume(twMacro.data[0].tradeValue));
+            }
+        }
+    } catch (e) {
+        console.error('Macro data fetch error:', e);
+    }
+}
+
+async function fetchNewsData(symbol) {
+    const listEl = document.getElementById('news-list');
+    if (!listEl) return;
+    listEl.innerHTML = '<div class="text-center py-6 text-gray-500 text-xs font-sans">載入新聞中...</div>';
+    
+    try {
+        let url = `${WORKER_URL}/?source=news`;
+        if (symbol && !isTaiwanSymbol(symbol) && !isCryptoSymbol(symbol) && !isIndexSymbol(symbol) && !isForexSymbol(symbol)) {
+            url = `${WORKER_URL}/?source=news&symbol=${encodeURIComponent(finnhubSymbol(symbol))}`;
+        }
+        
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('News fetch failed');
+        const news = await res.json();
+        
+        if (!Array.isArray(news) || news.length === 0) {
+            listEl.innerHTML = '<div class="text-center py-6 text-gray-500 text-xs font-sans">目前無相關新聞</div>';
+            return;
+        }
+        
+        listEl.innerHTML = news.map(item => {
+            const dateObj = new Date(item.datetime * 1000);
+            const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
+            return `
+            <a href="${escapeHtmlAttribute(item.url)}" target="_blank" class="block p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/5 transition-colors">
+                <div class="text-[10px] text-gray-400 mb-1">${dateStr} · ${escapeHtmlAttribute(item.source)}</div>
+                <div class="text-sm font-semibold text-gray-200 line-clamp-2">${escapeHtmlAttribute(item.headline)}</div>
+            </a>`;
+        }).join('');
+    } catch (error) {
+        listEl.innerHTML = '<div class="text-center py-6 text-red-500 text-xs font-sans">新聞載入失敗</div>';
+    }
+}
+
+async function fetchFmpData(symbol, type) {
+    try {
+        const res = await fetch(`${WORKER_URL}/?source=fmp&symbol=${encodeURIComponent(displaySymbol(symbol))}&type=${type}`);
+        return res.ok ? await res.json() : null;
+    } catch { return null; }
+}
+
+function renderFmpMetrics(metricsData, profileData) {
+    const m = Array.isArray(metricsData) ? metricsData[0] : metricsData;
+    if (!m) { resetFundamentals(); return; }
+    
+    setMetric('metric-pe', formatMetric(m.peRatioTTM));
+    setMetric('metric-eps', formatMetric(m.netIncomePerShareTTM));
+    setMetric('metric-marketcap', formatCompactNumber(m.marketCapTTM || profileData?.[0]?.mktCap));
+    setMetric('metric-beta', profileData?.[0]?.beta ? formatMetric(profileData[0].beta) : '—');
+    setMetric('metric-dividend', formatPercentMetric(m.dividendYieldTTM ? m.dividendYieldTTM * 100 : (m.dividendYieldPercentageTTM || 0)));
+    setMetric('metric-roe', formatPercentMetric(m.roeTTM ? m.roeTTM * 100 : NaN));
+    
+    setMetric('metric-gross-margin', formatPercentMetric(m.grossProfitMarginTTM ? m.grossProfitMarginTTM * 100 : NaN));
+    setMetric('metric-op-margin', formatPercentMetric(m.operatingProfitMarginTTM ? m.operatingProfitMarginTTM * 100 : NaN));
+    setMetric('metric-revenue-growth', formatPercentMetric(m.revenueGrowthTTM ? m.revenueGrowthTTM * 100 : NaN));
+    setMetric('metric-current-ratio', formatMetric(m.currentRatioTTM));
+    
+    setMetric('fundamentals-status', 'FMP 已載入');
 }
 
 // ============================================================
@@ -973,7 +1039,6 @@ function initChart() {
 
     if (!mainEl || typeof LightweightCharts === 'undefined' || mainChart) return false;
 
-    // 1. 初始化各圖表實例
     mainChart = createBaseChart(mainEl);
     volChart = createBaseChart(volEl);
     volChart.priceScale('right').applyOptions({ scaleMargins: { top: 0.05, bottom: 0.02 } });
@@ -981,7 +1046,6 @@ function initChart() {
     rsiChart = createBaseChart(rsiEl);
     macdChart = createBaseChart(macdEl);
 
-    // 2. 主圖 Series
     candlestickSeries = mainChart.addCandlestickSeries({
         upColor: '#ef4444', downColor: '#10b981', borderVisible: true,
         borderUpColor: '#ef4444', borderDownColor: '#10b981', wickUpColor: '#ef4444', wickDownColor: '#10b981'
@@ -992,22 +1056,14 @@ function initChart() {
     upperBandSeries = mainChart.addLineSeries({ color: 'rgba(168,85,247,0.7)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
     lowerBandSeries = mainChart.addLineSeries({ color: 'rgba(168,85,247,0.7)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
 
-    // 3. 成交量 Series
     volSeries = volChart.addHistogramSeries({ priceFormat: { type: 'volume' } });
-
-    // 4. KD Series
     kdSeriesK = kdChart.addLineSeries({ color: '#38bdf8', lineWidth: 1.5, priceLineVisible: false });
     kdSeriesD = kdChart.addLineSeries({ color: '#f87171', lineWidth: 1.5, priceLineVisible: false });
-
-    // 5. RSI Series
     rsiSeries = rsiChart.addLineSeries({ color: '#c084fc', lineWidth: 1.5, priceLineVisible: false });
-
-    // 6. MACD Series
     macdHistSeries = macdChart.addHistogramSeries({ priceLineVisible: false });
     macdLineSeries = macdChart.addLineSeries({ color: '#38bdf8', lineWidth: 1.5, priceLineVisible: false });
     macdSignalSeries = macdChart.addLineSeries({ color: '#f87171', lineWidth: 1.5, priceLineVisible: false });
 
-    // 7. 多圖時間軸毫秒級雙向同步
     const allCharts = [mainChart, volChart, kdChart, rsiChart, macdChart];
     allCharts.forEach(sourceChart => {
         sourceChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
@@ -1022,7 +1078,6 @@ function initChart() {
         });
     });
 
-    // 8. 準心 HUD 同步監聽
     allCharts.forEach(c => c.subscribeCrosshairMove(updateCrosshairHUD));
 
     setupChartResize();
@@ -1193,8 +1248,6 @@ function updateCrosshairHUD(param) {
 // ============================================================
 async function loadStock(symbol, isSilent = false) {
     if (!symbol) return;
-    // Every request receives a sequence number.  A slower, older response is
-    // allowed to finish, but it must never overwrite the newly selected stock.
     const requestId = ++activeLoadRequest;
     const isCurrentRequest = () => requestId === activeLoadRequest;
     currentSymbol = symbol; saveWatchlist();
@@ -1220,6 +1273,7 @@ async function loadStock(symbol, isSilent = false) {
         updateChartIndicators([]);
         
         setChipVisibility(isTw);
+        fetchNewsData(symbol);
     }
 
     isLoadingStock = true;
@@ -1227,9 +1281,6 @@ async function loadStock(symbol, isSilent = false) {
         let quote = null, chartData = [], yahooResult = null, yahooError = null;
 
         try {
-            // Quotes always come from the same daily request.  The selected
-            // K-line period only controls chart candles, never the price or
-            // its day-over-day change.
             const quoteRequest = fetchYahooData(symbol, '1d', '5d');
             const chartRequest = currentPeriod.interval === '1d' && currentPeriod.range === '5d'
                 ? quoteRequest
@@ -1253,8 +1304,6 @@ async function loadStock(symbol, isSilent = false) {
                 officialQuote = await fetchTwseRealtimeQuote(symbol);
                 quote = applyTwseQuote(quote, officialQuote, symbol);
             } catch {
-                // The end-of-day API is the fallback when the MIS market feed
-                // is unavailable (for example during its maintenance window).
                 try { officialQuote = await fetchTwseQuote(symbol); quote = applyTwseQuote(quote, officialQuote, symbol); } catch {}
             }
             chartData = applyTaiwanRealtimeCandle(chartData, officialQuote);
@@ -1279,8 +1328,6 @@ async function loadStock(symbol, isSilent = false) {
                 }
             }
             if (!isSilent) {
-                // Chip data is supplementary and can be slower than quotes.
-                // Render it when ready instead of blocking the main dashboard.
                 void Promise.allSettled([
                     fetchTwseChipData(symbol),
                     fetchTwseChipHistory(symbol)
@@ -1313,14 +1360,10 @@ async function loadStock(symbol, isSilent = false) {
                     }
                 } catch {}
             } else {
-                // Finnhub provides a regular-session last price and previous
-                // close, avoiding Yahoo extended-hours values in US returns.
                 if (!isIndexSymbol(symbol)) {
                     try {
                         const regularQuote = quote, extendedSession = regularQuote?.extendedSession;
                         const finnhubQuote = await fetchFinnhubQuote(symbol);
-                        // Finnhub quote API 未提供成交量；維持 Yahoo 同一正常盤的成交量，
-                        // 避免在盤中顯示成空白。
                         quote = { ...finnhubQuote, volume: regularQuote?.volume || finnhubQuote.volume };
                         if (extendedSession) quote.extendedSession = extendedSession;
                     } catch {}
@@ -1328,10 +1371,17 @@ async function loadStock(symbol, isSilent = false) {
                 if (!isSilent && isCurrentRequest()) {
                     if (isIndexSymbol(symbol)) renderCompanyInfo(yahooResult, symbol, quote, 'Yahoo Finance');
                     else {
-                        const companyProfile = await fetchFinnhubCompanyProfile(symbol).catch(() => null), metricResult = await fetchFinnhubMetrics(symbol).catch(() => null);
+                        const companyProfile = await fetchFinnhubCompanyProfile(symbol).catch(() => null);
+                        const [fmpMetrics, fmpProfile] = await Promise.all([
+                            fetchFmpData(symbol, 'metrics'),
+                            fetchFmpData(symbol, 'profile')
+                        ]);
+
                         if (companyProfile) renderFinnhubCompanyInfo(companyProfile, symbol, quote);
                         else if (yahooResult) renderCompanyInfo(yahooResult, symbol, quote);
-                        if (metricResult) renderFinnhubMetrics(metricResult, companyProfile, symbol);
+                        
+                        if (fmpMetrics) renderFmpMetrics(fmpMetrics, fmpProfile);
+                        else resetFundamentals();
                     }
                 }
             }
@@ -1513,7 +1563,7 @@ function setupChartResize() {
 
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar'), overlay = document.getElementById('overlay');
-    if (sidebar) sidebar.classList.toggle('open'); if (overlay) overlay.classList.toggle('show');
+    if (sidebar) sidebar.classList.toggle('open'); if (overlay) overlay.classList.remove('show');
 }
 
 function setupIndexStripScroll() {
@@ -1625,7 +1675,7 @@ function openProfileModal() { toggleModal('profile-modal', true); }
 function closeModals() { toggleModal('settings-modal', false); toggleModal('profile-modal', false); }
 
 // ============================================================
-// 9. 全域 API 掛載與啟動入口 (置於程式碼最底端)
+// 9. 全域 API 掛載與啟動入口
 // ============================================================
 window.loadStock = loadStock;
 window.addStock = addStock;
@@ -1679,6 +1729,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     loadUserPreferences(); 
     renderWatchlist(); 
     fetchMarketIndices();
+    
+    // 初始化總經數據載入
+    fetchMacroData();
     
     for (const stock of watchlist) {
         if (isTaiwanSymbol(stock.symbol)) {
