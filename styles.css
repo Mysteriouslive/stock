@@ -320,8 +320,8 @@ body {
     display: inline-flex;
     align-items: baseline;
     gap: 4px;
-    padding-left: 10px;
-    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    padding-right: 10px;
+    border-right: 1px solid rgba(255, 255, 255, 0.12);
     color: #cbd5e1;
     font-size: 12px;
     font-weight: 700;
@@ -331,7 +331,7 @@ body {
 .extended-session-quote .extended-session-change { font-size: 10px; }
 
 @media (max-width: 640px) {
-    .extended-session-quote { width: 100%; padding-left: 0; border-left: 0; }
+    .extended-session-quote { width: 100%; padding-right: 0; border-right: 0; }
 }
 
 @keyframes pulse-slow { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
