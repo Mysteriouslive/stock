@@ -657,17 +657,22 @@ async function fetchFinnhubWorker(symbol, endpoint, params = {}) {
     const query = new URLSearchParams({ source: 'finnhub', symbol: finnhubSymbol(symbol), endpoint, ...params });
     const cacheKey = query.toString();
     const ttl = endpoint === 'quote' ? 30_000 : 6 * 60 * 60 * 1000;
+    
     const cached = finnhubCache.get(cacheKey);
     if (cached && Date.now() - cached.time < ttl) return cached.data;
+    
     if (Date.now() < finnhubBackoffUntil) {
         if (cached) return cached.data;
         throw new Error('FINNHUB_RATE_LIMITED');
     }
+    
     const res = await fetch(`${WORKER_URL}/?${query.toString()}`, { cache: 'no-store' });
     if (!res.ok) {
         if (res.status === 429) {
-            const retryAfter = Number(res.headers.get('retry-after'));
-            finnhubBackoffUntil = Date.now() + (Number.isFinite(retryAfter) ? retryAfter * 1000 : 60_000);
+            // 修正：確保沒有取得 header 時，確實預設等待 60 秒 (60000ms)，避免瘋狂重試
+            const headerVal = res.headers.get('retry-after');
+            const retryAfter = headerVal ? Number(headerVal) : NaN;
+            finnhubBackoffUntil = Date.now() + (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 60_000);
         }
         throw new Error(`FINNHUB_PROXY_${res.status}`);
     }
@@ -848,9 +853,11 @@ async function fetchMarketIndices() {
                 try { quote = applyTwseQuote(null, await fetchTwseRealtimeQuote(idx.symbol), idx.symbol); }
                 catch { const data = await fetchYahooData(idx.symbol, '1d', '5d'); quote = data ? parseQuote(data, idx.symbol) : null; }
             } else {
-                try { quote = await fetchFinnhubQuote(idx.symbol); }
-                catch { const data = await fetchYahooData(idx.symbol, '1d', '5d'); quote = data ? parseQuote(data, idx.symbol) : null; }
+                // 修正：大盤指數 (SOXX, IXIC, GSPC) 強制使用 Yahoo Finance，不再浪費 Finnhub 額度
+                const data = await fetchYahooData(idx.symbol, '1d', '5d'); 
+                quote = data ? parseQuote(data, idx.symbol) : null;
             }
+            
             if (!quote) return;
             const priceEl = document.getElementById(`idx-${idx.id}-price`);
             const changeEl = document.getElementById(`idx-${idx.id}-change`);
