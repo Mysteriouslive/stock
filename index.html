@@ -3,31 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>股票觀測站</title>
+    <title>StockIntelli — 專業市場情報台</title>
+    <meta name="description" content="整合台美股、指數、外匯、加密資產與籌碼資訊的個人市場研究工作台。">
+    <meta name="theme-color" content="#07110f">
     <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MDAgNTAwIj48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImIiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPjxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiMxODE4MWIiLz48c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiMwOTA5MGIiLz48L2xpbmVhckdyYWRpZW50PjxsaW5lYXJHcmFkaWVudCBpZD0idCIgeDE9IjAlIiB5MT0iMTAwJSIgeDI9IjEwMCUiIHkyPSIwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2VmNDQ0NCIvPjxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2E4NTVmNyIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxyZWN0IHdpZHRoPSI1MDAiIGhlaWdodD0iNTAwIiByeD0iMTEwIiBmaWxsPSJ1cmwoI2IpIi8+PGcgZmlsbD0iIzMzNDE1NSIgb3BhY2l0eT0iMC41Ij48cmVjdCB4PSIxMzAiIHk9IjI4MCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjEyMCIgcng9IjEwIi8+PHJlY3QgeD0iMjMwIiB5PSIyMjAiIHdpZHRoPSI0MCIgaGVpZ2h0PSIxODAiIHJ4PSIxMCIvPjxyZWN0IHg9IjMzMCIgeT0iMTIwIiB3aWR0aD0iNDAiIGhlaWdodD0iMjgwIiByeD0iMTAiLz48L2c+PGcgZmlsbD0iIzM4YmRmOCI+PGNpcmNsZSBjeD0iMTAwIi cyPSIyMDAi rPSIyMCIvPjxjaXJjbGUgY3g9IjQwMCIgY3kyPSIzMDAi rPSIyMCIvPjwvZz48L3N2Zz4=" type="image/svg+xml">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./styles.css?v=20260902-futu-intraday">
 </head>
-<body class="h-[100dvh] overflow-hidden flex bg-[#09090b] text-[#f4f4f5]">
+<body class="h-[100dvh] overflow-hidden flex bg-[#07110f] text-[#edf5f2]">
     <div id="overlay" onclick="toggleSidebar()"></div>
     
     <!-- 左側邊欄 -->
     <aside id="sidebar" class="w-72 glass flex flex-col shrink-0 border-r border-white/5 z-20">
-        <div class="px-5 pb-5 border-b border-white/5" style="padding-top: max(20px, env(safe-area-inset-top));">
+        <div class="sidebar-head px-5 pb-5 border-b border-white/5" style="padding-top: max(20px, env(safe-area-inset-top));">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 shrink-0 rounded-2xl shadow-lg shadow-purple-500/20 overflow-hidden">
+                    <div class="brand-mark w-10 h-10 shrink-0 rounded-xl overflow-hidden">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" class="w-full h-full">
                             <defs>
                                 <linearGradient id="bg-sidebar" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#18181b"/><stop offset="100%" stop-color="#09090b"/>
+                                    <stop offset="0%" stop-color="#18202a"/><stop offset="100%" stop-color="#080b0f"/>
                                 </linearGradient>
                                 <linearGradient id="trend-sidebar" x1="0%" y1="100%" x2="100%" y2="0%">
-                                    <stop offset="0%" stop-color="#ef4444"/><stop offset="100%" stop-color="#a855f7"/>
+                                    <stop offset="0%" stop-color="#4c8dff"/><stop offset="100%" stop-color="#8b5cf6"/>
                                 </linearGradient>
                             </defs>
                             <rect width="500" height="500" rx="110" fill="url(#bg-sidebar)"/>
@@ -35,19 +37,24 @@
                         </svg>
                     </div>
                     <div>
-                        <h1 class="text-lg font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">自選股清單</h1>
-                        <p class="text-[11px] text-gray-500 mt-0.5">股票觀測站</p>
+                        <p class="brand-kicker">STOCKINTELLI</p>
+                        <h1 class="brand-title">市場研究台</h1>
                     </div>
                 </div>
                 <button onclick="toggleSidebar()" class="md:hidden text-gray-400 hover:text-white p-1">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
+                <button id="sidebar-collapse-btn" type="button" onclick="toggleSidebarCompact()" class="sidebar-collapse-btn hidden md:grid" aria-label="收合側邊欄" aria-expanded="true" title="收合側邊欄">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
             </div>
-            <div class="flex gap-2">
-                <input id="stock-input" name="stockInput" type="text" placeholder="代碼 (例: 2330 / SOXX / BTC)" class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50" onkeydown="if(event.key==='Enter') addStock()" maxlength="12">
-            </div>
+            <label class="stock-search flex gap-2" for="stock-input">
+                <span class="stock-search-icon" aria-hidden="true">⌕</span>
+                <input id="stock-input" name="stockInput" type="text" placeholder="搜尋代碼或新增標的" class="flex-1 bg-transparent text-sm text-white placeholder-gray-500 focus:outline-none" onkeydown="if(event.key==='Enter') addStock()" maxlength="12">
+                <span class="stock-search-key">ENTER</span>
+            </label>
             <div class="flex items-center justify-between mt-2 gap-2">
-                <p class="text-[10px] text-gray-600">支援上市/上櫃、美股、外匯、加密貨幣</p>
+                <p class="text-[10px] text-gray-600">觀察清單 · 跨市場資產</p>
                 <div id="sort-picker" class="sort-picker">
                     <select id="sort-select" name="sortSelect" onchange="changeSort(this.value)" aria-hidden="true" tabindex="-1">
                         <option value="manual">自訂順序</option>
@@ -73,15 +80,17 @@
                 </div>
             </div>
         </div>
-        <div class="flex-1 overflow-y-auto p-3 space-y-1" id="stock-list"></div>
+        <div class="watchlist-label"><span>WATCHLIST</span><span id="watchlist-market-dot"></span></div>
+        <div class="watchlist-columns" aria-hidden="true"><span>標的</span><span>最新價</span><span>漲跌</span></div>
+        <div class="flex-1 overflow-y-auto p-3 pt-1 space-y-1" id="stock-list"></div>
         
         <!-- 側邊欄底部 -->
         <div class="mt-auto border-t border-white/5 p-3 flex items-center justify-between bg-black/20 shrink-0">
             <button onclick="openProfileModal()" class="flex items-center gap-3 px-2 py-1.5 rounded-xl hover:bg-white/5 transition-colors text-left group">
                 <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md">衡</div>
                 <div class="hidden sm:block">
-                    <div class="text-[13px] font-bold text-gray-200 theme-text-primary">子衡</div>
-                    <div class="text-[10px] text-gray-500">@Mo-yun-sheng</div>
+                    <div class="text-[13px] font-bold text-gray-200 theme-text-primary">個人工作區</div>
+                    <div class="text-[10px] text-gray-500">Research account</div>
                 </div>
             </button>
             <div class="flex items-center gap-1">
@@ -103,11 +112,19 @@
                 <button onclick="toggleSidebar()" class="p-2 rounded-lg glass text-gray-300">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                 </button>
-                <span class="font-semibold tracking-wide text-white theme-text-primary text-base">股票觀測站</span>
+                <span class="font-semibold tracking-wide text-white theme-text-primary text-base">StockIntelli</span>
             </div>
         </div>
 
-        <div class="flex-1 min-w-0 flex flex-col p-3 sm:p-4 md:p-6 overflow-y-auto relative z-10">
+        <div class="workspace-scroll flex-1 min-w-0 flex flex-col p-3 sm:p-4 md:p-6 overflow-y-auto relative z-10">
+            <div class="workspace-heading">
+                <div>
+                    <p class="workspace-kicker">MARKET COMMAND CENTER</p>
+                    <h2>市場總覽</h2>
+                    <p>即時追蹤跨市場行情、技術訊號與基本面資訊</p>
+                </div>
+                <div class="workspace-session"><span></span><b id="feed-status">Checking data feed</b></div>
+            </div>
             <!-- 頂部四大指數小卡 -->
             <div class="index-strip glass rounded-2xl p-3 sm:p-4 mb-3 relative z-20 shrink-0">
                 <div class="index-strip-grid">
@@ -118,40 +135,11 @@
                 </div>
             </div>
 
-            <!-- 總體經濟數據橫幅 -->
-            <div class="glass rounded-2xl px-4 py-3 mb-4 relative z-20 shrink-0 flex items-center justify-between border border-white/5 overflow-x-auto scrollbar-hide shadow-lg">
-                <div class="flex items-center gap-2 mr-6 hidden md:flex shrink-0">
-                    <span class="text-base">🌍</span>
-                    <span class="text-xs font-bold text-gray-400 tracking-wider">總體經濟</span>
-                </div>
-                <div class="flex items-center gap-5 sm:gap-8 flex-1 w-full text-center md:text-left">
-                    <div class="flex flex-col min-w-max">
-                        <span class="text-[10px] text-gray-500 mb-0.5">美國 CPI</span>
-                        <span id="macro-cpi" class="text-sm font-bold text-gray-200">—</span>
-                    </div>
-                    <div class="w-px h-6 bg-white/10 shrink-0"></div>
-                    <div class="flex flex-col min-w-max">
-                        <span class="text-[10px] text-gray-500 mb-0.5">美國失業率</span>
-                        <span id="macro-unrate" class="text-sm font-bold text-gray-200">—</span>
-                    </div>
-                    <div class="w-px h-6 bg-white/10 shrink-0"></div>
-                    <div class="flex flex-col min-w-max">
-                        <span class="text-[10px] text-gray-500 mb-0.5">聯準會利率</span>
-                        <span id="macro-fed" class="text-sm font-bold text-gray-200">—</span>
-                    </div>
-                    <div class="w-px h-6 bg-white/10 shrink-0"></div>
-                    <div class="flex flex-col min-w-max">
-                        <span class="text-[10px] text-gray-500 mb-0.5">台股近期成交值</span>
-                        <span id="macro-tw-vol" class="text-sm font-bold text-gray-200">—</span>
-                    </div>
-                </div>
-            </div>
-
             <!-- 個股即時資訊看板 -->
             <header class="dashboard-header glass rounded-2xl p-4 sm:p-5 mb-4 relative overflow-visible shrink-0 border border-white/10 shadow-2xl">
-                <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-blue-500 via-purple-500 to-transparent opacity-80"></div>
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 min-w-0">
-                    <div class="flex flex-col justify-center min-w-0">
+                    <div class="quote-identity flex flex-col justify-center min-w-0">
+                        <p class="quote-eyebrow">SELECTED INSTRUMENT</p>
                         <div class="flex items-center flex-wrap gap-2 sm:gap-3">
                             <h2 id="stock-symbol-title" class="text-2xl sm:text-3xl font-black tracking-tight text-white leading-tight break-words">—</h2>
                             <span id="loading-badge" class="hidden text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 loading-pulse shrink-0">載入中</span>
@@ -187,25 +175,24 @@
             </header>
 
             <!-- 頁籤導覽列 -->
-            <nav id="main-section-nav" class="section-nav mb-4" aria-label="資料分類">
-                <button type="button" class="section-nav-btn active" onclick="jumpToSection('overview-card', this)">總覽</button>
-                <button type="button" class="section-nav-btn" onclick="jumpToSection('chart-card', this)">圖表</button>
-                <button type="button" id="nav-chip-btn" class="section-nav-btn hidden" onclick="jumpToSection('chip-card', this)">籌碼</button>
-                <button type="button" class="section-nav-btn" onclick="jumpToSection('fundamentals-card', this)">財報</button>
-                <button type="button" class="section-nav-btn" onclick="jumpToSection('news-card', this)">新聞</button>
+            <nav id="main-section-nav" class="section-nav mb-4" aria-label="資料分類" role="tablist">
+                <button type="button" role="tab" aria-selected="false" class="section-nav-btn" data-view="overview" onclick="jumpToSection('overview-card', this)">公司概況</button>
+                <button type="button" role="tab" aria-selected="true" class="section-nav-btn active" data-view="chart" onclick="jumpToSection('chart-card', this)">圖表分析</button>
+                <button type="button" role="tab" aria-selected="false" id="nav-chip-btn" class="section-nav-btn hidden" data-view="chip" onclick="jumpToSection('chip-card', this)">市場籌碼</button>
+                <button type="button" role="tab" aria-selected="false" class="section-nav-btn" data-view="fundamentals" onclick="jumpToSection('fundamentals-card', this)">基本面</button>
+                <button type="button" role="tab" aria-selected="false" class="section-nav-btn" data-view="news" onclick="jumpToSection('news-card', this)">市場新聞</button>
             </nav>
 
             <!-- 公司資訊 -->
-            <section id="overview-card" class="company-info-card collapsed glass rounded-2xl p-4 md:p-5 mb-5">
+            <section id="overview-card" class="company-info-card glass rounded-2xl p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3">
                     <div class="flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-xl bg-purple-500/15 text-purple-300 flex items-center justify-center text-lg">🏢</div>
+                        <div class="company-monogram" aria-hidden="true">CO</div>
                         <div>
                             <h3 class="font-semibold text-white theme-text-primary">公司資訊</h3>
                             <p class="text-[10px] text-gray-500">Company Information</p>
                         </div>
                     </div>
-                    <button onclick="toggleCompanyInfo()" class="text-[11px] px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 transition-colors">展開</button>
                 </div>
                 <div id="company-info-body" class="company-info-body mt-4">
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5">
@@ -221,10 +208,42 @@
                 </div>
             </section>
 
+            <div class="analysis-workbench">
+            <aside id="important-announcement-strip" class="announcement-strip" aria-label="近期重要公告" aria-live="polite">
+                <div class="announcement-label">
+                    <span class="announcement-dot" aria-hidden="true"></span>
+                    <div>
+                        <strong>近期重要公告</strong>
+                        <small>MARKET NOTICE</small>
+                    </div>
+                </div>
+                <div id="important-announcement-list" class="announcement-list">
+                    <span class="announcement-loading">正在同步最新公告…</span>
+                </div>
+            </aside>
             <!-- K 線圖表區塊 -->
             <div id="chart-card" class="glass rounded-2xl p-3 md:p-4 relative mb-5 flex flex-col">
                 <div class="flex items-center justify-between gap-2 px-1 pb-2 shrink-0 border-b border-white/5 text-xs">
                     <div class="flex items-center gap-2 flex-wrap">
+                        <div class="chart-context">
+                            <strong>PRICE ACTION</strong>
+                            <small>價格與成交量</small>
+                        </div>
+                        <div class="chart-context-divider"></div>
+                        <div class="chart-type-switch" role="group" aria-label="主圖顯示方式">
+                            <button id="chart-type-candles" type="button" aria-pressed="true" onclick="setChartDisplayMode('candles')">K 線</button>
+                            <button id="chart-type-line" type="button" aria-pressed="false" onclick="setChartDisplayMode('line')">線圖</button>
+                        </div>
+                        <label class="session-picker" for="trading-session-select">
+                            <span>時段</span>
+                            <select id="trading-session-select" onchange="selectTradingSession(this.value)" aria-label="選擇線圖交易時段">
+                                <option value="all">全部時段</option>
+                                <option value="regular">盤中</option>
+                                <option value="pre">盤前</option>
+                                <option value="post">盤後</option>
+                                <option value="night">夜盤</option>
+                            </select>
+                        </label>
                         <div id="period-picker" class="period-picker relative inline-block">
                             <button type="button" id="period-trigger" class="chart-mini-trigger" onclick="togglePeriodMenu()">
                                 <span id="period-label">日K</span>
@@ -264,6 +283,7 @@
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
+                        <span id="chart-live-status" class="chart-live-status" aria-live="polite"><i></i><span>歷史資料</span></span>
                         <button type="button" class="chart-tool-btn" onclick="resetChartView()" title="重置縮放">↺</button>
                         <button type="button" class="chart-tool-btn" onclick="toggleChartFullscreen()" title="全螢幕">⛶</button>
                     </div>
@@ -276,7 +296,7 @@
                                 <span>收 <b id="hud-close" class="text-white font-mono">—</b></span>
                                 <span>量 <b id="hud-volume" class="text-white font-mono">—</b></span>
                             </div>
-                            <div class="flex items-center gap-2 text-[10px] text-gray-500 font-mono mt-0.5">
+                            <div id="hud-ohlc-row" class="flex items-center gap-2 text-[10px] text-gray-500 font-mono mt-0.5">
                                 <span>開 <b id="hud-open" class="text-gray-300">—</b></span>
                                 <span>高 <b id="hud-high" class="text-gray-300">—</b></span>
                                 <span>低 <b id="hud-low" class="text-gray-300">—</b></span>
@@ -286,10 +306,16 @@
                                 <span class="text-[#f59e0b]">MA20 <b id="hud-ma20">—</b></span>
                                 <span class="text-[#38bdf8]">MA60 <b id="hud-ma60">—</b></span>
                             </div>
+                            <div id="intraday-line-legend" class="intraday-line-legend hidden">
+                                <span class="is-price"><i></i>即時 <b id="hud-live-price">—</b></span>
+                                <span class="is-average"><i></i>均價 <b id="hud-average-price">—</b></span>
+                                <span class="is-previous"><i></i>昨收 <b id="hud-previous-line">—</b></span>
+                            </div>
                         </div>
                         <div class="absolute top-2 right-3 z-10 text-xs font-bold text-gray-500/80 pointer-events-none tracking-wider">
                             <span id="hud-stock-title">—</span>
                         </div>
+                        <div id="chart-session-empty" class="chart-session-empty hidden" role="status"></div>
                         <div id="pane-main" class="w-full h-full"></div>
                     </div>
                     <div id="pane-vol-wrap" class="pane-container h-[65px]">
@@ -329,7 +355,8 @@
             <section id="assessment-card" class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
-                        <div class="section-title theme-text-primary">🧭 技術評估</div>
+                        <p class="panel-kicker">MODEL SIGNAL</p>
+                        <div class="section-title theme-text-primary">技術評估</div>
                         <div class="section-subtitle">基於目前週期的歷史訊號回測，不代表未來報酬</div>
                     </div>
                     <span id="assessment-period" class="text-[10px] text-gray-500">—</span>
@@ -341,6 +368,7 @@
                 </div>
                 <div id="assessment-reasons" class="assessment-reasons">—</div>
             </section>
+            </div>
 
             <!-- 三大法人籌碼分析 -->
             <section id="chip-card" class="section-card p-4 md:p-5 mb-5 hidden">
@@ -360,14 +388,33 @@
                             <button id="chip-tab-holding" onclick="switchChipTab('holding')" class="px-3 py-1 text-gray-400 hover:text-white rounded-md font-medium transition-colors">累計</button>
                     </div>
                 </div>
+                <div class="chip-summary-grid" aria-label="法人買賣超摘要">
+                    <div><small>最新一日</small><strong id="chip-total-today">—</strong></div>
+                    <div><small>近 5 日累計</small><strong id="chip-total-5d">—</strong></div>
+                    <div><small>近 15 日累計</small><strong id="chip-total-15d">—</strong></div>
+                    <div><small>外資連續動向</small><strong id="chip-foreign-streak">—</strong></div>
+                </div>
                 <div class="chip-pie-panel">
-                    <div><div class="text-xs font-semibold text-gray-200">持股比例</div><div class="text-[10px] text-gray-500 mt-0.5">以近 15 日法人累計淨買超計算</div><div id="chip-holding-legend" class="chip-pie-legend"></div></div>
-                    <canvas id="chip-holding-pie" width="120" height="120" aria-label="近十五日法人累計淨買超占比圓餅圖"></canvas>
+                    <div><div class="text-xs font-semibold text-gray-200">法人交易結構</div><div class="text-[10px] text-gray-500 mt-0.5">依近 15 日各法人淨買賣超絕對值計算</div><div id="chip-holding-legend" class="chip-pie-legend"></div></div>
+                    <canvas id="chip-holding-pie" width="120" height="120" aria-label="近十五日法人淨買賣超交易結構圓餅圖"></canvas>
                 </div>
-                <div class="relative w-full h-[180px] mb-3">
-                    <canvas id="chip-history-chart" class="w-full h-full"></canvas>
+                <div class="chip-trend-panel mb-3">
+                    <div class="chip-trend-head">
+                        <div>
+                            <strong>15 日法人買賣超趨勢</strong>
+                            <small id="chip-chart-mode-label">每日淨買賣超 · 張</small>
+                        </div>
+                        <div class="chip-trend-legend" aria-hidden="true">
+                            <span><i class="is-foreign"></i>外資</span>
+                            <span><i class="is-trust"></i>投信</span>
+                            <span><i class="is-dealer"></i>自營商</span>
+                        </div>
+                    </div>
+                    <div class="relative w-full h-[210px]">
+                        <canvas id="chip-history-chart" class="w-full h-full" aria-label="近十五日三大法人買賣超趨勢圖"></canvas>
+                    </div>
                 </div>
-                <div class="grid grid-cols-5 text-center text-xs font-semibold py-2 px-1 bg-white/[0.04] rounded-lg text-gray-400 mb-1 border border-white/5">
+                <div class="chip-table-head grid grid-cols-5 text-center text-xs font-semibold py-2 px-1 bg-white/[0.04] rounded-lg text-gray-400 mb-1 border border-white/5">
                     <div>日期</div>
                     <div class="text-[#38bdf8] flex items-center justify-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-[#38bdf8]"></span>外資</div>
                     <div class="text-[#f87171] flex items-center justify-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-[#f87171]"></span>投信</div>
@@ -397,11 +444,12 @@
                 <div id="chip-source-note" class="text-[10px] text-gray-500 mt-2 text-right">資料來源：TWSE 臺灣證券交易所</div>
             </section>
 
+            <div class="research-grid">
             <!-- 財報與基本面 (Finnhub 版) -->
             <section id="fundamentals-card" class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
-                        <div class="section-title theme-text-primary">📊 財報與基本面</div>
+                        <div class="section-title theme-text-primary">財報與基本面</div>
                         <div class="section-subtitle" id="fundamentals-subtitle">Finnhub Fundamental Metrics</div>
                     </div>
                     <span id="fundamentals-status" class="text-[10px] text-gray-500">—</span>
@@ -424,7 +472,7 @@
             <section id="news-card" class="section-card p-4 md:p-5 mb-5">
                 <div class="flex items-center justify-between gap-3 mb-4">
                     <div>
-                        <div class="section-title theme-text-primary">📰 最新新聞</div>
+                        <div class="section-title theme-text-primary">市場新聞</div>
                         <div class="section-subtitle">Finnhub · Market News</div>
                     </div>
                 </div>
@@ -432,6 +480,7 @@
                     <div class="text-center py-6 text-gray-500 text-xs font-sans">等待載入新聞...</div>
                 </div>
             </section>
+            </div>
         </div>
     </main>
 
@@ -446,6 +495,7 @@
             <div class="setting-item pt-4 border-t border-white/5">
                 <label for="kline-color" class="block text-sm text-gray-500 mb-2">K 線顏色習慣</label>
                 <select id="kline-color" name="klineColor" class="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm">
+                    <option value="auto-market">依市場自動（建議）</option>
                     <option value="red-green">紅漲綠跌 (台灣習慣)</option>
                     <option value="green-red">綠漲紅跌 (國際習慣)</option>
                 </select>
@@ -488,6 +538,6 @@
     </div>
 
     <!-- 加上版本號避免瀏覽器快取舊版 app.js -->
-    <script src="./app.js?v=20260825-1123"></script>
+    <script src="./app.js?v=20260902-futu-intraday"></script>
 </body>
 </html>
